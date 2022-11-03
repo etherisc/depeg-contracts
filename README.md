@@ -29,6 +29,7 @@ Insurable accounts
 
 The depeg definition is based on data provided by the [Chainlink price feed](https://docs.chain.link/docs/data-feeds/price-feeds/) for stable coin USD1.
 See [Contract addresses](https://docs.chain.link/docs/data-feeds/price-feeds/addresses/?network=ethereum) for available price feeds.
+See [this repository](https://github.com/etherisc/poc-chainlink-pricefeed) for some initial analysis of Chainlink price feeds for stable coins.
 
 The following definition for a deterministic definition of a depeg event may be used.
 
@@ -104,3 +105,40 @@ Investing risk captial can be achieved by providing risk captial to the depeg ri
 * When investing in the risk pool the risk investor gets a risk bundle NFT that represents the invested USD2 capital.
 * Once the risk bundle is created the risk capital needs to be unlocked by staking DIP token against the bundle.
 * Only risk capital that is unlocked by DIP staking may be available to cover depeg policies and collect potential return on the risk capital.
+
+## Staking Considerations
+
+### Intro
+
+At the highest level the holder of some staking token (DIP in this use case)
+locks some of her/his token in a smart contract for some time to support the  ecosystem and to get some rewards (DIP tokens in this use case).
+
+The sustainable source for such rewards in the GIF context comes from platform fees that are collected while selling insurance policies.
+
+### Comparison of validator and riskpool staking
+
+To get into staking and delegated staking in the GIF context it might be helpful to compare the widely used validator staking with the GIF specific riskpool staking.
+
+The context of the depeg product is even more specific in the sense that
+the current staking concept for the depeg insurance links staking with individual risk bundels that are funded by risk captial providers (ie the investors).
+
+| Topic           | "Classical" case | Depeg insurance |
+|-----------------|------------------|-----------------|
+| Staking target | Validator | Riskpool bundle |
+| Purpose | Needs staked token to be considered to validate TX | Needs staked token to be able to cover policies with locked risk capital |
+| More staking | Increases likelyhood to validate blocks and win rewards | Unlockes more of the risk capital to cover more policies
+| Reward source | TX fees and freshly minted token | Fraction of platform fees linked to riskpool bundle (converted to DIP token)
+| Payout event | For each validated block | When riskpool bundle is burned
+| Slashing | When validator misses slots or misbehaves | No slashing, GIF ensures that bundle owner cannot act in any malicious way
+
+### Staking and delegated staking
+
+For the purpose of the depeg insurance the only difference between staking and delegated staking is who ownes the staked DIP token. 
+
+The envisioned process to stake or to do delegated staking is as follows.
+
+1. The risk capital investor creates a risk bundle and funds the bundle with USD2
+1. DIP token holders which might or might not be risk capital investors choose an active riskpool bundle and stake DIP to unlock risk capital invested in the bundle.
+1. The rate of staked DIP to unlocked USD2 is fixed. Therefore, the amount of DIP that can be staked to a riskpool bundle is capped by the amount of USD2 token associated with a riskpool bundle.
+
+A likely scenario is to reserve a fraction of the staking volume to whitelisted DIP holders for a certain time to honor their early support and investment in the eco system. 
