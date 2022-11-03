@@ -70,3 +70,37 @@ Payouts are made in an alternative stable coin USD2.
 * Actual payout execution may be triggered by the policy holder
 * For a payout a fixed exchange rate 
 between the payout stable coin USD2 and the fiat USD of 1.0 is used. 
+
+
+## Risk Capital Considerations
+
+### Where does the risk capital come from?
+
+The risk capital in USD2 to cover the depeg policies comes from risk investors.
+Participation makes sense for risk investors with the following believe system
+
+* Depeg risk of USD1 over the coming 3 to 6 months is neglegible
+* Availability of USD2 funds
+* Interest to make some income by locking USD2 funds into a riskpool
+
+### How is the risk premium determined?
+
+The risk investor defines the annual percentage return she/he is asking for covering the depeg risk.
+This annual percentage return asked by the risk investor directly translates into policy net premium amounts.
+
+Risk investors might want to consider the following aspects before fixing their annual percentage return for the provided risk capital.
+
+* The more policies covered, the more return (net premiums - claim payouts)
+* The higher the policy premiums, the more return
+* Setting the annual percentage return very high will likely lead to very few covered policies
+* Setting the annual percentage return very low will likely lead to many covered policies with a low total net premium
+* Finding the sweet spot for the annual percentage return will lead to the highest return on the risk capital.
+
+### How to invest risk capital for the depeg insurance
+
+Investing risk captial can be achieved by providing risk captial to the depeg risk pool.
+
+* Risk investors need to fix their risk parameters (e.g. annual percentage return) and provide risk capital to the risk pool in stable coin USD2.
+* When investing in the risk pool the risk investor gets a risk bundle NFT that represents the invested USD2 capital.
+* Once the risk bundle is created the risk capital needs to be unlocked by staking DIP token against the bundle.
+* Only risk capital that is unlocked by DIP staking may be available to cover depeg policies and collect potential return on the risk capital.
