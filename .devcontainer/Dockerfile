@@ -57,4 +57,6 @@ RUN mkdir -p /home/vscode/.brownie/packages/OpenZeppelin \
 # RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \
 #     && apt-get -y install --no-install-recommends <your-package-list-here>
 
+RUN sudo mkdir /gif-contracts && sudo chown vscode /gif-contracts
+
 WORKDIR /workspace
