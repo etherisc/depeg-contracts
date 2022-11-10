@@ -5,4 +5,4 @@
 echo '>>>> Compiling depeg contracts ...'
 echo "" > .env 
 rm -rf build/
-brownie compile --all 
+#brownie compile --all 
