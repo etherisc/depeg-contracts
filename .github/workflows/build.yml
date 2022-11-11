@@ -45,7 +45,7 @@ jobs:
     name: Compile and run tests
     needs: [have-contracts-changed]
     # only run if contracts have changed
-    # if: ${{ needs.have-contracts-changed.outputs.contracts-changed == 'true' || needs.have-contracts-changed.outputs.tests-changed == 'true' }}
+    if: ${{ needs.have-contracts-changed.outputs.contracts-changed == 'true' || needs.have-contracts-changed.outputs.tests-changed == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
