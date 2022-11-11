@@ -142,3 +142,42 @@ The envisioned process to stake or to do delegated staking is as follows.
 1. The rate of staked DIP to unlocked USD2 is fixed. Therefore, the amount of DIP that can be staked to a riskpool bundle is capped by the amount of USD2 token associated with a riskpool bundle.
 
 A likely scenario is to reserve a fraction of the staking volume to whitelisted DIP holders for a certain time to honor their early support and investment in the eco system. 
+
+## Github actions
+
+### Update Ganache db for deployment test
+
+Start a local ganache with db folder
+
+```bash
+rm -rf .github/workflows/ganache-gif/
+ganache-cli \
+    --mnemonic "candy maple cake sugar pudding cream honey rich smooth crumble sweet treat" \
+    --chain.chainId 1234 \
+    --port 7545 \
+    --accounts 20 \
+    -h "0.0.0.0" \
+    --db .github/workflows/ganache-gif/
+```
+In new shell run the following commands
+
+```bash
+brownie networks add Local ganache-ghaction host=http://localhost:7545 chainid=1234
+cd /gif-contracts
+rm -rf build/
+brownie console --network=ganache-ghaction
+```
+
+Now paste this into the brownie console
+
+```python
+from brownie import TestCoin
+usdc = TestCoin.deploy({'from': accounts[0]})
+from scripts.instance import GifInstance
+instance = GifInstance(accounts[0], accounts[1])
+print("registry=%s\n" % (instance.getRegistry().address))
+print("erc20=%s" % (usdc.address))
+```
+
+Now shutdown above started ganache chain (ctrl+c) and commit the new files to git. Also save the values for registry and erc20 and update the ./github/workflows/build.yml file. 
+
