@@ -157,7 +157,7 @@ ganache-cli \
     --port 7545 \
     --accounts 20 \
     -h "0.0.0.0" \
-    --db .github/workflows/ganache-gif/
+    --database.dbPath .github/workflows/ganache-gif/
 ```
 In new shell run the following commands
 
