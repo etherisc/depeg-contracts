@@ -2,7 +2,6 @@ from web3 import Web3
 
 from brownie import (
     Contract, 
-    CoreProxy,
 )
 
 from brownie.convert import to_bytes

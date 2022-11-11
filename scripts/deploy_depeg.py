@@ -6,10 +6,6 @@ from brownie.network.account import Account
 from brownie import (
     interface,
     network,
-    TestCoin,
-    InstanceService,
-    InstanceOperatorService,
-    ComponentOwnerService,
     DepegProduct,
     DepegRiskpool
 )
@@ -209,13 +205,15 @@ def _pretty_print_delta(title, balances_delta):
 def deploy_setup_including_token(
     stakeholders_accounts, 
     erc20_token,
+    registry_address,
 ):
-    return deploy(stakeholders_accounts, erc20_token, None)
+    return deploy(stakeholders_accounts, erc20_token, registry_address, None)
 
 
 def deploy(
     stakeholders_accounts, 
     erc20_token,
+    registry_address,
     publishSource=False
 ):
 
@@ -245,7 +243,7 @@ def deploy(
     erc20Token = erc20_token
 
     print('====== deploy gif instance ======')
-    instance = GifInstance(instanceOperator, instanceWallet=instanceWallet, publishSource=publishSource)
+    instance = GifInstance(instanceOperator, registryAddress=registry_address, instanceWallet=instanceWallet, publishSource=publishSource)
     instanceService = instance.getInstanceService()
     instanceOperatorService = instance.getInstanceOperatorService()
     componentOwnerService = instance.getComponentOwnerService()
@@ -315,9 +313,9 @@ def deploy(
         CUSTOMER2: customer2,
         ERC20_TOKEM: contract_from_address(interface.ERC20, erc20Token),
         INSTANCE: instance,
-        INSTANCE_SERVICE: contract_from_address(InstanceService, instanceService),
-        INSTANCE_OPERATOR_SERVICE: contract_from_address(InstanceOperatorService, instanceOperatorService),
-        COMPONENT_OWNER_SERVICE: contract_from_address(ComponentOwnerService, componentOwnerService),
+        INSTANCE_SERVICE: contract_from_address(interface.IInstanceService, instanceService),
+        INSTANCE_OPERATOR_SERVICE: contract_from_address(interface.IInstanceOperatorService, instanceOperatorService),
+        COMPONENT_OWNER_SERVICE: contract_from_address(interface.IComponentOwnerService, componentOwnerService),
         PRODUCT: contract_from_address(DepegProduct, product),
         RISKPOOL: contract_from_address(DepegRiskpool, riskpool),
         PROCESS_ID1: processId,
@@ -371,10 +369,11 @@ def help():
 
 
 
-def all_in_1():
+def all_in_1(registry_address, tokenAddress):
     a = stakeholders_accounts_ganache()
-    usd1 = TestCoin.deploy({'from':a[INSTANCE_OPERATOR]})
-    d = deploy_setup_including_token(a, usd1)
+    # usd1 = TestCoin.deploy({'from':a[INSTANCE_OPERATOR]})
+    usd1 = contract_from_address(interface.IERC20, tokenAddress)
+    d = deploy_setup_including_token(a, usd1, registry_address)
 
     customer = d[CUSTOMER1]
     instanceService = d[INSTANCE_SERVICE]
@@ -400,7 +399,7 @@ def new_bundle(
     investor = d['investor']
     riskpool = d['riskpool']
     tokenAddress = riskpool.getErc20Token()
-    token = contract_from_address(TestCoin, tokenAddress)
+    token = contract_from_address(interface.IERC20, tokenAddress)
 
     token.transfer(investor, funding, {'from': instanceOperator})
     token.approve(instance.getTreasury(), funding, {'from': investor})

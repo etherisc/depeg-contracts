@@ -4,13 +4,12 @@ from brownie import Contract
 from brownie.convert import to_bytes
 from brownie.network import accounts
 from brownie.network.account import Account
+import time
 
 from brownie import (
+    interface,
     Wei,
     Contract, 
-    PolicyController,
-    ComponentOwnerService,
-    InstanceOperatorService,
     DepegProduct,
     DepegRiskpool,
 )
@@ -27,9 +26,6 @@ from scripts.util import (
 from scripts.instance import GifInstance
 
 
-RISKPOOL_NAME = 'DepgeRiskpool'
-PRODUCT_NAME = 'DepegProduct'
-
 class GifDepegRiskpool(object):
 
     def __init__(self, 
@@ -39,7 +35,7 @@ class GifDepegRiskpool(object):
         riskpoolWallet: Account,
         investor: Account,
         collateralization:int,
-        name=RISKPOOL_NAME, 
+        name, 
         publishSource=False
     ):
         instanceService = instance.getInstanceService()
@@ -58,8 +54,8 @@ class GifDepegRiskpool(object):
             riskpoolKeeper, 
             {'from': instance.getOwner()})
 
-        print('2) deploy riskpool by riskpool keeper {}'.format(
-            riskpoolKeeper))
+        print('2) deploy riskpool {} by riskpool keeper {}'.format(
+            name, riskpoolKeeper))
 
         sumOfSumInsuredCap = 1000000
         self.riskpool = DepegRiskpool.deploy(
@@ -136,10 +132,10 @@ class GifDepegProduct(object):
         erc20Token, 
         productOwner: Account, 
         riskpool: GifDepegRiskpool, 
-        name=PRODUCT_NAME, 
+        name, 
         publishSource=False
     ):
-        self.policy = instance.getPolicy()
+        #TODO remove self.policy = instance.getPolicy()
         self.riskpool = riskpool
         self.token = erc20Token
 
@@ -224,8 +220,9 @@ class GifDepegProduct(object):
     def getContract(self) -> DepegProduct:
         return self.product
 
-    def getPolicy(self, policyId: str):
-        return self.policy.getPolicy(policyId)
+    # TODO remove
+    # def getPolicy(self, policyId: str):
+    #     return self.policy.getPolicy(policyId)
 
 
 class GifDepegProductComplete(object):
@@ -237,7 +234,7 @@ class GifDepegProductComplete(object):
         erc20Token: Account,
         riskpoolKeeper: Account,
         riskpoolWallet: Account,
-        baseName='Depeg', 
+        baseName='Depeg' + str(int(time.time())),  # FIXME
         publishSource=False
     ):
         instanceService = instance.getInstanceService()

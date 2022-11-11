@@ -5,6 +5,7 @@ import "@etherisc/gif-interface/contracts/modules/IPolicy.sol";
 
 import "@etherisc/gif-interface/contracts/components/IComponent.sol";
 import "@etherisc/gif-interface/contracts/components/Product.sol";
+import "@etherisc/gif-interface/contracts/modules/ITreasury.sol";
 
 
 import "./DepegRiskpool.sol";
@@ -27,6 +28,8 @@ contract DepegProduct is
     event LogDepegOracleTriggered(uint256 exchangeRate);
 
     DepegRiskpool private _riskPool;
+    // hack to have ITreasury in brownie.interface
+    ITreasury private _treasury;
 
     constructor(
         bytes32 productName,
@@ -173,5 +176,9 @@ contract DepegProduct is
 
     function getApplicationDataStructure() external override pure returns(string memory dataStructure) {
         return "(uint256 duration,uint256 maxPremium)";
+    }
+
+    function setTreasury(address treasury) external {
+        _treasury = ITreasury(treasury);
     }
 }

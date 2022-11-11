@@ -10,27 +10,8 @@ from brownie.network.account import Account
 from brownie import (
     Wei,
     Contract, 
-    BundleToken,
-    RiskpoolToken,
-    CoreProxy,
-    AccessController,
-    RegistryController,
-    LicenseController,
-    PolicyController,
-    QueryModule,
-    PoolController,
-    BundleController,
-    PoolController,
-    TreasuryModule,
-    ProductService,
-    OracleService,
-    RiskpoolService,
-    ComponentController,
-    ComponentOwnerService,
-    PolicyDefaultFlow,
-    InstanceOperatorService,
-    InstanceService,
-    network
+    network,
+    interface
 )
 
 from scripts.const import (
@@ -72,7 +53,7 @@ class GifRegistry(object):
             publish_source=publishSource)
 
         self.owner = owner
-        self.registry = contractFromAddress(RegistryController, proxy.address)
+        self.registry = contractFromAddress(interface.IRegistry, proxy.address)
 
         print('owner {}'.format(owner))
         print('controller.address {}'.format(controller.address))
@@ -86,7 +67,7 @@ class GifRegistry(object):
     def getOwner(self) -> Account:
         return self.owner
 
-    def getRegistry(self) -> RegistryController:
+    def getRegistry(self) -> interface.IRegistry:
         return self.registry
 
 
@@ -169,25 +150,17 @@ class GifInstance(GifRegistry):
 
 
     def fromRegistryAddress(self, registry_address):
-        self.registry = contractFromAddress(RegistryController, registry_address)
-        self.access = self.contractFromGifRegistry(AccessController, "Access")
-        self.component = self.contractFromGifRegistry(AccessController, "Component")
+        self.registry = contractFromAddress(interface.IRegistry, registry_address)
+        
+        self.instanceService = self.contractFromGifRegistry(interface.IInstanceService, "InstanceService")
+        self.oracleService = self.contractFromGifRegistry(interface.IOracleService, "OracleService")
+        self.riskpoolService = self.contractFromGifRegistry(interface.IRiskpoolService, "RiskpoolService")
+        self.productService = self.contractFromGifRegistry(interface.IProductService, "ProductService")
 
-        self.query = self.contractFromGifRegistry(QueryModule, "Query")
-        self.license = self.contractFromGifRegistry(LicenseController, "License")
-        self.policy = self.contractFromGifRegistry(PolicyController, "Policy")
-        self.bundle = self.contractFromGifRegistry(BundleController, "Bundle")
-        self.pool = self.contractFromGifRegistry(PoolController, "Pool")
-        self.treasury = self.contractFromGifRegistry(TreasuryModule, "Treasury")
+        self.treasury = self.contractFromGifRegistry(interface.ITreasury, "Treasury")
 
-        self.instanceService = self.contractFromGifRegistry(InstanceService, "InstanceService")
-        self.oracleService = self.contractFromGifRegistry(OracleService, "OracleService")
-        self.riskpoolService = self.contractFromGifRegistry(RiskpoolService, "RiskpoolService")
-        self.productService = self.contractFromGifRegistry(ProductService, "ProductService")
-
-        self.policyFlow = self.contractFromGifRegistry(PolicyDefaultFlow, "PolicyDefaultFlow")
-        self.componentOwnerService = self.contractFromGifRegistry(ComponentOwnerService)
-        self.instanceOperatorService = self.contractFromGifRegistry(InstanceOperatorService)
+        self.componentOwnerService = self.contractFromGifRegistry(interface.IComponentOwnerService, "ComponentOwnerService")
+        self.instanceOperatorService = self.contractFromGifRegistry(interface.IInstanceOperatorService, "InstanceOperatorService")
 
 
     def contractFromGifRegistry(self, contractClass, name=None):
@@ -202,52 +175,25 @@ class GifInstance(GifRegistry):
     def getRegistry(self) -> GifRegistry:
         return self.registry
 
-    def getAccess(self) -> AccessController:
-        return self.access
-
-    def getBundle(self) -> BundleController:
-        return self.bundle
-
-    def getBundleToken(self) -> BundleToken:
-        return self.bundleToken
-
-    def getComponent(self) -> ComponentController:
-        return self.component
-
-    def getLicense(self) -> LicenseController:
-        return self.license
-
-    def getPolicy(self) -> PolicyController:
-        return self.policy
-    
-    def getPolicyDefaultFlow(self) -> PolicyDefaultFlow:
-        return self.policyFlow
-
-    def getPool(self) -> PoolController:
-        return self.pool
-
-    def getTreasury(self) -> TreasuryModule:
+    def getTreasury(self) -> interface.ITreasury:
         return self.treasury
 
-    def getQuery(self) -> QueryModule:
-        return self.query
-
-    def getInstanceOperatorService(self) -> InstanceOperatorService:
+    def getInstanceOperatorService(self) -> interface.IInstanceOperatorService:
         return self.instanceOperatorService
 
-    def getInstanceService(self) -> InstanceService:
+    def getInstanceService(self) -> interface.IInstanceService:
         return self.instanceService
     
-    def getRiskpoolService(self) -> RiskpoolService:
+    def getRiskpoolService(self) -> interface.IRiskpoolService:
         return self.riskpoolService
     
-    def getProductService(self) -> ProductService:
+    def getProductService(self) -> interface.IProductService:
         return self.productService
     
-    def getComponentOwnerService(self) -> ComponentOwnerService:
+    def getComponentOwnerService(self) -> interface.IComponentOwnerService:
         return self.componentOwnerService
     
-    def getOracleService(self) -> OracleService:
+    def getOracleService(self) -> interface.IOracleService:
         return self.oracleService
 
 
