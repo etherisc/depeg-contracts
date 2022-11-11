@@ -1,10 +1,10 @@
 {
-  "name": "@etherisc/gif-contracts",
-  "version": "2.0.0-rc.1-0",
+  "name": "@etherisc/depeg-contracts",
+  "version": "0.0.1",
   "description": "This repository holds the GIF core contracts and tools to develop, test and deploy GIF instances.",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/etherisc/gif-contracts.git"
+    "url": "git+https://github.com/etherisc/depeg-contracts.git"
   },
   "files": [
     "contracts/**/*sol",
@@ -17,12 +17,13 @@
     "insurance",
     "blockchain",
     "ethereum",
-    "solidity"
+    "solidity",
+    "depeg"
   ],
   "license": "Apache-2.0",
   "homepage": "https://www.etherisc.com",
   "bugs": {
-    "url": "https://github.com/etherisc/gif-contracts/issues"
+    "url": "https://github.com/etherisc/gif-depeg/issues"
   },
   "dependencies": {
     "@chainlink/contracts": "0.4.1",
