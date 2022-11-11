@@ -156,7 +156,5 @@ jobs:
       - name: Execute deployment
         run: |
           brownie networks add Local ganache host=http://127.0.0.1:7545 chainid=1234
-          brownie console --network=ganache <<EOF
-          from scripts.deploy_depeg import all_in_1, new_bundle, best_quote, new_policy, inspect_bundle, inspect_bundles, inspect_applications, help
-          all_in_1('0x345cA3e014Aaf5dcA488057592ee47305D9B3e10', '0x8CdaF0CD259887258Bc13a92C0a6dA92698644C0')
-          EOF
+          brownie run test_deployment.py --network=ganache 
+
