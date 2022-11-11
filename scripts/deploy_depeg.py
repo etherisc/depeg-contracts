@@ -369,9 +369,12 @@ def help():
 
 
 
-def all_in_1(registry_address, tokenAddress):
+def all_in_1(registry_address=None, tokenAddress=None):
     a = stakeholders_accounts_ganache()
-    # usd1 = TestCoin.deploy({'from':a[INSTANCE_OPERATOR]})
+    if registry_address is None:
+        registry_address = get_address('registry')
+    if tokenAddress is None:
+        tokenAddress = get_address('erc20')
     usd1 = contract_from_address(interface.IERC20, tokenAddress)
     d = deploy_setup_including_token(a, usd1, registry_address)
 
@@ -384,6 +387,15 @@ def all_in_1(registry_address, tokenAddress):
 
     return (customer, product, riskpool, riskpoolWallet, usd1, instanceService, processId, d)
 
+
+def get_address(name):
+    with open('gif_instance_address.txt') as file:
+        for line in file:
+            if line.startswith(name):
+                t = line.split('=')[1].strip()
+                print('found {} in gif_instance_address.txt: {}'.format(name, t))
+                return t
+    return None
 
 def new_bundle(
     d,

@@ -27,7 +27,7 @@ from scripts.instance import GifInstance
 instance = GifInstance(accounts[0], accounts[1])
 f = open("/workspace/gif_instance_address.txt", "w")
 f.writelines("registry=%s\n" % (instance.getRegistry().address))
-f.writelines("usdc=%s" % (usdc.address))
+f.writelines("erc20=%s" % (usdc.address))
 f.close()
 EOF
 
