@@ -201,7 +201,9 @@ Staking contract on mainnet
 
 ## Github actions
 
-### Update Ganache db for deployment test
+Only go through the process described here if an updated GIF is required for the deployment test.
+
+### Update Ganache DB for deployment test
 
 Start a local ganache with db folder
 
@@ -228,12 +230,17 @@ Now paste this into the brownie console
 
 ```python
 from brownie import TestCoin
-usdc = TestCoin.deploy({'from': accounts[0]})
+instanceOperator = accounts[0]
+instanceWallet = accounts[1]
+usdc = TestCoin.deploy({'from': instanceOperator})
 from scripts.instance import GifInstance
-instance = GifInstance(accounts[0], accounts[1])
-print("registry=%s\n" % (instance.getRegistry().address))
-print("erc20=%s" % (usdc.address))
+instance = GifInstance(instanceOperator, instanceWallet)
+print('registry {}\nerc20 {}'.format(
+    instance.getRegistry().address,
+    usdc.address))
 ```
 
-Now shutdown above started ganache chain (ctrl+c) and commit the new files to git. Also save the values for registry and erc20 and update the ./github/workflows/build.yml file. 
+Now shutdown above started Ganache chain (ctrl+c) and commit the new files to git. 
+
+Also save the values for registry and erc20 in `scripts/test_deployment.py`. 
 
