@@ -366,7 +366,7 @@ def help():
     print('inspect_bundle(d, 1)')
     print('inspect_bundles(d)')
     print('inspect_applications(d)')
-
+    print('best_quote(d, 5000, 29)')
 
 
 def all_in_1(registry_address=None, tokenAddress=None):
@@ -435,9 +435,43 @@ def best_quote(
     sumInsured,
     durationDays,
 ) -> int:
+    instanceService = d[INSTANCE_SERVICE]
+    riskpool = d[RISKPOOL]
     product = d[PRODUCT]
     customer = d[CUSTOMER1]
-    instanceService = d[INSTANCE_SERVICE]
+
+    bundleData = get_bundle_data(instanceService, riskpool)
+    aprMin = 100.0
+    bundleId = None
+
+    for idx in range(len(bundleData)):
+        bundle = bundleData[idx]
+
+        if sumInsured < bundle['minSumInsured']:
+            continue
+
+        if sumInsured > bundle['maxSumInsured']:
+            continue
+
+        if durationDays < bundle['minDuration']:
+            continue
+
+        if durationDays > bundle['maxDuration']:
+            continue
+
+        if aprMin < bundle['apr']:
+            continue
+
+        bundleId = bundle['bundleId']
+        aprMin = bundle['apr']
+    
+    if not bundleId:
+        return {'bundleId':None, 'apr':None, 'premium':sumInsured, 'comment':'no matching bundle'}
+    
+    premium = 0
+    return {'bundleId':bundleId, 'apr':aprMin, 'premium':premium, 'comment':'recommended bundle'}
+
+
 
     duration = durationDays * 24 * 3600
     tx = product.getBestQuote(sumInsured, duration, {'from': customer})
@@ -529,20 +563,19 @@ def inspect_applications(d):
         ))
 
 
-def inspect_bundles(d):
-    instanceService = d[INSTANCE_SERVICE]
-    riskpool = d[RISKPOOL]
+def get_bundle_data(
+    instanceService,
+    riskpool
+):
     riskpoolId = riskpool.getId()
     activeBundleIds = riskpool.getActiveBundleIds()
 
-    # print header row
-    print('i riskpool bundle apr minsuminsured maxsuminsured minduration maxduration capital locked capacity')
+    bundleData = []
 
-    # print individual rows
     for idx in range(len(activeBundleIds)):
         bundleId = activeBundleIds[idx]
         bundle = instanceService.getBundle(bundleId)
-        filter = bundle[4]
+        applicationFilter = bundle[4]
         (
             minSumInsured,
             maxSumInsured,
@@ -550,7 +583,7 @@ def inspect_bundles(d):
             maxDuration,
             annualPercentageReturn
 
-        ) = riskpool.decodeBundleParamsFromFilter(filter)
+        ) = riskpool.decodeBundleParamsFromFilter(applicationFilter)
 
         apr = 100 * annualPercentageReturn/riskpool.getApr100PercentLevel()
         capital = bundle[5]
@@ -558,19 +591,50 @@ def inspect_bundles(d):
         capacity = bundle[5]-bundle[6]
         policies = riskpool.getActivePolicies(bundleId)
 
+        bundleData.append({
+            'idx':idx,
+            'riskpoolId':riskpoolId,
+            'bundleId':bundleId,
+            'apr':apr,
+            'minSumInsured':minSumInsured,
+            'maxSumInsured':maxSumInsured,
+            'minDuration':minDuration/(24*3600),
+            'maxDuration':maxDuration/(24*3600),
+            'capital':capital,
+            'locked':locked,
+            'capacity':capacity,
+            'policies':policies
+        })
+
+    return bundleData
+
+
+def inspect_bundles(d):
+    instanceService = d[INSTANCE_SERVICE]
+    riskpool = d[RISKPOOL]
+
+    bundleData = get_bundle_data(instanceService, riskpool)
+
+    # print header row
+    print('i riskpool bundle apr minsuminsured maxsuminsured minduration maxduration capital locked capacity')
+
+    # print individual rows
+    for idx in range(len(bundleData)):
+        b = bundleData[idx]
+
         print('{} {} {} {:.3f} {} {} {} {} {} {} {} {}'.format(
-            idx,
-            riskpoolId,
-            bundleId,
-            apr,
-            minSumInsured,
-            maxSumInsured,
-            minDuration/(24*3600),
-            maxDuration/(24*3600),
-            capital,
-            locked,
-            capacity,
-            policies
+            b['idx'],
+            b['riskpoolId'],
+            b['bundleId'],
+            b['apr'],
+            b['minSumInsured'],
+            b['maxSumInsured'],
+            b['minDuration'],
+            b['maxDuration'],
+            b['capital'],
+            b['locked'],
+            b['capacity'],
+            b['policies']
         ))
 
 
