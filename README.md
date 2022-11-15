@@ -143,6 +143,62 @@ The envisioned process to stake or to do delegated staking is as follows.
 
 A likely scenario is to reserve a fraction of the staking volume to whitelisted DIP holders for a certain time to honor their early support and investment in the eco system. 
 
+### Implications on bundle life cycle
+
+The bundle life cycle needs a staking phase to unlock the provided risk capital to collateralize policies.
+Such a staking phase can be defined by an additional bundle state `Created` prior to the `Active` state.
+
+
+```mermaid
+stateDiagram-v2
+    [*] --> Created
+    Created --> Active: Stakes collected
+    Locked --> Active: Accept new\npolicies again
+    Active --> Locked: No new policies
+    Active --> Closed: No active policies
+    Locked --> Closed: No active policies
+    Closed --> Burned: Return stakes\npayout rewards
+    Burned --> [*]
+```
+
+While in created state a bundle collects stakes that enable the provided capital to collateralize policies.
+While a bundle is `Created` state anybody (including the bundle owner) with DIP tokens may stake DIP on a bundle in state `Created`.
+
+### Contract setup
+
+Staking tracked and managed by a separate contract outside of any GIF instance.
+As staking provides utility to DIP it should be managed in a central place outside a specific GIF instance.
+
+Potentially the staking contract(s) could live on mainnet and keep track of what address staked how much on which instance on what. 
+
+In this use case staking is defined for bundles only so far.
+
+## Staking using Liquidity Mining
+
+Staking in the DIP ecosystem could be kick started with liquidity mining only.
+DIP holders could stake DIP on active bundles.
+Staked DIP would then earn some percentage of DIP per year on a pro rata base.
+
+Would allow for staking/unstaking at any time.
+Bookkeeping of pro rata staking rewards would be simple to implement.
+
+Such an approach would work without any fee collection book keeping and
+could kick start staking in the DIP ecosystgem.
+
+### Staking Contract
+
+Staking contract on mainnet
+
+### Staker API
+
+* `function stake(bytes32 instanceId, uint256 bundleId, uint256 amount)`
+* `function withdraw(bytes32 instanceId, uint256 bundleId, uint256 amount)`
+* `function balanceOf(address staker, bytes32 instanceId, uint256 bundleId)`
+
+### Maintenance API
+
+* `function syncBundleState(address instanceRegistryAddress)`
+
 ## Github actions
 
 ### Update Ganache db for deployment test
