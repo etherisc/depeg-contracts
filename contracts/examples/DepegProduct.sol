@@ -42,6 +42,31 @@ contract DepegProduct is
         IComponent poolComponent = _instanceService.getComponent(riskpoolId); 
         address poolAddress = address(poolComponent);
         _riskPool = DepegRiskpool(poolAddress);
+        _treasury = ITreasury(_instanceService.getTreasuryAddress());
+    }
+
+
+    function calculateNetPremium(uint256 sumInsured, uint256 duration, uint256 bundleId) public view returns(uint256 netPremium) {
+        IBundle.Bundle memory bundle = _instanceService.getBundle(bundleId);
+        (
+            uint256 minSumInsured,
+            uint256 maxSumInsured,
+            uint256 minDuration,
+            uint256 maxDuration,
+            uint256 annualPercentageReturn
+        ) = _riskPool.decodeBundleParamsFromFilter(bundle.filter);
+        netPremium = _riskPool.calculatePremium(sumInsured, duration, annualPercentageReturn);
+    }
+
+
+    function calculatePremium(uint256 netPremium) public view returns(uint256 premiumAmount) {
+        ITreasury.FeeSpecification memory feeSpec = _treasury.getFeeSpecification(getId());
+        uint256 fractionFullUnit = _treasury.getFractionFullUnit();
+        uint256 fraction = feeSpec.fractionalFee;
+        uint256 fixedFee = feeSpec.fixedFee;
+
+        premiumAmount = fractionFullUnit * (netPremium + fixedFee);
+        premiumAmount /= fractionFullUnit - fraction;
     }
 
 
@@ -131,9 +156,5 @@ contract DepegProduct is
 
     function getApplicationDataStructure() external override pure returns(string memory dataStructure) {
         return "(uint256 duration,uint256 maxPremium)";
-    }
-
-    function setTreasury(address treasury) external {
-        _treasury = ITreasury(treasury);
     }
 }

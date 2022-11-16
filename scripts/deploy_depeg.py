@@ -468,25 +468,11 @@ def best_quote(
     if not bundleId:
         return {'bundleId':None, 'apr':None, 'premium':sumInsured, 'comment':'no matching bundle'}
     
-    premium = 0
-    return {'bundleId':bundleId, 'apr':aprMin, 'premium':premium, 'comment':'recommended bundle'}
-
-
-
     duration = durationDays * 24 * 3600
-    tx = product.getBestQuote(sumInsured, duration, {'from': customer})
-    netPremium = tx.return_value
+    netPremium = product.calculateNetPremium(sumInsured, duration, bundleId)
+    premium = product.calculatePremium(netPremium)
 
-    feeStructure = instanceService.getFeeSpecification(product.getId())
-    feeFullUnit = instanceService.getFeeFractionFullUnit()
-    feeFixedAmount = feeStructure[1]
-    feeFractionPercentage = feeStructure[2]/feeFullUnit
-
-    premium = (netPremium + feeFixedAmount)/(1.0 - feeFractionPercentage)
-    feeFractionAmount = int(premium * feeStructure[2]/feeFullUnit)
-
-    print('premium {} (net premium {}, fixed fee {}, fractional fee {:.2f} ({:.2}%))'.format(
-        premium, netPremium, feeFixedAmount, feeFractionAmount, 100 * feeFractionPercentage))
+    return {'bundleId':bundleId, 'apr':aprMin, 'premium':premium, 'comment':'recommended bundle'}
 
 
 def new_policy(
