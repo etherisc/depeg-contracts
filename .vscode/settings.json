@@ -3,7 +3,7 @@
     "solidity.remappingsUnix": [
         "@openzeppelin/=/home/vscode/.brownie/packages/OpenZeppelin/openzeppelin-contracts@4.7.3",
         "@chainlink/=/home/vscode/.brownie/packages/smartcontractkit/chainlink@1.6.0",
-        "@etherisc/gif-interface/=/home/vscode/.brownie/packages/etherisc/gif-interface@87110db",
+        "@etherisc/gif-interface/=/home/vscode/.brownie/packages/etherisc/gif-interface@a8c9822",
     ],
     "solidity.compileUsingRemoteVersion": "v0.8.2+commit.661d1103",
 }

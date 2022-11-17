@@ -360,7 +360,7 @@ def deploy(
 
 def help():
     print('from scripts.deploy_depeg import all_in_1, new_bundle, best_quote, new_policy, inspect_bundle, inspect_bundles, inspect_applications, help')
-    print('(customer, product, riskpool, riskpoolWallet, usd1, instanceService, processId, d) = all_in_1()')
+    print('(customer, customer2, product, riskpool, riskpoolWallet, usd1, instanceService, instanceOperator, processId, d) = all_in_1()')
     print('instanceService.getPolicy(processId)')
     print('instanceService.getBundle(1)')
     print('inspect_bundle(d, 1)')
@@ -379,13 +379,15 @@ def all_in_1(registry_address=None, tokenAddress=None):
     d = deploy_setup_including_token(a, usd1, registry_address)
 
     customer = d[CUSTOMER1]
+    customer2 = d[CUSTOMER2]
     instanceService = d[INSTANCE_SERVICE]
+    instanceOperator = d[INSTANCE_OPERATOR]
     product = d[PRODUCT]
     riskpool = d[RISKPOOL]
     riskpoolWallet = d[RISKPOOL_WALLET]
     processId = d[PROCESS_ID1]
 
-    return (customer, product, riskpool, riskpoolWallet, usd1, instanceService, processId, d)
+    return (customer, customer2, product, riskpool, riskpoolWallet, usd1, instanceService, instanceOperator, processId, d)
 
 
 def get_address(name):

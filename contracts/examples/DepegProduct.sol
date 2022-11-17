@@ -21,6 +21,8 @@ contract DepegProduct is
     bytes32 [] private _applications; // useful for debugging, might need to get rid of this
     bytes32 [] private _policies;
 
+    mapping(address /* policyHolder */ => bytes32 [] /* processIds */) private _processIdsForHolder;
+
     event LogDepegApplicationCreated(bytes32 policyId, address policyHolder, uint256 premiumAmount, uint256 sumInsuredAmount);
     event LogDepegPolicyCreated(bytes32 policyId, address policyHolder, uint256 premiumAmount, uint256 sumInsuredAmount);
     event LogDepegPolicyProcessed(bytes32 policyId);
@@ -97,6 +99,7 @@ contract DepegProduct is
             applicationData);
 
         _applications.push(processId);
+        _processIdsForHolder[policyHolder].push(processId);
 
         emit LogDepegApplicationCreated(
             processId, 
@@ -115,6 +118,24 @@ contract DepegProduct is
                 premium, 
                 sumInsured);
         }
+    }
+
+    function processIds(address policyHolder)
+        external 
+        view
+        returns(uint256 numberOfProcessIds)
+    {
+        return _processIdsForHolder[policyHolder].length;
+    }
+
+    function getProcessId(address policyHolder, uint256 idx)
+        external 
+        view
+        returns(bytes32 processId)
+    {
+        require(_processIdsForHolder[policyHolder].length > 0, "ERROR:DP-001:NO_POLICIES");
+        require(idx < _processIdsForHolder[policyHolder].length, "ERROR:DP-002:POLICY_INDEX_TOO_LARGE");
+        return _processIdsForHolder[policyHolder][idx];
     }
 
     function triggerOracle() 
