@@ -129,3 +129,4 @@ dmypy.json
 .pyre/
 
 gif_instance_address.txt
+node_modules/

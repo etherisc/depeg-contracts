@@ -82,37 +82,36 @@ jobs:
           path: |
             build
 
-  ## TODO enable when contracts ready for publishing
-  # publish:
-  #   name: Publish package to npmjs
-  #   runs-on: ubuntu-latest
-  #   needs: [have-contracts-changed, test]
-  #   # only run if tests successfull and contracts have changed
-  #   if: ${{ github.ref != 'refs/heads/main' && contains(join(needs.*.result, ','), 'success') && needs.have-contracts-changed.outputs.contracts-changed == 'true' }}
-  #   steps:
-  #     - name: Checkout
-  #       uses: actions/checkout@v3
+  publish:
+    name: Publish package to npmjs
+    runs-on: ubuntu-latest
+    needs: [have-contracts-changed, test]
+    # only run if tests successfull and contracts have changed
+    if: ${{ github.ref != 'refs/heads/main' && contains(join(needs.*.result, ','), 'success') && needs.have-contracts-changed.outputs.contracts-changed == 'true' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
 
-  #     - name: Download build artifacts
-  #       uses: actions/download-artifact@v3
-  #       with:
-  #         name: contracts
-  #         path: build
+      - name: Download build artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: contracts
+          path: build
 
-  #     - name: Setup node environment
-  #       uses: actions/setup-node@v3
-  #       with:
-  #         node-version: 16
-  #         registry-url: 'https://registry.npmjs.org'
+      - name: Setup node environment
+        uses: actions/setup-node@v3
+        with:
+          node-version: 16
+          registry-url: 'https://registry.npmjs.org'
 
-  #     - run: npm ci
+      - run: npm ci
 
-  #     - name: Set build version identifier
-  #       run: npm version "`npm version patch --no-git-tag-version`-`git rev-parse --short HEAD`" --no-git-tag-version
+      - name: Set build version identifier
+        run: npm version "`npm version patch --no-git-tag-version`-`git rev-parse --short HEAD`" --no-git-tag-version
 
-  #     - run: npm publish --tag next
-  #       env:
-  #         NODE_AUTH_TOKEN: ${{ secrets.NPMJS_ACCESS_TOKEN }}
+      - run: npm publish --tag next
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPMJS_ACCESS_TOKEN }}
   
   deployment:
     name: Execute test deployment to local ganache chain
