@@ -432,6 +432,31 @@ def new_bundle(
         {'from': investor})
 
 
+def inspect_fee(
+    d,
+    netPremium,
+):
+    instanceService = d[INSTANCE_SERVICE]
+    product = d[PRODUCT]
+
+    feeSpec = product.getFeeSpecification()
+    fixed = feeSpec[1]
+    fraction = feeSpec[2]
+    fullUnit = product.getFeeFractionFullUnit()
+
+    (feeAmount, totalAmount) = product.calculateFee(netPremium)
+
+    return {
+        'fixedFee': fixed,
+        'fractionalFee': int(netPremium * fraction / fullUnit),
+        'feeFraction': fraction/fullUnit,
+        'netPremium': netPremium,
+        'fees': feeAmount,
+        'totalPremium': totalAmount
+    }
+
+
+
 def best_quote(
     d,
     sumInsured,
@@ -468,13 +493,13 @@ def best_quote(
         aprMin = bundle['apr']
     
     if not bundleId:
-        return {'bundleId':None, 'apr':None, 'premium':sumInsured, 'comment':'no matching bundle'}
+        return {'bundleId':None, 'apr':None, 'premium':sumInsured, 'netPremium':sumInsured, 'comment':'no matching bundle'}
     
     duration = durationDays * 24 * 3600
     netPremium = product.calculateNetPremium(sumInsured, duration, bundleId)
     premium = product.calculatePremium(netPremium)
 
-    return {'bundleId':bundleId, 'apr':aprMin, 'premium':premium, 'comment':'recommended bundle'}
+    return {'bundleId':bundleId, 'apr':aprMin, 'premium':premium, 'netPremium':netPremium, 'comment':'recommended bundle'}
 
 
 def new_policy(

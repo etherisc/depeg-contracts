@@ -6,6 +6,7 @@ import "@etherisc/gif-interface/contracts/modules/IPolicy.sol";
 import "@etherisc/gif-interface/contracts/components/IComponent.sol";
 import "@etherisc/gif-interface/contracts/components/Product.sol";
 import "@etherisc/gif-interface/contracts/modules/ITreasury.sol";
+import "@etherisc/gif-contracts/contracts/modules/TreasuryModule.sol";
 
 
 import "./DepegRiskpool.sol";
@@ -23,7 +24,7 @@ contract DepegProduct is
 
     mapping(address /* policyHolder */ => bytes32 [] /* processIds */) private _processIdsForHolder;
 
-    event LogDepegApplicationCreated(bytes32 policyId, address policyHolder, uint256 premiumAmount, uint256 sumInsuredAmount);
+    event LogDepegApplicationCreated(bytes32 policyId, address policyHolder, uint256 premiumAmount, uint256 netPremiumAmount, uint256 sumInsuredAmount);
     event LogDepegPolicyCreated(bytes32 policyId, address policyHolder, uint256 premiumAmount, uint256 sumInsuredAmount);
     event LogDepegPolicyProcessed(bytes32 policyId);
 
@@ -31,7 +32,7 @@ contract DepegProduct is
 
     DepegRiskpool private _riskPool;
     // hack to have ITreasury in brownie.interface
-    ITreasury private _treasury;
+    TreasuryModule private _treasury;
 
     constructor(
         bytes32 productName,
@@ -44,7 +45,7 @@ contract DepegProduct is
         IComponent poolComponent = _instanceService.getComponent(riskpoolId); 
         address poolAddress = address(poolComponent);
         _riskPool = DepegRiskpool(poolAddress);
-        _treasury = ITreasury(_instanceService.getTreasuryAddress());
+        _treasury = TreasuryModule(_instanceService.getTreasuryAddress());
     }
 
 
@@ -60,9 +61,45 @@ contract DepegProduct is
         netPremium = _riskPool.calculatePremium(sumInsured, duration, annualPercentageReturn);
     }
 
+    // TODO make this (well: TreasuryModule._calculateFee actually) available via instance service
+    function calculateFee(uint256 amount)
+        public
+        view
+        returns(uint256 feeAmount, uint256 totalAmount)
+    {
+        ITreasury.FeeSpecification memory feeSpec = getFeeSpecification();
+
+        // start with fixed fee
+        feeAmount = feeSpec.fixedFee;
+
+        // add fractional fee on top
+        if (feeSpec.fractionalFee > 0) {
+            feeAmount += (feeSpec.fractionalFee * amount) / getFeeFractionFullUnit();
+        }
+
+        totalAmount = amount + feeAmount;
+    }
+
+
+    // TODO make this available via instance service
+    function getFeeSpecification()
+        public
+        view
+        returns(ITreasury.FeeSpecification memory feeSpecification)
+    {
+        feeSpecification = _treasury.getFeeSpecification(getId());
+    }
+
+    function getFeeFractionFullUnit()
+        public
+        view
+        returns(uint256 fractionFullUnit)
+    {
+        fractionFullUnit = _treasury.getFractionFullUnit();
+    }
 
     function calculatePremium(uint256 netPremium) public view returns(uint256 premiumAmount) {
-        ITreasury.FeeSpecification memory feeSpec = _treasury.getFeeSpecification(getId());
+        ITreasury.FeeSpecification memory feeSpec = getFeeSpecification();
         uint256 fractionFullUnit = _treasury.getFractionFullUnit();
         uint256 fraction = feeSpec.fractionalFee;
         uint256 fixedFee = feeSpec.fixedFee;
@@ -80,20 +117,21 @@ contract DepegProduct is
         external 
         returns(bytes32 processId)
     {
+        (
+            uint256 feeAmount, 
+            uint256 maxNetPremium
+        ) = _treasury.calculateFee(getId(), maxPremium);
+
         address policyHolder = msg.sender;
         bytes memory metaData = "";
         bytes memory applicationData = _riskPool.encodeApplicationParameterAsData(
             duration,
-            maxPremium
+            maxNetPremium
         );
-
-        // TODO proper mechanism to decide premium
-        // maybe hook after policy creation with adjustpremiumsuminsured?
-        uint256 premium = maxPremium;
 
         processId = _newApplication(
             policyHolder, 
-            premium, 
+            maxPremium, 
             sumInsured,
             metaData,
             applicationData);
@@ -104,7 +142,8 @@ contract DepegProduct is
         emit LogDepegApplicationCreated(
             processId, 
             policyHolder, 
-            premium, 
+            maxPremium, 
+            maxNetPremium, 
             sumInsured);
 
         bool success = _underwrite(processId);
@@ -115,7 +154,7 @@ contract DepegProduct is
             emit LogDepegPolicyCreated(
                 processId, 
                 policyHolder, 
-                premium, 
+                maxPremium, 
                 sumInsured);
         }
     }
