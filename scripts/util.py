@@ -62,7 +62,7 @@ def deployGifModule(
     storageClass, 
     registry, 
     owner,
-    publishSource
+    publishSource=False
 ):
     controller = controllerClass.deploy(
         registry.address, 
@@ -88,7 +88,7 @@ def deployGifToken(
     tokenClass,
     registry,
     owner,
-    publishSource
+    publishSource=False
 ):
     print('token {} deploy'.format(tokenName))
     token = tokenClass.deploy(
@@ -108,7 +108,7 @@ def deployGifModuleV2(
     controllerClass, 
     registry, 
     owner,
-    publishSource
+    publishSource=False
 ):
     print('module {} deploy controller'.format(moduleName))
     controller = controllerClass.deploy(
@@ -142,7 +142,7 @@ def deployGifService(
     serviceClass, 
     registry, 
     owner,
-    publishSource
+    publishSource=False
 ):
     service = serviceClass.deploy(
         registry.address, 
@@ -158,7 +158,7 @@ def deployGifServiceV2(
     serviceClass, 
     registry, 
     owner,
-    publishSource
+    publishSource=False
 ):
     service = serviceClass.deploy(
         registry.address, 

@@ -1,0 +1,12 @@
+pragma solidity 0.8.2;
+
+import "@etherisc/gif-contracts/contracts/modules/PolicyController.sol";
+import "@etherisc/gif-contracts/contracts/shared/CoreProxy.sol";
+
+contract Dummy {
+
+    PolicyController private _policyController;
+    function setPolicyController(address controllerAddress) public {
+        _policyController = PolicyController(controllerAddress);
+    }
+}

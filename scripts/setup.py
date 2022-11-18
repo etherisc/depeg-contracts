@@ -1,12 +1,45 @@
+from brownie import interface
 from brownie.network import accounts
 from brownie.network.account import Account
 
-from brownie import (
-    TestCoin,
-)
-
 from scripts.instance import GifInstance
-from scripts.ayii_product import GifAyiiProductComplete
+from scripts.depeg_product import GifDepegProductComplete
+from scripts.util import contract_from_address
+
+
+def new_bundle(
+    instance,
+    instanceOperator,
+    investor,
+    riskpool,
+    funding,
+    minSumInsured,
+    maxSumInsured,
+    minDurationDays,
+    maxDurationDays,
+    aprPercentage
+) -> int:
+    tokenAddress = riskpool.getErc20Token()
+    token = contract_from_address(interface.IERC20, tokenAddress)
+
+    token.transfer(investor, funding, {'from': instanceOperator})
+    token.approve(instance.getTreasury(), funding, {'from': investor})
+
+    apr100level = riskpool.getApr100PercentLevel();
+    apr = apr100level * aprPercentage / 100
+
+    spd = 24*3600
+    bundleId = riskpool.createBundle(
+        minSumInsured,
+        maxSumInsured,
+        minDurationDays * spd,
+        maxDurationDays * spd,
+        apr,
+        funding, 
+        {'from': investor})
+
+    return bundleId
+
 
 def fund_riskpool(
     instance: GifInstance, 
