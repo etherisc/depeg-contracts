@@ -241,27 +241,27 @@ def instance(
 
 #=== depeg deployed contracts fixtures ========================================#
 
-# @pytest.fixture(scope="module")
-# def gifDepegDeploy(
-#     instance: GifInstance, 
-#     productOwner: Account, 
-#     investor: Account, 
-#     erc20Token: Account,
-#     riskpoolKeeper: Account, 
-#     riskpoolWallet: Account
-# ) -> GifDepegProductComplete:
-#     return GifDepegProductComplete(
-#         instance, 
-#         productOwner, 
-#         investor, 
-#         erc20Token,
-#         riskpoolKeeper, 
-#         riskpoolWallet)
+@pytest.fixture(scope="module")
+def gifDepegDeploy(
+    instance: GifInstance, 
+    productOwner: Account, 
+    investor: Account, 
+    usd1: USD1,
+    riskpoolKeeper: Account, 
+    riskpoolWallet: Account
+) -> GifDepegProductComplete:
+    return GifDepegProductComplete(
+        instance, 
+        productOwner, 
+        investor,
+        usd1,
+        riskpoolKeeper, 
+        riskpoolWallet)
 
-# @pytest.fixture(scope="module")
-# def gifDepegProduct(gifDepegDeploy) -> GifDepegProduct:
-#     return gifDepegDeploy.getProduct()
+@pytest.fixture(scope="module")
+def gifDepegProduct(gifDepegDeploy) -> GifDepegProduct:
+    return gifDepegDeploy.getProduct()
 
-# @pytest.fixture(scope="module")
-# def gifDepegRiskpool(gifDepegDeploy) -> GifDepegRiskpool:
-#     return gifDepegDeploy.getRiskpool()
+@pytest.fixture(scope="module")
+def gifDepegRiskpool(gifDepegDeploy) -> GifDepegRiskpool:
+    return gifDepegDeploy.getRiskpool()
