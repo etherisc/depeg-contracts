@@ -4,9 +4,11 @@ from brownie import (
     Contract, 
 )
 
+from brownie import accounts, config, project
 from brownie.convert import to_bytes
-from brownie.network import accounts
 from brownie.network.account import Account
+
+CONFIG_DEPENDENCIES = 'dependencies'
 
 def s2h(text: str) -> str:
     return Web3.toHex(text.encode('ascii'))
@@ -38,6 +40,18 @@ def get_account(mnemonic: str, account_offset: int) -> Account:
         count=1,
         offset=account_offset)
 
+def get_package(substring: str):
+    for dependency in config[CONFIG_DEPENDENCIES]:
+        if substring in dependency:
+            print("using package '{}' for '{}'".format(
+                dependency,
+                substring))
+            
+            return project.load(dependency, raise_if_loaded=False)
+    
+    print("no package for substring '{}' found".format(substring))
+    return None
+
 # source: https://github.com/brownie-mix/upgrades-mix/blob/main/scripts/helpful_scripts.py 
 def encode_function_data(*args, initializer=None):
     """Encodes the function call so we can work with an initializer.
@@ -55,122 +69,6 @@ def encode_function_data(*args, initializer=None):
     if initializer: return initializer.encode_input(*args)
 
     return b''
-
-# generic upgradable gif module deployment
-def deployGifModule(
-    controllerClass, 
-    storageClass, 
-    registry, 
-    owner,
-    publishSource=False
-):
-    controller = controllerClass.deploy(
-        registry.address, 
-        {'from': owner},
-        publish_source=publishSource)
-    
-    storage = storageClass.deploy(
-        registry.address, 
-        {'from': owner},
-        publish_source=publishSource)
-
-    controller.assignStorage(storage.address, {'from': owner})
-    storage.assignController(controller.address, {'from': owner})
-
-    registry.register(controller.NAME.call(), controller.address, {'from': owner})
-    registry.register(storage.NAME.call(), storage.address, {'from': owner})
-
-    return contractFromAddress(controllerClass, storage.address)
-
-# gif token deployment
-def deployGifToken(
-    tokenName,
-    tokenClass,
-    registry,
-    owner,
-    publishSource=False
-):
-    print('token {} deploy'.format(tokenName))
-    token = tokenClass.deploy(
-        {'from': owner},
-        publish_source=publishSource)
-
-    tokenNameB32 = s2b32(tokenName)
-    print('token {} register'.format(tokenName))
-    registry.register(tokenNameB32, token.address, {'from': owner})
-
-    return token
-
-
-# generic open zeppelin upgradable gif module deployment
-def deployGifModuleV2(
-    moduleName,
-    controllerClass, 
-    registry, 
-    owner,
-    publishSource=False
-):
-    print('module {} deploy controller'.format(moduleName))
-    controller = controllerClass.deploy(
-        {'from': owner},
-        publish_source=publishSource)
-
-    encoded_initializer = encode_function_data(
-        registry.address,
-        initializer=controller.initialize)
-
-    print('module {} deploy proxy'.format(moduleName))
-    proxy = CoreProxy.deploy(
-        controller.address, 
-        encoded_initializer, 
-        {'from': owner},
-        publish_source=publishSource)
-
-    moduleNameB32 = s2b32(moduleName)
-    controllerNameB32 = s2b32('{}Controller'.format(moduleName)[:32])
-
-    print('module {} ({}) register controller'.format(moduleName, controllerNameB32))
-    registry.register(controllerNameB32, controller.address, {'from': owner})
-    print('module {} ({}) register proxy'.format(moduleName, moduleNameB32))
-    registry.register(moduleNameB32, proxy.address, {'from': owner})
-
-    return contractFromAddress(controllerClass, proxy.address)
-
-
-# generic upgradable gif service deployment
-def deployGifService(
-    serviceClass, 
-    registry, 
-    owner,
-    publishSource=False
-):
-    service = serviceClass.deploy(
-        registry.address, 
-        {'from': owner},
-        publish_source=publishSource)
-
-    registry.register(service.NAME.call(), service.address, {'from': owner})
-
-    return service
-
-def deployGifServiceV2(
-    serviceName,
-    serviceClass, 
-    registry, 
-    owner,
-    publishSource=False
-):
-    service = serviceClass.deploy(
-        registry.address, 
-        {'from': owner},
-        publish_source=publishSource)
-
-    registry.register(s2b32(serviceName), service.address, {'from': owner})
-
-    return service
-
-def contractFromAddress(contractClass, contractAddress):
-    return contract_from_address(contractClass, contractAddress)
 
 def contract_from_address(contractClass, contractAddress):
     return Contract.from_abi(contractClass._name, contractAddress, contractClass.abi)

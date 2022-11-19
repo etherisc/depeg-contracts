@@ -2,7 +2,7 @@ from brownie import interface
 from brownie.network import accounts
 from brownie.network.account import Account
 
-from scripts.instance import GifInstance
+from scripts.instance_test import GifInstance
 from scripts.depeg_product import GifDepegProductComplete
 from scripts.util import contract_from_address
 

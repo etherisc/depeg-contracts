@@ -17,7 +17,7 @@ from scripts.setup import (
     new_bundle,
 )
 
-from scripts.instance import (
+from scripts.instance_test import (
     GifInstance,
 )
 

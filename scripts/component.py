@@ -18,7 +18,7 @@ from brownie import (
 
 from scripts.util import (
     get_account,
-    contractFromAddress,
+    contract_from_address,
     s2b32,
 )
 
@@ -30,7 +30,7 @@ class GifComponent(object):
     def __init__(self, 
         componentAddress: Account, 
     ):
-        self.component = contractFromAddress(interface.IComponent, componentAddress)
+        self.component = contract_from_address(interface.IComponent, componentAddress)
         self.instance = GifInstance(registryAddress=self.component.getRegistry())
 
         instanceService = self.instance.getInstanceService()
@@ -38,5 +38,5 @@ class GifComponent(object):
         componentOwnerService = self.instance.getComponentOwnerService()
         riskpoolService = self.instance.getRiskpoolService()
 
-        self.component = contractFromAddress(interface.IComponent, componentAddress)
+        self.component = contract_from_address(interface.IComponent, componentAddress)
         self.instance = GifInstance(registryAddress=self.component.getRegistry())

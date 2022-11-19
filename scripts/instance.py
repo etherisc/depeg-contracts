@@ -19,16 +19,10 @@ from scripts.const import (
 )
 
 from scripts.util import (
-    get_account,
     encode_function_data,
     s2h,
-    s2b32,
-    deployGifModule,
-    deployGifService,
-    deployGifToken,
-    deployGifModuleV2,
-    deployGifServiceV2,
-    contractFromAddress,
+    s2b,
+    contract_from_address,
 )
 
 class GifRegistry(object):
@@ -43,7 +37,7 @@ class GifRegistry(object):
             publish_source=publishSource)
 
         encoded_initializer = encode_function_data(
-            s2b32(GIF_RELEASE),
+            s2b(GIF_RELEASE),
             initializer=controller.initializeRegistry)
 
         proxy = CoreProxy.deploy(
@@ -53,7 +47,7 @@ class GifRegistry(object):
             publish_source=publishSource)
 
         self.owner = owner
-        self.registry = contractFromAddress(interface.IRegistry, proxy.address)
+        self.registry = contract_from_address(interface.IRegistry, proxy.address)
 
         print('owner {}'.format(owner))
         print('controller.address {}'.format(controller.address))
@@ -61,8 +55,8 @@ class GifRegistry(object):
         print('registry.address {}'.format(self.registry.address))
         print('registry.getContract(InstanceOperatorService) {}'.format(self.registry.getContract(s2h("InstanceOperatorService"))))
 
-        self.registry.register(s2b32("Registry"), proxy.address, {'from': owner})
-        self.registry.register(s2b32("RegistryController"), controller.address, {'from': owner})
+        self.registry.register(s2b("Registry"), proxy.address, {'from': owner})
+        self.registry.register(s2b("RegistryController"), controller.address, {'from': owner})
 
     def getOwner(self) -> Account:
         return self.owner
@@ -150,7 +144,7 @@ class GifInstance(GifRegistry):
 
 
     def fromRegistryAddress(self, registry_address):
-        self.registry = contractFromAddress(interface.IRegistry, registry_address)
+        self.registry = contract_from_address(interface.IRegistry, registry_address)
         
         self.instanceService = self.contractFromGifRegistry(interface.IInstanceService, "InstanceService")
         self.oracleService = self.contractFromGifRegistry(interface.IOracleService, "OracleService")
@@ -165,12 +159,12 @@ class GifInstance(GifRegistry):
 
     def contractFromGifRegistry(self, contractClass, name=None):
         if not name:
-            nameB32 = s2b32(contractClass._name)
+            nameB32 = s2b(contractClass._name)
         else:
-            nameB32 = s2b32(name)
+            nameB32 = s2b(name)
         
         address = self.registry.getContract(nameB32)
-        return contractFromAddress(contractClass, address)
+        return contract_from_address(contractClass, address)
 
     def getRegistry(self) -> GifRegistry:
         return self.registry
@@ -197,103 +191,91 @@ class GifInstance(GifRegistry):
         return self.oracleService
 
 
-def dump_sources(registryAddress=None):
-
-    dump_sources_summary_dir = './dump_sources/{}'.format(network.show_active())
-    dump_sources_summary_file = '{}/contracts.txt'.format(dump_sources_summary_dir)
-
-    # create parent dir
-    try:
-        os.mkdir('./dump_sources')
-    except OSError:
-        pass
-
-    # create network specific sub dir
-    try:
-        os.mkdir(dump_sources_summary_dir)
-    except OSError:
-        pass
+# generic upgradable gif module deployment
+def deployGifModule(
+    controllerClass, 
+    storageClass, 
+    registry, 
+    owner,
+):
+    controller = controllerClass.deploy(
+        registry.address, 
+        {'from': owner})
     
-    instance = None
-        
-    if registryAddress:
-        instance = GifInstance(registryAddress=registryAddress)
-        
-    contracts = []
-    contracts.append(dump_single(CoreProxy, "Registry", instance))
-    contracts.append(dump_single(RegistryController, "RegistryController", instance))
+    storage = storageClass.deploy(
+        registry.address, 
+        {'from': owner})
 
-    contracts.append(dump_single(BundleToken, "BundleToken", instance))
-    contracts.append(dump_single(RiskpoolToken, "RiskpoolToken", instance))
+    controller.assignStorage(storage.address, {'from': owner})
+    storage.assignController(controller.address, {'from': owner})
 
-    contracts.append(dump_single(CoreProxy, "Access", instance))
-    contracts.append(dump_single(AccessController, "AccessController", instance))
+    registry.register(controller.NAME.call(), controller.address, {'from': owner})
+    registry.register(storage.NAME.call(), storage.address, {'from': owner})
 
-    contracts.append(dump_single(CoreProxy, "Component", instance))
-    contracts.append(dump_single(ComponentController, "ComponentController", instance))
-
-    contracts.append(dump_single(CoreProxy, "Query", instance))
-    contracts.append(dump_single(QueryModule, "QueryModule", instance))
-
-    contracts.append(dump_single(CoreProxy, "License", instance))
-    contracts.append(dump_single(LicenseController, "LicenseController", instance))
-
-    contracts.append(dump_single(CoreProxy, "Policy", instance))
-    contracts.append(dump_single(PolicyController, "PolicyController", instance))
-
-    contracts.append(dump_single(CoreProxy, "Bundle", instance))
-    contracts.append(dump_single(BundleController, "BundleController", instance))
-
-    contracts.append(dump_single(CoreProxy, "Pool", instance))
-    contracts.append(dump_single(PoolController, "PoolController", instance))
-
-    contracts.append(dump_single(CoreProxy, "Treasury", instance))
-    contracts.append(dump_single(TreasuryModule, "TreasuryModule", instance))
-
-    contracts.append(dump_single(PolicyDefaultFlow, "PolicyDefaultFlow", instance))
-
-    contracts.append(dump_single(CoreProxy, "InstanceService", instance))
-    contracts.append(dump_single(InstanceService, "InstanceServiceController", instance))
-
-    contracts.append(dump_single(CoreProxy, "ComponentOwnerService", instance))
-    contracts.append(dump_single(ComponentOwnerService, "ComponentOwnerServiceController", instance))
-
-    contracts.append(dump_single(CoreProxy, "OracleService", instance))
-    contracts.append(dump_single(OracleService, "OracleServiceController", instance))
-
-    contracts.append(dump_single(CoreProxy, "RiskpoolService", instance))
-    contracts.append(dump_single(RiskpoolService, "RiskpoolServiceController", instance))
-
-    contracts.append(dump_single(ProductService, "ProductService", instance))
-
-    contracts.append(dump_single(CoreProxy, "InstanceOperatorService", instance))
-    contracts.append(dump_single(InstanceOperatorService, "InstanceOperatorServiceController", instance))
-
-    with open(dump_sources_summary_file,'w') as f: 
-        f.write('\n'.join(contracts))
-        f.write('\n')
-
-    print('\n'.join(contracts))
-    print('\nfor contract json files see directory {}'.format(dump_sources_summary_dir))
+    return contract_from_address(controllerClass, storage.address)
 
 
-def dump_single(contract, registryName, instance=None) -> str:
+# gif token deployment
+def deployGifToken(
+    tokenName,
+    tokenClass,
+    registry,
+    owner,
+):
+    print('token {} deploy'.format(tokenName))
+    token = tokenClass.deploy(
+        {'from': owner})
 
-    info = contract.get_verification_info()
-    netw = network.show_active()
-    compiler = info['compiler_version']
-    optimizer = info['optimizer_enabled']
-    runs = info['optimizer_runs']
-    license = info['license_identifier']
-    address = 'no_address'
-    name = info['contract_name']
+    tokenNameB32 = s2b(tokenName)
+    print('token {} register'.format(tokenName))
+    registry.register(tokenNameB32, token.address, {'from': owner})
 
-    if instance:
-        nameB32 = s2b32(registryName)
-        address = instance.registry.getContract(nameB32)
+    return token
 
-    dump_sources_contract_file = './dump_sources/{}/{}.json'.format(netw, name)
-    with open(dump_sources_contract_file,'w') as f: 
-        f.write(json.dumps(contract.get_verification_info()['standard_json_input']))
 
-    return '{} {} {} {} {} {} {}'.format(netw, compiler, optimizer, runs, license, address, name)
+# generic open zeppelin upgradable gif module deployment
+def deployGifModuleV2(
+    moduleName,
+    controllerClass,
+    registry, 
+    owner,
+    gif
+):
+    print('module {} deploy controller'.format(moduleName))
+    controller = controllerClass.deploy(
+        {'from': owner})
+
+    encoded_initializer = encode_function_data(
+        registry.address,
+        initializer=controller.initialize)
+
+    print('module {} deploy proxy'.format(moduleName))
+    proxy = gif.CoreProxy.deploy(
+        controller.address, 
+        encoded_initializer, 
+        {'from': owner})
+
+    moduleNameB32 = s2b(moduleName)
+    controllerNameB32 = s2b('{}Controller'.format(moduleName)[:32])
+
+    print('module {} ({}) register controller'.format(moduleName, controllerNameB32))
+    registry.register(controllerNameB32, controller.address, {'from': owner})
+    print('module {} ({}) register proxy'.format(moduleName, moduleNameB32))
+    registry.register(moduleNameB32, proxy.address, {'from': owner})
+
+    return contract_from_address(controllerClass, proxy.address)
+
+
+# generic upgradable gif service deployment
+def deployGifService(
+    serviceClass, 
+    registry, 
+    owner,
+):
+    service = serviceClass.deploy(
+        registry.address, 
+        {'from': owner})
+
+    registry.register(service.NAME.call(), service.address, {'from': owner})
+
+    return service

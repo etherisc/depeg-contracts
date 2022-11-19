@@ -1,8 +1,6 @@
 from web3 import Web3
 
 from brownie import Contract
-from brownie.convert import to_bytes
-from brownie.network import accounts
 from brownie.network.account import Account
 import time
 
@@ -14,17 +12,8 @@ from brownie import (
     DepegRiskpool,
 )
 
-from scripts.util import (
-    get_account,
-    encode_function_data,
-    # s2h,
-    s2b32,
-    deployGifModule,
-    deployGifService,
-)
-
-from scripts.instance import GifInstance
-
+from scripts.util import s2b
+from scripts.instance_test import GifInstance
 
 class GifDepegRiskpool(object):
 
@@ -59,7 +48,7 @@ class GifDepegRiskpool(object):
 
         sumOfSumInsuredCap = 1000000
         self.riskpool = DepegRiskpool.deploy(
-            s2b32(name),
+            s2b(name),
             sumOfSumInsuredCap,
             erc20Token,
             riskpoolWallet,
@@ -159,7 +148,7 @@ class GifDepegProduct(object):
             productOwner))
         
         self.product = DepegProduct.deploy(
-            s2b32(name),
+            s2b(name),
             registry,
             erc20Token.address,
             riskpool.getId(),
@@ -219,10 +208,6 @@ class GifDepegProduct(object):
     
     def getContract(self) -> DepegProduct:
         return self.product
-
-    # TODO remove
-    # def getPolicy(self, policyId: str):
-    #     return self.policy.getPolicy(policyId)
 
 
 class GifDepegProductComplete(object):
