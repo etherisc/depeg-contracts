@@ -90,6 +90,9 @@ def theOutsider(accounts) -> Account:
 #=== access to gif-contracts contract classes  =======================#
 
 @pytest.fixture(scope="module")
+def gifi(): return get_package('gif-interface')
+
+@pytest.fixture(scope="module")
 def gif(): return get_package('gif-contracts')
 
 #=== stable coin fixtures ============================================#
@@ -110,6 +113,9 @@ def registry(instanceOperator, gif) -> GifRegistry: return GifRegistry(instanceO
 
 @pytest.fixture(scope="module")
 def instance(instanceOperator, instanceWallet, gif) -> GifInstance: return GifInstance(instanceOperator, instanceWallet, gif)
+
+@pytest.fixture(scope="module")
+def instanceService(instance): return instance.getInstanceService()
 
 #=== depeg deployed contracts fixtures ========================================#
 
@@ -134,4 +140,7 @@ def gifDepegDeploy(
 def gifDepegProduct(gifDepegDeploy) -> GifDepegProduct: return gifDepegDeploy.getProduct()
 
 @pytest.fixture(scope="module")
-def gifDepegRiskpool(gifDepegDeploy) -> GifDepegRiskpool: return gifDepegDeploy.getRiskpool()
+def product(gifDepegProduct) -> DepegProduct: return gifDepegProduct.getContract()
+
+@pytest.fixture(scope="module")
+def riskpool(gifDepegProduct) -> DepegRiskpool: return gifDepegProduct.getRiskpool().getContract()

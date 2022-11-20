@@ -11,7 +11,6 @@ from scripts.instance_test import GifRegistry
 def isolation(fn_isolation):
     pass
 
-
 def test_registry(
     instanceOperator: Account,
     registry: GifRegistry,

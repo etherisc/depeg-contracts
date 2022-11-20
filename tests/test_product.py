@@ -17,13 +17,12 @@ from scripts.depeg_product import (
 def isolation(fn_isolation):
     pass
 
-
-def test_product(
+def test_gif_product(
     gifDepegProduct: GifDepegProduct,
-    gifDepegRiskpool: GifDepegRiskpool,
     riskpoolWallet: Account,
     usd1: USD1,
 ):
+    gifDepegRiskpool = gifDepegProduct.getRiskpool()
 
     print('gifDepegProduct {}'.format(gifDepegProduct))
     print('gifDepegRiskpool {}'.format(gifDepegRiskpool))
@@ -46,8 +45,39 @@ def test_product(
         b2s(riskpool.getName())
     ))
 
+
+def test_product_deploy(
+    instanceService,
+    instanceOperator,
+    productOwner,
+    riskpoolKeeper,
+    product,
+    riskpool,
+    riskpoolWallet: Account,
+    usd1: USD1,
+):
+    # check role assignements
+    poRole = instanceService.getProductOwnerRole()
+    rkRole = instanceService.getRiskpoolKeeperRole()
+
+    assert instanceService.getInstanceOperator() == instanceOperator
+    assert instanceService.hasRole(poRole, productOwner)
+    assert instanceService.hasRole(rkRole, riskpoolKeeper)
+
+    # check deployed product, oracle
+    assert instanceService.products() == 1
+    assert instanceService.oracles() == 0
+    assert instanceService.riskpools() == 1
+
+    assert instanceService.getComponent(product.getId()) == product 
+    assert instanceService.getComponent(riskpool.getId()) == riskpool 
+
+    # TODO check fee specification once this is available from instanceService
+
+    # check product
     assert product.getRiskpoolId() == riskpool.getId()
     assert product.getToken() == usd1
 
+    # check riskpool
     assert riskpool.getWallet() == riskpoolWallet
     assert riskpool.getErc20Token() == usd1

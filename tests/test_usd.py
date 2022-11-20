@@ -12,7 +12,6 @@ from brownie import (
 def isolation(fn_isolation):
     pass
 
-
 def test_usd1(
     instanceOperator: Account,
     usd1: USD1,

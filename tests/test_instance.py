@@ -18,7 +18,6 @@ from scripts.instance_test import GifInstance
 def isolation(fn_isolation):
     pass
 
-
 def test_instance_registry(
     instanceOperator: Account,
     instance: GifInstance,

@@ -113,7 +113,6 @@ class GifDepegRiskpool(object):
         return self.riskpool
 
 
-# TODO adapt after building product contract
 class GifDepegProduct(object):
 
     def __init__(self, 
@@ -124,7 +123,6 @@ class GifDepegProduct(object):
         name, 
         publishSource=False
     ):
-        #TODO remove self.policy = instance.getPolicy()
         self.riskpool = riskpool
         self.token = erc20Token
 

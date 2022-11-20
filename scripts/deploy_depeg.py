@@ -12,6 +12,7 @@ from brownie import (
 
 from scripts.depeg_product import GifDepegProductComplete
 from scripts.instance import GifInstance
+from scripts.setup import create_bundle
 from scripts.util import contract_from_address, s2b32
 
 INSTANCE_OPERATOR = 'instanceOperator'
@@ -407,29 +408,42 @@ def new_bundle(
     minDurationDays,
     maxDurationDays,
     aprPercentage
-):
+) -> int:
     instance = d['instance']
     instanceOperator = d['instanceOperator']
     investor = d['investor']
     riskpool = d['riskpool']
-    tokenAddress = riskpool.getErc20Token()
-    token = contract_from_address(interface.IERC20, tokenAddress)
 
-    token.transfer(investor, funding, {'from': instanceOperator})
-    token.approve(instance.getTreasury(), funding, {'from': investor})
-
-    apr100level = riskpool.getApr100PercentLevel();
-    apr = apr100level * aprPercentage / 100
-
-    spd = 24*3600
-    riskpool.createBundle(
+    return create_bundle(
+        instance,
+        instanceOperator,
+        investor,
+        riskpool,
+        funding,
         minSumInsured,
         maxSumInsured,
-        minDurationDays * spd,
-        maxDurationDays * spd,
-        apr,
-        funding, 
-        {'from': investor})
+        minDurationDays,
+        maxDurationDays,
+        aprPercentage
+    ) 
+    # tokenAddress = riskpool.getErc20Token()
+    # token = contract_from_address(interface.IERC20, tokenAddress)
+
+    # token.transfer(investor, funding, {'from': instanceOperator})
+    # token.approve(instance.getTreasury(), funding, {'from': investor})
+
+    # apr100level = riskpool.getApr100PercentLevel();
+    # apr = apr100level * aprPercentage / 100
+
+    # spd = 24*3600
+    # riskpool.createBundle(
+    #     minSumInsured,
+    #     maxSumInsured,
+    #     minDurationDays * spd,
+    #     maxDurationDays * spd,
+    #     apr,
+    #     funding, 
+    #     {'from': investor})
 
 
 def inspect_fee(
@@ -541,7 +555,6 @@ def inspect_applications(d):
 
     # print individual rows
     for idx in range(processIds):
-        # TODO instanceService needs method getProcessId(idx)
         processId = product.getApplicationId(idx) 
         metadata = instanceService.getMetadata(processId)
         customer = metadata[0]
