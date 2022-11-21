@@ -62,17 +62,17 @@ contract DepegRiskpool is
         returns(uint256 bundleId)
     {
         require(policyMaxSumInsured <= _bundleRiskCapitalCap, "ERROR:DRP-020:MAX_SUM_INSURED_TOO_LARGE");
-        require(policyMaxSumInsured > 0, "ERROR:DRP-020:MAX_SUM_INSURED_ZERO");
-        require(policyMinSumInsured <= policyMaxSumInsured, "ERROR:DRP-020:MIN_SUM_INSURED_TOO_LARGE");
+        require(policyMaxSumInsured > 0, "ERROR:DRP-021:MAX_SUM_INSURED_ZERO");
+        require(policyMinSumInsured <= policyMaxSumInsured, "ERROR:DRP-022:MIN_SUM_INSURED_TOO_LARGE");
 
-        require(policyMaxDuration <= MAX_POLICY_DURATION, "ERROR:DRP-020:POLICY_MAX_DURATION_TOO_LARGE");
-        require(policyMaxDuration > 0, "ERROR:DRP-020:POLICY_MAX_DURATION_ZERO");
-        require(policyMinDuration <= policyMaxDuration, "ERROR:DRP-020:POLICY_MIN_DURATION_TOO_LARGE");
+        require(policyMaxDuration <= MAX_POLICY_DURATION, "ERROR:DRP-023:POLICY_MAX_DURATION_TOO_LARGE");
+        require(policyMaxDuration > 0, "ERROR:DRP-024:POLICY_MAX_DURATION_ZERO");
+        require(policyMinDuration <= policyMaxDuration, "ERROR:DRP-025:POLICY_MIN_DURATION_TOO_LARGE");
 
-        require(annualPercentageReturn <= MAX_APR, "ERROR:DRP-020:APR_TOO_LARGE");
-        require(annualPercentageReturn > 0, "ERROR:DRP-020:APR_ZERO");
+        require(annualPercentageReturn <= MAX_APR, "ERROR:DRP-026:APR_TOO_LARGE");
+        require(annualPercentageReturn > 0, "ERROR:DRP-027:APR_ZERO");
 
-        require(initialAmount <= _bundleRiskCapitalCap, "ERROR:DRP-020:RISK_CAPITAL_TOO_LARGE");
+        require(initialAmount <= _bundleRiskCapitalCap, "ERROR:DRP-028:RISK_CAPITAL_TOO_LARGE");
 
         bytes memory filter = encodeBundleParamsAsFilter(
             policyMinSumInsured,
