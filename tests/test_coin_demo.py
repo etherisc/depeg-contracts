@@ -1,4 +1,3 @@
-import brownie
 import pytest
 
 from brownie.network.account import Account
