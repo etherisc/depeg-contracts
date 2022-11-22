@@ -6,4 +6,5 @@
         "@etherisc/gif-interface/=/home/vscode/.brownie/packages/etherisc/gif-interface@a8c9822",
     ],
     "solidity.compileUsingRemoteVersion": "v0.8.2+commit.661d1103",
+    "solidity.defaultCompiler": "remote",
 }
