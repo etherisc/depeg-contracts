@@ -36,3 +36,21 @@ contract USD2 is ERC20 {
         );
     }
 }
+
+
+contract DIP is ERC20 {
+
+    string public constant NAME = "DIP";
+    string public constant SYMBOL = "DIP";
+
+    uint256 public constant INITIAL_SUPPLY = 10**24;
+
+    constructor()
+        ERC20(NAME, SYMBOL)
+    {
+        _mint(
+            _msgSender(),
+            INITIAL_SUPPLY
+        );
+    }
+}
