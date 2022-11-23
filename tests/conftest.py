@@ -151,7 +151,22 @@ def product(gifDepegProduct) -> DepegProduct: return gifDepegProduct.getContract
 def riskpool(gifDepegProduct) -> DepegRiskpool: return gifDepegProduct.getRiskpool().getContract()
 
 
-#=== staking contract fixtures ====================================================#
+#=== staking fixtures ====================================================#
+
+@pytest.fixture(scope="module")
+def staker(accounts, dip, instanceOperator) -> Account:
+    account = get_filled_account(accounts, 17, "1 ether")
+    dips = 10**6 * 10**dip.decimals()
+    dip.transfer(account, dips, {'from':instanceOperator})
+    return account
+
+
+@pytest.fixture(scope="module")
+def staker2(accounts, dip, instanceOperator) -> Account:
+    account = get_filled_account(accounts, 18, "1 ether")
+    dips = 10**6 * 10**dip.decimals()
+    dip.transfer(account, dips, {'from':instanceOperator})
+    return account
 
 
 @pytest.fixture(scope="module")
@@ -161,7 +176,9 @@ def gifStakingEmpty(
     instanceOperator,
     dip
 ) -> GifStaking: 
-    return GifStaking.deploy(dip, {'from': instanceOperator})
+    staking = GifStaking.deploy({'from': instanceOperator})
+    staking.setDipContract(dip)
+    return staking
 
 
 @pytest.fixture(scope="module")
@@ -171,7 +188,8 @@ def gifStaking(
     instanceOperator,
     dip
 ) -> GifStaking: 
-    staking = GifStaking.deploy(dip, {'from': instanceOperator})
+    staking = GifStaking.deploy({'from': instanceOperator})
+    staking.setDipContract(dip)
     staking.registerGifInstance(
         instanceService.getInstanceId(),
         instanceService.getChainId(),
