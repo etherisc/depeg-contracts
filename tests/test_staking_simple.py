@@ -1,5 +1,6 @@
 import brownie
 import pytest
+import time
 
 from brownie.network.account import Account
 from brownie import (
@@ -29,11 +30,13 @@ def test_staking_happy_path(
     bundleId = create_bundle(instance, instanceOperator, investor, riskpool)
     gifStaking.updateBundleState(instanceId, bundleId)
 
+    print('--- test setup before any staking ---')
     assert gifStaking.stakes(instanceId, bundleId, staker) == 0
 
     with brownie.reverts("ERROR:STK-060:ACCOUNT_WITHOUT_STAKING_RECORD"):
         gifStaking.getStakeInfo(instanceId, bundleId, staker)
 
+    print('--- test setup after first staking ---')
     stakingAmount = 10**5 * 10**dip.decimals()
     gifStaking.stake(instanceId, bundleId, stakingAmount, {'from': staker})
 
@@ -48,3 +51,44 @@ def test_staking_happy_path(
     assert stakeInfo[3] == stakingAmount
     assert stakeInfo[4] > 0
     assert stakeInfo[5] == stakeInfo[4]
+
+    print('--- test setup after second increased staking ---')
+    time.sleep(1) # force updatedAt > createdAt
+    increaseAmount = 5 * 10**4 * 10**dip.decimals()
+    gifStaking.stake(instanceId, bundleId, increaseAmount, {'from': staker})
+
+    assert gifStaking.stakes(instanceId, bundleId, staker) == stakingAmount + increaseAmount
+
+    stakeInfo2 = gifStaking.getStakeInfo(instanceId, bundleId, staker)
+    print('stakeInfo2 {}'.format(stakeInfo2))
+
+    assert stakeInfo2[3] == stakingAmount + increaseAmount
+    assert stakeInfo2[4] == stakeInfo[4]
+    assert stakeInfo2[5] > stakeInfo[4]
+
+    print('--- test setup after withdrawal of some staking ---')
+    time.sleep(1) # force updatedAt > createdAt
+    withdrawalAmount = 7 * 10**4 * 10**dip.decimals()
+    gifStaking.withdraw(instanceId, bundleId, withdrawalAmount, {'from': staker})
+
+    assert gifStaking.stakes(instanceId, bundleId, staker) == stakingAmount + increaseAmount - withdrawalAmount
+
+    stakeInfo3 = gifStaking.getStakeInfo(instanceId, bundleId, staker)
+    print('stakeInfo3 {}'.format(stakeInfo3))
+
+    assert stakeInfo3[3] == stakingAmount + increaseAmount - withdrawalAmount
+    assert stakeInfo3[4] == stakeInfo[4]
+    assert stakeInfo3[5] > stakeInfo2[5]
+
+    print('--- test setup after withdrawal of remaining staking ---')
+    time.sleep(1) # force updatedAt > createdAt
+    gifStaking.withdraw(instanceId, bundleId, {'from': staker})
+
+    assert gifStaking.stakes(instanceId, bundleId, staker) == 0
+
+    stakeInfo4 = gifStaking.getStakeInfo(instanceId, bundleId, staker)
+    print('stakeInfo4 {}'.format(stakeInfo4))
+
+    assert stakeInfo4[3] == 0
+    assert stakeInfo4[4] == stakeInfo[4]
+    assert stakeInfo4[5] > stakeInfo3[5]
