@@ -46,7 +46,7 @@ class GifDepegRiskpool(object):
         print('2) deploy riskpool {} by riskpool keeper {}'.format(
             name, riskpoolKeeper))
 
-        sumOfSumInsuredCap = 1000000
+        sumOfSumInsuredCap = 1000000 * 10 ** 6
         self.riskpool = DepegRiskpool.deploy(
             s2b(name),
             sumOfSumInsuredCap,

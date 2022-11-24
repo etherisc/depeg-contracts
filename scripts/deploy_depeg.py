@@ -278,18 +278,18 @@ def deploy(
     print('2) riskpool wallet {} approval for instance treasury {}'.format(
         riskpoolWallet, instance.getTreasury()))
     
-    erc20Token.approve(instance.getTreasury(), 10 * initialFunding, {'from': riskpoolWallet})
+    erc20Token.approve(instance.getTreasury(), 10 * initialFunding * 10 ** 6, {'from': riskpoolWallet})
 
     print('3) riskpool bundle creation by investor {}'.format(
         investor))
     
-    new_bundle(tmp_d, initialFunding, 8000, maxSumInsured, 60, 90, 1.7)
-    new_bundle(tmp_d, initialFunding, 4000, maxSumInsured, 30, 80, 2.1)
-    new_bundle(tmp_d, initialFunding, 5000, maxSumInsured, 14, 30, 3.3)
-    new_bundle(tmp_d, initialFunding, 2000, maxSumInsured, 20, 60, 4.2)
-    new_bundle(tmp_d, initialFunding, 1000, maxSumInsured, 10, 45, 5.0)
+    new_bundle(tmp_d, initialFunding * 10 ** 6, 8000 * 10 ** 6, maxSumInsured * 10 ** 6, 60, 90, 1.7)
+    new_bundle(tmp_d, initialFunding * 10 ** 6, 4000 * 10 ** 6, maxSumInsured * 10 ** 6, 30, 80, 2.1)
+    new_bundle(tmp_d, initialFunding * 10 ** 6, 5000 * 10 ** 6, maxSumInsured * 10 ** 6, 14, 30, 3.3)
+    new_bundle(tmp_d, initialFunding * 10 ** 6, 2000 * 10 ** 6, maxSumInsured * 10 ** 6, 20, 60, 4.2)
+    new_bundle(tmp_d, initialFunding * 10 ** 6, 1000 * 10 ** 6, maxSumInsured * 10 ** 6, 10, 45, 5.0)
 
-    customerFunding=1000
+    customerFunding=1000 * 10 ** 6
     print('5) customer {} funding (transfer/approve) with {} token for erc20 {}'.format(
         customer, customerFunding, erc20Token))
 
@@ -297,9 +297,9 @@ def deploy(
     erc20Token.approve(instance.getTreasury(), customerFunding, {'from': customer})
 
     # policy creation
-    sumInsured = 20000
+    sumInsured = 20000 * 10 ** 6
     duration = 50
-    maxPremium = 1000
+    maxPremium = 1000 * 10 ** 6
     print('6) policy creation for customers {}'.format(customer))
     processId = new_policy(tmp_d, sumInsured, duration, maxPremium)
 
