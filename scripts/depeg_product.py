@@ -1,8 +1,8 @@
 from web3 import Web3
 
-from brownie import Contract
-from brownie.network.account import Account
 import time
+
+from brownie.network.account import Account
 
 from brownie import (
     interface,

@@ -6,7 +6,9 @@ from brownie import (
     USD1,
     USD2,
     DepegProduct,
-    DepegRiskpool
+    DepegRiskpool,
+    GifStaking,
+    DIP
 )
 
 from brownie.network import accounts
@@ -104,6 +106,9 @@ def usd1(instanceOperator) -> USD1: return USD1.deploy({'from': instanceOperator
 def usd2(instanceOperator) -> USD2: return USD2.deploy({'from': instanceOperator})
 
 @pytest.fixture(scope="module")
+def dip(instanceOperator) -> DIP: return DIP.deploy({'from': instanceOperator})
+
+@pytest.fixture(scope="module")
 def testCoin(instanceOperator, gif) -> Contract: return gif.TestCoin.deploy({'from':instanceOperator})
 
 #=== gif instance fixtures ====================================================#
@@ -144,3 +149,52 @@ def product(gifDepegProduct) -> DepegProduct: return gifDepegProduct.getContract
 
 @pytest.fixture(scope="module")
 def riskpool(gifDepegProduct) -> DepegRiskpool: return gifDepegProduct.getRiskpool().getContract()
+
+
+#=== staking fixtures ====================================================#
+
+@pytest.fixture(scope="module")
+def staker(accounts, dip, instanceOperator) -> Account:
+    account = get_filled_account(accounts, 17, "1 ether")
+    dips = 10**6 * 10**dip.decimals()
+    dip.transfer(account, dips, {'from':instanceOperator})
+    return account
+
+
+@pytest.fixture(scope="module")
+def staker2(accounts, dip, instanceOperator) -> Account:
+    account = get_filled_account(accounts, 18, "1 ether")
+    dips = 10**6 * 10**dip.decimals()
+    dip.transfer(account, dips, {'from':instanceOperator})
+    return account
+
+
+@pytest.fixture(scope="module")
+def gifStakingEmpty(
+    instance,
+    instanceService,
+    instanceOperator,
+    dip
+) -> GifStaking: 
+    staking = GifStaking.deploy({'from': instanceOperator})
+    staking.setDipContract(dip)
+    return staking
+
+
+@pytest.fixture(scope="module")
+def gifStaking(
+    instance,
+    instanceService,
+    instanceOperator,
+    dip
+) -> GifStaking: 
+    staking = GifStaking.deploy({'from': instanceOperator})
+    staking.setDipContract(dip)
+    staking.registerGifInstance(
+        instanceService.getInstanceId(),
+        instanceService.getChainId(),
+        instance.getRegistry()
+    )
+
+    return staking
+

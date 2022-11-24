@@ -1,5 +1,3 @@
-from brownie import accounts
-
 # === GIF platform ========================================================== #
 
 # GIF release
