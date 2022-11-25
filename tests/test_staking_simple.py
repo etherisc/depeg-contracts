@@ -32,6 +32,7 @@ def test_staking_happy_path(
 
     print('--- test setup before any staking ---')
     assert gifStaking.stakes(instanceId, bundleId, staker) == 0
+    assert dip.balanceOf(gifStaking) == 0
 
     with brownie.reverts("ERROR:STK-060:ACCOUNT_WITHOUT_STAKING_RECORD"):
         gifStaking.getStakeInfo(instanceId, bundleId, staker)
@@ -41,6 +42,7 @@ def test_staking_happy_path(
     gifStaking.stake(instanceId, bundleId, stakingAmount, {'from': staker})
 
     assert gifStaking.stakes(instanceId, bundleId, staker) == stakingAmount
+    assert dip.balanceOf(gifStaking) == stakingAmount
 
     stakeInfo = gifStaking.getStakeInfo(instanceId, bundleId, staker)
     print('stakeInfo {}'.format(stakeInfo))
@@ -58,6 +60,7 @@ def test_staking_happy_path(
     gifStaking.stake(instanceId, bundleId, increaseAmount, {'from': staker})
 
     assert gifStaking.stakes(instanceId, bundleId, staker) == stakingAmount + increaseAmount
+    assert dip.balanceOf(gifStaking) == stakingAmount + increaseAmount
 
     stakeInfo2 = gifStaking.getStakeInfo(instanceId, bundleId, staker)
     print('stakeInfo2 {}'.format(stakeInfo2))
@@ -72,6 +75,7 @@ def test_staking_happy_path(
     gifStaking.withdraw(instanceId, bundleId, withdrawalAmount, {'from': staker})
 
     assert gifStaking.stakes(instanceId, bundleId, staker) == stakingAmount + increaseAmount - withdrawalAmount
+    assert dip.balanceOf(gifStaking) == stakingAmount + increaseAmount - withdrawalAmount
 
     stakeInfo3 = gifStaking.getStakeInfo(instanceId, bundleId, staker)
     print('stakeInfo3 {}'.format(stakeInfo3))
@@ -85,6 +89,7 @@ def test_staking_happy_path(
     gifStaking.withdraw(instanceId, bundleId, {'from': staker})
 
     assert gifStaking.stakes(instanceId, bundleId, staker) == 0
+    assert dip.balanceOf(gifStaking) == 0
 
     stakeInfo4 = gifStaking.getStakeInfo(instanceId, bundleId, staker)
     print('stakeInfo4 {}'.format(stakeInfo4))

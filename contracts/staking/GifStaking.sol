@@ -37,8 +37,14 @@ contract GifStaking is
 
     address public constant DIP_CONTRACT_ADDRESS = 0xc719d010B63E5bbF2C0551872CD5316ED26AcD83;
 
+    uint256 public constant YIELD_100_PERCENTAGE = 10**6;
+    uint256 public constant YIELD_MAX_PERCENTAGE = YIELD_100_PERCENTAGE / 3;
+    uint256 public constant ONE_YEAR_DURATION = 365 * 24 * 3600; 
+
     ERC20 private _dip;
+    uint256 private _yield;
     bytes32 [] private _instanceIds;
+    address _stakingWallet;
     
     // instance and bundle state
     mapping(bytes32 /* instanceId */ => InstanceInfo) private _instanceInfo;
@@ -67,6 +73,7 @@ contract GifStaking is
         Ownable()
     {
         _dip = ERC20(DIP_CONTRACT_ADDRESS);
+        _stakingWallet = address(this);
     }
 
 
@@ -78,6 +85,24 @@ contract GifStaking is
         require(dipTokenAddress != address(0), "ERROR:STK-011:DIP_CONTRACT_ADDRESS_ZERO");
 
         _dip = ERC20(dipTokenAddress);
+    }
+
+
+    function setYield(uint256 yield)
+        external
+        onlyOwner
+    {
+        require(yield <= YIELD_MAX_PERCENTAGE, "ERROR:STK-012:YIELD_EXEEDS_MAX_VALUE");
+        _yield = yield;
+    }
+
+
+    function getStakingWallet()
+        public
+        view
+        returns(address instanceWallet)
+    {
+        return _stakingWallet;
     }
 
 
@@ -164,7 +189,7 @@ contract GifStaking is
         }
         // update amount rewards for existing stakes
         else {
-            _updateStakingRewards(stakeInfo);
+            stakeInfo.balance += calculateYieldIncrement(stakeInfo);
         }
 
         // TODO discuss if book keeping for collection should come before or after calling an external contract
@@ -198,7 +223,7 @@ contract GifStaking is
         StakeInfo storage stakeInfo = _stakeInfo[instanceId][bundleId][staker];
         require(stakeInfo.updatedAt > 0, "ERROR:STK-051:ACCOUNT_WITHOUT_STAKING_RECORD");
 
-        _updateStakingRewards(stakeInfo);
+        stakeInfo.balance += calculateYieldIncrement(stakeInfo);
 
         if(amount < type(uint256).max) {
             _withdraw(stakeInfo, amount);
@@ -209,6 +234,7 @@ contract GifStaking is
     }
 
 
+    // maybe rename to staked()?
     function stakes(
         bytes32 instanceId, 
         uint256 bundleId, 
@@ -238,18 +264,43 @@ contract GifStaking is
     }
 
 
-    function getBundleInfo(
-        bytes32 instanceId,
-        uint256 bundleId
-    )
+    function getDip() external view returns(ERC20 dip) {
+        return _dip;
+    }
+
+
+    function getOneYearDuration() public pure returns(uint256 yearDuration) { 
+        return ONE_YEAR_DURATION;
+    }
+
+
+    function getYield100PercentLevel() public pure returns(uint256 yield100PercentLevel) { 
+        return YIELD_100_PERCENTAGE;
+    }
+
+
+    function calculateYieldIncrement(StakeInfo memory stakeInfo)
         public
         view
-        returns(BundleInfo memory info)
+        returns(uint256 yieldAmount)
     {
-        require(_instanceInfo[instanceId].registeredAt > 0, "ERROR:STK-070:INSTANCE_NOT_REGISTERED");
+        uint256 timeSinceLastUpdate = block.timestamp - stakeInfo.updatedAt;
 
-        info = _bundleInfo[instanceId][bundleId];
-        require(info.createdAt > 0, "ERROR:STK-071:BUNDLE_NOT_REGISTERED");
+        // TODO potentially reduce time depending on the time when the bundle has been closed
+
+        yieldAmount = calculateYield(stakeInfo.balance, timeSinceLastUpdate);
+    }
+
+
+    function calculateYield(
+        uint256 amount,
+        uint256 duration
+    ) 
+        public view
+        returns(uint256 yieldAmount) 
+    {
+        uint256 durationYield = _yield * duration / ONE_YEAR_DURATION;
+        yieldAmount = amount * durationYield / YIELD_100_PERCENTAGE;
     }
 
 
@@ -274,8 +325,18 @@ contract GifStaking is
     }
 
 
-    function getDip() external view returns(ERC20 dip) {
-        return _dip;
+    function getBundleInfo(
+        bytes32 instanceId,
+        uint256 bundleId
+    )
+        public
+        view
+        returns(BundleInfo memory info)
+    {
+        require(_instanceInfo[instanceId].registeredAt > 0, "ERROR:STK-070:INSTANCE_NOT_REGISTERED");
+
+        info = _bundleInfo[instanceId][bundleId];
+        require(info.createdAt > 0, "ERROR:STK-071:BUNDLE_NOT_REGISTERED");
     }
 
 
@@ -343,27 +404,27 @@ contract GifStaking is
 
         _payoutStakes(stakeInfo.staker, amount);
     }
-
-
-    function _updateStakingRewards(StakeInfo storage stakeInfo)
-        internal
-    {
-        // TODO calcualte rewards since last update for this stake
-    }
     
+
+
 
 
     function _collectStakes(address staker, uint256 amount)
         internal
     {
-        // TODO implementation
+        _dip.transferFrom(staker, _stakingWallet, amount);
     }
 
 
     function _payoutStakes(address staker, uint256 amount)
         internal
     {
-        // TODO implementation
+        if(_stakingWallet != address(this)) {
+            _dip.transferFrom(_stakingWallet, staker, amount);
+        }
+        else {
+            _dip.transfer(staker, amount);
+        }
     }
     
 

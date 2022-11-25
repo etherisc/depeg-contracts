@@ -154,18 +154,20 @@ def riskpool(gifDepegProduct) -> DepegRiskpool: return gifDepegProduct.getRiskpo
 #=== staking fixtures ====================================================#
 
 @pytest.fixture(scope="module")
-def staker(accounts, dip, instanceOperator) -> Account:
+def staker(accounts, dip, instanceOperator, gifStaking) -> Account:
     account = get_filled_account(accounts, 17, "1 ether")
     dips = 10**6 * 10**dip.decimals()
     dip.transfer(account, dips, {'from':instanceOperator})
+    dip.approve(gifStaking.getStakingWallet(), dips, {'from': account})
     return account
 
 
 @pytest.fixture(scope="module")
-def staker2(accounts, dip, instanceOperator) -> Account:
+def staker2(accounts, dip, instanceOperator, gifStaking) -> Account:
     account = get_filled_account(accounts, 18, "1 ether")
     dips = 10**6 * 10**dip.decimals()
     dip.transfer(account, dips, {'from':instanceOperator})
+    dip.approve(gifStaking.getStakingWallet(), dips, {'from': account})
     return account
 
 

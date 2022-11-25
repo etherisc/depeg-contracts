@@ -260,7 +260,7 @@ contract DepegRiskpool is
         return _bundleRiskCapitalCap;
     }
 
-    function getOneYearDuration() public pure returns(uint256 apr100PercentLevel) { 
+    function getOneYearDuration() public pure returns(uint256 yearDuration) { 
         return ONE_YEAR_DURATION;
     }
 
