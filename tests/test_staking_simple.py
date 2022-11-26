@@ -1,9 +1,9 @@
 import brownie
 import pytest
-import time
 
 from brownie.network.account import Account
 from brownie import (
+    chain,
     GifStaking,
     DIP,
 )
@@ -34,7 +34,7 @@ def test_staking_happy_path(
     assert gifStaking.stakes(instanceId, bundleId, staker) == 0
     assert dip.balanceOf(gifStaking) == 0
 
-    with brownie.reverts("ERROR:STK-060:ACCOUNT_WITHOUT_STAKING_RECORD"):
+    with brownie.reverts("ERROR:STK-080:ACCOUNT_WITHOUT_STAKING_RECORD"):
         gifStaking.getStakeInfo(instanceId, bundleId, staker)
 
     print('--- test setup after first staking ---')
@@ -55,7 +55,7 @@ def test_staking_happy_path(
     assert stakeInfo[5] == stakeInfo[4]
 
     print('--- test setup after second increased staking ---')
-    time.sleep(1) # force updatedAt > createdAt
+    chain.sleep(1) # force updatedAt > createdAt
     increaseAmount = 5 * 10**4 * 10**dip.decimals()
     gifStaking.stake(instanceId, bundleId, increaseAmount, {'from': staker})
 
@@ -70,7 +70,8 @@ def test_staking_happy_path(
     assert stakeInfo2[5] > stakeInfo[4]
 
     print('--- test setup after withdrawal of some staking ---')
-    time.sleep(1) # force updatedAt > createdAt
+    chain.sleep(1)
+
     withdrawalAmount = 7 * 10**4 * 10**dip.decimals()
     gifStaking.withdraw(instanceId, bundleId, withdrawalAmount, {'from': staker})
 
@@ -85,7 +86,7 @@ def test_staking_happy_path(
     assert stakeInfo3[5] > stakeInfo2[5]
 
     print('--- test setup after withdrawal of remaining staking ---')
-    time.sleep(1) # force updatedAt > createdAt
+    chain.sleep(1)
     gifStaking.withdraw(instanceId, bundleId, {'from': staker})
 
     assert gifStaking.stakes(instanceId, bundleId, staker) == 0
