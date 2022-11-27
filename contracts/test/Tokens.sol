@@ -5,8 +5,10 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 contract USD1 is ERC20 {
 
-    string public constant NAME = "USD Stable Coin 1";
+    // https://etherscan.io/address/0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48#readProxyContract
+    string public constant NAME = "USD Coin";
     string public constant SYMBOL = "USDC";
+    uint8 public constant DECIMALS = 6;
 
     uint256 public constant INITIAL_SUPPLY = 10**24;
 
@@ -18,12 +20,19 @@ contract USD1 is ERC20 {
             INITIAL_SUPPLY
         );
     }
+
+    function decimals() public pure override returns(uint8) {
+        return DECIMALS;
+    }
 }
+
 
 contract USD2 is ERC20 {
 
-    string public constant NAME = "USD Stable Coin 2";
+    // https://etherscan.io/address/0xdac17f958d2ee523a2206206994597c13d831ec7
+    string public constant NAME = "Tether USD";
     string public constant SYMBOL = "USDT";
+    uint8 public constant DECIMALS = 6;
 
     uint256 public constant INITIAL_SUPPLY = 10**24;
 
@@ -34,6 +43,34 @@ contract USD2 is ERC20 {
             _msgSender(),
             INITIAL_SUPPLY
         );
+    }
+
+    function decimals() public pure override returns(uint8) {
+        return DECIMALS;
+    }
+}
+
+
+contract USD3 is ERC20 {
+
+    // https://etherscan.io/address/0xdac17f958d2ee523a2206206994597c13d831ec7
+    string public constant NAME = "Dummy USD";
+    string public constant SYMBOL = "DUSD";
+    uint8 public constant DECIMALS = 13;
+
+    uint256 public constant INITIAL_SUPPLY = 10**24;
+
+    constructor()
+        ERC20(NAME, SYMBOL)
+    {
+        _mint(
+            _msgSender(),
+            INITIAL_SUPPLY
+        );
+    }
+
+    function decimals() public pure override returns(uint8) {
+        return DECIMALS;
     }
 }
 

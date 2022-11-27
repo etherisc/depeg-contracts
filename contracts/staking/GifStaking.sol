@@ -2,7 +2,7 @@
 pragma solidity 0.8.2;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
 import "@etherisc/gif-interface/contracts/modules/IRegistry.sol";
 import "@etherisc/gif-interface/contracts/services/IInstanceService.sol";
@@ -36,15 +36,22 @@ contract GifStaking is
     }
 
     address public constant DIP_CONTRACT_ADDRESS = 0xc719d010B63E5bbF2C0551872CD5316ED26AcD83;
+    uint256 public constant DIP_DECIMALS = 18;
+    uint256 public constant DIP_TO_TOKEN_PARITY_LEVEL_DECIMALS = 18;
+    uint256 public constant DIP_TO_TOKEN_PARITY_LEVEL = 10**DIP_TO_TOKEN_PARITY_LEVEL_DECIMALS;
 
     uint256 public constant YIELD_100_PERCENTAGE = 10**6;
     uint256 public constant YIELD_MAX_PERCENTAGE = YIELD_100_PERCENTAGE / 3;
     uint256 public constant ONE_YEAR_DURATION = 365 * 24 * 3600; 
 
-    ERC20 private _dip;
+    IERC20Metadata private _dip;
     uint256 private _yield;
     bytes32 [] private _instanceIds;
     address private _stakingWallet;
+    
+    // dip to token conversion rate
+    mapping(uint256 /* chainId */ => mapping(address /* tokenAddress */ => uint256 /* rate */ )) private _dipConversionRate;
+    mapping(uint256 /* chainId */ => mapping(address /* tokenAddress */ => uint256 /* decimals */ )) private _tokenDecimals;
     
     // instance and bundle state
     mapping(bytes32 /* instanceId */ => InstanceInfo) private _instanceInfo;
@@ -74,7 +81,7 @@ contract GifStaking is
     constructor() 
         Ownable()
     {
-        _dip = ERC20(DIP_CONTRACT_ADDRESS);
+        _dip = IERC20Metadata(DIP_CONTRACT_ADDRESS);
         _stakingWallet = address(this);
     }
 
@@ -86,7 +93,27 @@ contract GifStaking is
         require(block.chainid != 1, "ERROR:STK-010:DIP_ADDRESS_CHANGE_NOT_ALLOWED_ON_MAINNET");
         require(dipTokenAddress != address(0), "ERROR:STK-011:DIP_CONTRACT_ADDRESS_ZERO");
 
-        _dip = ERC20(dipTokenAddress);
+        _dip = IERC20Metadata(dipTokenAddress);
+    }
+
+    // dip conversion rate: value of 1 dip in amount of provided token 
+    function setDipConversionRate(uint256 chainId, address tokenAddress, uint256 tokenDecimals, uint256 conversionRate) 
+        external
+        onlyOwner()
+    {
+        require(chainId > 0, "ERROR:STK-012:CHAIN_ID_ZERO");
+        require(tokenAddress != address(0), "ERROR:STK-013:TOKEN_ADDRESS_ZERO");
+        require(tokenDecimals > 0, "ERROR:STK-014:TOKEN_DECIMALS_ZERO");
+        require(conversionRate > 0, "ERROR:STK-015:CONVERSION_RATE_ZERO");
+
+        _dipConversionRate[chainId][tokenAddress] = conversionRate;
+        _tokenDecimals[chainId][tokenAddress] = conversionRate;
+
+        // special case for on chain token
+        if(chainId == block.chainid) {
+            IERC20Metadata token = IERC20Metadata(tokenAddress);
+            _tokenDecimals[chainId][tokenAddress] = token.decimals();
+        }
     }
 
 
@@ -231,8 +258,48 @@ contract GifStaking is
     }
 
 
-    function getDip() external view returns(ERC20 dip) {
+    function getDipToTokenParityLevel() external pure returns(uint256 parityLevel) {
+        return DIP_TO_TOKEN_PARITY_LEVEL;
+    }
+
+
+    function getDip() external view returns(IERC20Metadata dip) {
         return _dip;
+    }
+
+
+    function getDipConversionRate(uint256 chainId, address tokenAddress)
+        public
+        view
+        returns(uint256 conversionRate)
+    {
+        conversionRate = _dipConversionRate[chainId][tokenAddress];
+        require(_dipConversionRate[chainId][tokenAddress] > 0, "ERROR:STK-060:CONVERSION_RATE_ZERO");
+    }
+
+
+    function convertToTokenAmount(
+        uint256 dipAmount,
+        uint256 chainId, 
+        address tokenAddress 
+    )
+        external
+        view
+        returns(uint256 tokenAmount)
+    {
+        uint256 conversionRate = getDipConversionRate(chainId, tokenAddress);
+        uint256 tokenDecimals = _tokenDecimals[chainId][tokenAddress];
+        uint256 numerator = 1;
+        uint256 denominator = 1;
+
+        if(DIP_DECIMALS + DIP_TO_TOKEN_PARITY_LEVEL_DECIMALS >= tokenDecimals) {
+            denominator = 10**(DIP_DECIMALS + DIP_TO_TOKEN_PARITY_LEVEL_DECIMALS - tokenDecimals); 
+        }
+        else {
+            numerator = 10**(tokenDecimals - (DIP_DECIMALS + DIP_TO_TOKEN_PARITY_LEVEL_DECIMALS));
+        }
+
+        tokenAmount = (dipAmount * conversionRate * numerator) / denominator;
     }
 
 
@@ -250,7 +317,7 @@ contract GifStaking is
     }
 
     function getInstanceId(uint256 idx) external view returns(bytes32 instanceId) {
-        require(idx < _instanceIds.length, "ERROR:STK-060:INSTANCE_INDEX_TOO_LARGE");
+        require(idx < _instanceIds.length, "ERROR:STK-061:INSTANCE_INDEX_TOO_LARGE");
         return _instanceIds[idx];
     }
 
@@ -261,7 +328,7 @@ contract GifStaking is
         view
         returns(InstanceInfo memory info)
     {
-        require(_instanceInfo[instanceId].createdAt > 0, "ERROR:STK-061:INSTANCE_NOT_REGISTERED");
+        require(_instanceInfo[instanceId].createdAt > 0, "ERROR:STK-062:INSTANCE_NOT_REGISTERED");
         info = _instanceInfo[instanceId];
     }
 
