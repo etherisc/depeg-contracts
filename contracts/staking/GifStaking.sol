@@ -121,7 +121,7 @@ contract GifStaking is
         external
         onlyOwner
     {
-        require(yield <= YIELD_MAX_PERCENTAGE, "ERROR:STK-012:YIELD_EXEEDS_MAX_VALUE");
+        require(yield <= YIELD_MAX_PERCENTAGE, "ERROR:STK-016:YIELD_EXEEDS_MAX_VALUE");
         _yield = yield;
     }
 
