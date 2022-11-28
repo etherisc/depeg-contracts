@@ -2,10 +2,11 @@
 pragma solidity 0.8.2;
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-
+import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "@etherisc/gif-interface/contracts/components/BasicRiskpool.sol";
 import "@etherisc/gif-interface/contracts/modules/IBundle.sol";
 import "@etherisc/gif-interface/contracts/modules/IPolicy.sol";
+import "@etherisc/gif-interface/contracts/tokens/IBundleToken.sol";
 
 import "./gif/BasicRiskpool2.sol";
 
@@ -26,7 +27,6 @@ contract DepegRiskpool is
 
     uint256 private _poolRiskCapitalCap;
     uint256 private _bundleRiskCapitalCap;
-
 
     constructor(
         bytes32 name,
@@ -85,12 +85,52 @@ contract DepegRiskpool is
         bundleId = super.createBundle(filter, initialAmount);
     }
 
-    // TODO s
-    // - add application params to depeg product contract
-    // - get toy works up as quickly as possible
-    //   + .1 create application
-    //   + .2 figure out if there's a matching bundle
-    //   + .3 add function that let's user query conditions based on active bundles
+    function getBundleInfo(uint256 bundleId)
+        external
+        view
+        returns(
+            IBundle.BundleState state,
+            uint256 tokenId,
+            address owner,
+            uint256 minSumInsured,
+            uint256 maxSumInsured,
+            uint256 minDuration,
+            uint256 maxDuration,
+            uint256 annualPercentageReturn,
+            uint256 capital,
+            uint256 lockedCapital,
+            uint256 balance,
+            uint256 createdAt
+        )
+    {
+        IBundle.Bundle memory bundle = _instanceService.getBundle(bundleId);
+        IBundleToken token = _instanceService.getBundleToken();
+
+        (
+            minSumInsured,
+            maxSumInsured,
+            minDuration,
+            maxDuration,
+            annualPercentageReturn
+        ) = decodeBundleParamsFromFilter(bundle.filter);
+
+        return (
+            bundle.state,
+            bundle.tokenId,
+            token.ownerOf(bundle.tokenId),
+            minSumInsured,
+            maxSumInsured,
+            minDuration,
+            maxDuration,
+            annualPercentageReturn,
+            bundle.capital,
+            bundle.lockedCapital,
+            bundle.balance,
+            bundle.createdAt
+        );
+    }
+
+
     function getFilterDataStructure() external override pure returns(string memory) {
         return "(uint256 minSumInsured,uint256 maxSumInsured,uint256 minDuration,uint256 maxDuration,uint256 annualPercentageReturn)";
     }

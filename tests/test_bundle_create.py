@@ -112,3 +112,21 @@ def test_create_bundle(
     assert filterMinDuration == minDurationDays * 24 * 3600
     assert filterMaxDuration == maxDurationDays * 24 * 3600
     assert filterAnnualPercentageReturn == riskpool.getApr100PercentLevel() * aprPercentage / 100.0
+
+    bundleInfo = riskpool.getBundleInfo(bundleId).dict()
+    print('bundleInfo {}'.format(bundleInfo))
+
+    assert bundleInfo['state'] == state
+    assert bundleInfo['tokenId'] == tokenId
+    assert bundleInfo['owner'] == investor
+
+    assert bundleInfo['minSumInsured'] == minSumInsured
+    assert bundleInfo['maxSumInsured'] == maxSumInsured
+    assert bundleInfo['minDuration'] == filterMinDuration
+    assert bundleInfo['maxDuration'] == filterMaxDuration
+    assert bundleInfo['annualPercentageReturn'] == filterAnnualPercentageReturn
+
+    assert bundleInfo['capital'] == capital
+    assert bundleInfo['lockedCapital'] == lockedCapital
+    assert bundleInfo['balance'] == balance
+    assert bundleInfo['createdAt'] == createdAt
