@@ -2,7 +2,10 @@ import brownie
 import pytest
 
 from brownie.network.account import Account
-from brownie import interface
+from brownie import (
+    chain,
+    interface
+)
 
 from scripts.util import b2s
 
@@ -100,3 +103,59 @@ def test_create_application(
     # check wallet balances against premium payment
     assert riskpoolBalanceAfter == riskpoolBalanceBefore + netPremium
     assert instanceBalanceAfter == instanceBalanceBefore + premiumFees
+
+
+
+def test_application_with_expired_bundle(
+    instance,
+    instanceService,
+    instanceOperator,
+    instanceWallet,
+    investor,
+    customer,
+    product,
+    riskpool
+):
+    instanceWallet = instanceService.getInstanceWallet()
+    riskpoolWallet = instanceService.getRiskpoolWallet(riskpool.getId())
+    tokenAddress = instanceService.getComponentToken(riskpool.getId())
+    token = interface.IERC20(tokenAddress)
+
+    bundleId = create_bundle(
+        instance, 
+        instanceOperator, 
+        investor, 
+        riskpool)
+
+    sumInsured = 10000
+    durationDays = 60
+    maxPremium = 750
+
+    processId1 = apply_for_policy(
+        instance, 
+        instanceOperator, 
+        product, 
+        customer, 
+        sumInsured, 
+        durationDays, 
+        maxPremium)
+
+    print('application1: {}'.format(instanceService.getApplication(processId1).dict()))
+    print('policy1: {}'.format(instanceService.getPolicy(processId1).dict()))
+
+    chain.sleep(riskpool.getMaxBundleLifetime() + 1)
+    chain.mine(1)
+
+    processId2 = apply_for_policy(
+        instance, 
+        instanceOperator, 
+        product, 
+        customer, 
+        sumInsured, 
+        durationDays, 
+        maxPremium)
+
+    print('application2: {}'.format(instanceService.getApplication(processId2).dict()))
+
+    with brownie.reverts("ERROR:POC-102:POLICY_DOES_NOT_EXIST"):
+        instanceService.getPolicy(processId2)

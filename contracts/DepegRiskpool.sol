@@ -18,7 +18,7 @@ contract DepegRiskpool is
 
     uint256 public constant USD_RISK_CAPITAL_CAP = 1 * 10**6;
 
-    uint256 public constant MAX_BUNDLE_DURATION = 180 * 24 * 3600;
+    uint256 public constant MAX_BUNDLE_LIFETIME = 180 * 24 * 3600;
     uint256 public constant MAX_POLICY_DURATION = 180 * 24 * 3600;
     uint256 public constant ONE_YEAR_DURATION = 365 * 24 * 3600; 
 
@@ -250,6 +250,11 @@ contract DepegRiskpool is
         public override
         returns(bool isMatching) 
     {
+        // enforce max bundle lifetime
+        if(block.timestamp > bundle.createdAt + MAX_BUNDLE_LIFETIME) {
+            return false;
+        }
+
         uint256 bundleId = bundle.id;
 
         (
@@ -298,6 +303,10 @@ contract DepegRiskpool is
 
     function getBundleRiskCapitalCap() public view returns (uint256 bundleRiskCapitalCap) {
         return _bundleRiskCapitalCap;
+    }
+
+    function getMaxBundleLifetime() public pure returns(uint256 maxBundleLifetime) {
+        return MAX_BUNDLE_LIFETIME;
     }
 
     function getOneYearDuration() public pure returns(uint256 yearDuration) { 
