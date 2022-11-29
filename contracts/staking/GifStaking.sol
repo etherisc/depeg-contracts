@@ -7,7 +7,10 @@ import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import "@etherisc/gif-interface/contracts/modules/IRegistry.sol";
 import "@etherisc/gif-interface/contracts/services/IInstanceService.sol";
 
+import "./IStakingDataProvider.sol";
+
 contract GifStaking is
+    IStakingDataProvider,
     Ownable
 {
 
@@ -263,6 +266,33 @@ contract GifStaking is
     }
 
 
+    function getBundleStakes(
+        bytes32 instanceId,
+        uint256 bundleId
+    ) 
+        external override
+        view 
+        returns(uint256 stakedDipAmount)
+    {
+        return stakes(instanceId, bundleId);
+    }
+
+
+    function getSupportedCapitalAmount(
+        bytes32 instanceId,
+        uint256 bundleId,
+        address tokenAddress
+    )
+        external override
+        view
+        returns(uint256 captialCap)
+    {
+        InstanceInfo memory info = getInstanceInfo(instanceId);
+        uint256 dipStakes = stakes(instanceId, bundleId);
+        return convertToTokenAmount(dipStakes, info.chainId, tokenAddress);
+    }
+
+
     function getDip() external view returns(IERC20Metadata dip) {
         return _dip;
     }
@@ -283,7 +313,7 @@ contract GifStaking is
         uint256 chainId, 
         address tokenAddress 
     )
-        external
+        public
         view
         returns(uint256 tokenAmount)
     {
@@ -324,7 +354,7 @@ contract GifStaking is
     function getInstanceInfo(
         bytes32 instanceId
     )
-        external
+        public
         view
         returns(InstanceInfo memory info)
     {
@@ -353,7 +383,7 @@ contract GifStaking is
         uint256 bundleId, 
         address staker
     )
-        external
+        public
         view
         returns(StakeInfo memory stakeInfo)
     {
@@ -370,7 +400,7 @@ contract GifStaking is
         uint256 bundleId, 
         address staker
     )
-        external
+        public
         view
         returns(uint256 amount)
     {
@@ -385,7 +415,7 @@ contract GifStaking is
         bytes32 instanceId, 
         uint256 bundleId
     )
-        external
+        public
         view
         returns(uint256 amount)
     {
@@ -399,7 +429,7 @@ contract GifStaking is
     function stakes(
         bytes32 instanceId
     )
-        external
+        public
         view
         returns(uint256 amount)
     {
@@ -410,7 +440,7 @@ contract GifStaking is
     }
 
 
-    function stakes() external view returns(uint256 amount) {
+    function stakes() public view returns(uint256 amount) {
         return _overallStakedAmount;
     }
 

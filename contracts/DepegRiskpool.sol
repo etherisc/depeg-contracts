@@ -9,6 +9,8 @@ import "@etherisc/gif-interface/contracts/modules/IPolicy.sol";
 import "@etherisc/gif-interface/contracts/tokens/IBundleToken.sol";
 
 import "./gif/BasicRiskpool2.sol";
+import "./staking/IStakingDataProvider.sol";
+
 
 contract DepegRiskpool is 
     BasicRiskpool2
@@ -25,6 +27,7 @@ contract DepegRiskpool is
     uint256 public constant APR_100_PERCENTAGE = 10**6;
     uint256 public constant MAX_APR = APR_100_PERCENTAGE / 5;
 
+    IStakingDataProvider private _stakingDataProvider;
     uint256 private _poolRiskCapitalCap;
     uint256 private _bundleRiskCapitalCap;
 
@@ -48,7 +51,26 @@ contract DepegRiskpool is
         require(sumOfSumInsuredCap <= _poolRiskCapitalCap, "ERROR:DRP-010:SUM_OF_SUM_INSURED_CAP_TOO_LARGE");
         require(sumOfSumInsuredCap > 0, "ERROR:DRP-011:SUM_OF_SUM_INSURED_CAP_ZERO");
 
+        _stakingDataProvider = IStakingDataProvider(address(0));
     }
+
+
+    function setStakingDataProvider(address dataProviderAddress)
+        external
+        onlyOwner
+    {
+        _stakingDataProvider = IStakingDataProvider(dataProviderAddress);
+    }
+
+
+    function getStakingDataProvider()
+        external
+        view
+        returns(IStakingDataProvider stakingDataProvider)
+    {
+        return _stakingDataProvider;
+    }
+
 
     function createBundle(
         uint256 policyMinSumInsured,
@@ -277,7 +299,14 @@ contract DepegRiskpool is
 
         if(sumInsured < minSumInsured) { sumInsuredOk = false; }
         if(sumInsured > maxSumInsured) { sumInsuredOk = false; }
-        
+
+        // TODO add check if sumInsured is covered by capped capital
+        // depending on bundle statkes, ie 
+        // lockedcapital + sumInsured <= staking enabled bundle capital
+        if(getSupportedCapitalAmount(bundleId) < bundle.lockedCapital + sumInsured) {
+            sumInsuredOk = false;
+        }
+
         if(duration < minDuration) { durationOk = false; }
         if(duration > maxDuration) { durationOk = false; }
         
@@ -288,6 +317,22 @@ contract DepegRiskpool is
 
         emit LogBundleMatchesApplication(bundleId, sumInsuredOk, durationOk, premiumOk);
     }
+
+
+    function getSupportedCapitalAmount(uint256 bundleId)
+        public view
+        returns(uint256 capitalCap)
+    {
+        if(address(_stakingDataProvider) == address(0)) {
+            return _bundleRiskCapitalCap;
+        }
+
+        return _stakingDataProvider.getSupportedCapitalAmount(
+            _instanceService.getInstanceId(), 
+            bundleId, 
+            getErc20Token());
+    }
+
 
     function calculatePremium(
         uint256 sumInsured,
