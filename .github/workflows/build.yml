@@ -65,10 +65,9 @@ jobs:
 
       - name: Compile contracts
         run: brownie compile --all
-      ## TODO enable when tests are available
-      # - run: touch .env
-      # - name: Execute tests
-      #   run: brownie test -n auto
+      - run: touch .env
+      - name: Execute tests
+        run: brownie test -n auto
         
       - name: Install solhint linter
         run: npm install --global solhint

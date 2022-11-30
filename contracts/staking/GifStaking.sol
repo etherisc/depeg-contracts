@@ -120,12 +120,12 @@ contract GifStaking is
     }
 
 
-    function setYield(uint256 yield)
+    function setYield(uint256 yieldPercentage)
         external
         onlyOwner
     {
-        require(yield <= YIELD_MAX_PERCENTAGE, "ERROR:STK-016:YIELD_EXEEDS_MAX_VALUE");
-        _yield = yield;
+        require(yieldPercentage <= YIELD_MAX_PERCENTAGE, "ERROR:STK-016:YIELD_EXEEDS_MAX_VALUE");
+        _yield = yieldPercentage;
     }
 
 
