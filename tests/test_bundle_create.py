@@ -126,6 +126,7 @@ def test_create_bundle(
     assert bundleInfo['maxDuration'] == filterMaxDuration
     assert bundleInfo['annualPercentageReturn'] == filterAnnualPercentageReturn
 
+    assert bundleInfo['capitalSupportedByStaking'] == riskpool.getBundleCapitalCap()
     assert bundleInfo['capital'] == capital
     assert bundleInfo['lockedCapital'] == lockedCapital
     assert bundleInfo['balance'] == balance

@@ -71,6 +71,14 @@ def test_staking_full_setup(
     assert gifStaking.getBundleStakes(instanceId, bundleId) == 0
     assert gifStaking.getSupportedCapitalAmount(instanceId, bundleId, usd1) == 0
 
+    bundleInfo = riskpool.getBundleInfo(bundleId)
+    print('bundleInfo {}'.format(bundleInfo))
+
+    assert bundleInfo['bundleId'] == bundleId
+    assert bundleInfo['capitalSupportedByStaking'] == 0
+    assert bundleInfo['capital'] > 0.9 * bundleFunding
+    assert bundleInfo['lockedCapital'] == 0
+
     sumInsured = 10000 * 10**usd1.decimals()
     durationDays = 60
     maxPremium = 750 * 10**usd1.decimals()
@@ -122,3 +130,12 @@ def test_staking_full_setup(
     print('metadata2 {}'.format(metadata))
     print('application2 {}'.format(application))
     print('policy2 {}'.format(policy))
+
+    # check updated bundleInfo
+    bundleInfo2 = riskpool.getBundleInfo(bundleId)
+    print('bundleInfo2 {}'.format(bundleInfo2))
+
+    assert bundleInfo2['bundleId'] == bundleId
+    assert bundleInfo2['capitalSupportedByStaking'] == gifStaking.getSupportedCapitalAmount(instanceId, bundleId, usd1)
+    assert bundleInfo2['capital'] == bundleInfo['capital']
+    assert bundleInfo2['lockedCapital'] == sumInsured

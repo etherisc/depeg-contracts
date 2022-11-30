@@ -15,10 +15,26 @@ import "./staking/IStakingDataProvider.sol";
 contract DepegRiskpool is 
     BasicRiskpool2
 {
+    struct BundleInfo {
+        uint256 bundleId;
+        IBundle.BundleState state;
+        uint256 tokenId;
+        address owner;
+        uint256 minSumInsured;
+        uint256 maxSumInsured;
+        uint256 minDuration;
+        uint256 maxDuration;
+        uint256 annualPercentageReturn;
+        uint256 capitalSupportedByStaking;
+        uint256 capital;
+        uint256 lockedCapital;
+        uint256 balance;
+        uint256 createdAt;
+    }
 
     event LogBundleMatchesApplication(uint256 bundleId, bool sumInsuredOk, bool durationOk, bool premiumOk);
 
-    uint256 public constant USD_RISK_CAPITAL_CAP = 1 * 10**6;
+    uint256 public constant USD_CAPITAL_CAP = 1 * 10**6;
 
     uint256 public constant MAX_BUNDLE_LIFETIME = 180 * 24 * 3600;
     uint256 public constant MAX_POLICY_DURATION = 180 * 24 * 3600;
@@ -28,8 +44,8 @@ contract DepegRiskpool is
     uint256 public constant MAX_APR = APR_100_PERCENTAGE / 5;
 
     IStakingDataProvider private _stakingDataProvider;
-    uint256 private _poolRiskCapitalCap;
-    uint256 private _bundleRiskCapitalCap;
+    uint256 private _poolCapitalCap;
+    uint256 private _bundleCapitalCap;
 
     constructor(
         bytes32 name,
@@ -41,14 +57,14 @@ contract DepegRiskpool is
         BasicRiskpool2(name, getFullCollateralizationLevel(), sumOfSumInsuredCap, erc20Token, wallet, registry)
     {
         ERC20 token = ERC20(erc20Token);
-        _poolRiskCapitalCap = USD_RISK_CAPITAL_CAP * 10 ** token.decimals();
+        _poolCapitalCap = USD_CAPITAL_CAP * 10 ** token.decimals();
 
         // HACK this needs to be determined according to max active bundles
         // setMaxActiveBundles in Riskpool needs to become virtual. alternatively 
         // Riskpool could call a virtual postprocessing hook
-        _bundleRiskCapitalCap = _poolRiskCapitalCap / 10;
+        _bundleCapitalCap = _poolCapitalCap / 10;
 
-        require(sumOfSumInsuredCap <= _poolRiskCapitalCap, "ERROR:DRP-010:SUM_OF_SUM_INSURED_CAP_TOO_LARGE");
+        require(sumOfSumInsuredCap <= _poolCapitalCap, "ERROR:DRP-010:SUM_OF_SUM_INSURED_CAP_TOO_LARGE");
         require(sumOfSumInsuredCap > 0, "ERROR:DRP-011:SUM_OF_SUM_INSURED_CAP_ZERO");
 
         _stakingDataProvider = IStakingDataProvider(address(0));
@@ -83,7 +99,7 @@ contract DepegRiskpool is
         public
         returns(uint256 bundleId)
     {
-        require(policyMaxSumInsured <= _bundleRiskCapitalCap, "ERROR:DRP-020:MAX_SUM_INSURED_TOO_LARGE");
+        require(policyMaxSumInsured <= _bundleCapitalCap, "ERROR:DRP-020:MAX_SUM_INSURED_TOO_LARGE");
         require(policyMaxSumInsured > 0, "ERROR:DRP-021:MAX_SUM_INSURED_ZERO");
         require(policyMinSumInsured <= policyMaxSumInsured, "ERROR:DRP-022:MIN_SUM_INSURED_TOO_LARGE");
 
@@ -94,7 +110,7 @@ contract DepegRiskpool is
         require(annualPercentageReturn <= MAX_APR, "ERROR:DRP-026:APR_TOO_LARGE");
         require(annualPercentageReturn > 0, "ERROR:DRP-027:APR_ZERO");
 
-        require(initialAmount <= _bundleRiskCapitalCap, "ERROR:DRP-028:RISK_CAPITAL_TOO_LARGE");
+        require(initialAmount <= _bundleCapitalCap, "ERROR:DRP-028:RISK_CAPITAL_TOO_LARGE");
 
         bytes memory filter = encodeBundleParamsAsFilter(
             policyMinSumInsured,
@@ -110,33 +126,37 @@ contract DepegRiskpool is
     function getBundleInfo(uint256 bundleId)
         external
         view
-        returns(
-            IBundle.BundleState state,
-            uint256 tokenId,
-            address owner,
-            uint256 minSumInsured,
-            uint256 maxSumInsured,
-            uint256 minDuration,
-            uint256 maxDuration,
-            uint256 annualPercentageReturn,
-            uint256 capital,
-            uint256 lockedCapital,
-            uint256 balance,
-            uint256 createdAt
+        returns(BundleInfo memory info
+            // IBundle.BundleState state,
+            // uint256 tokenId,
+            // address owner,
+            // uint256 minSumInsured,
+            // uint256 maxSumInsured,
+            // uint256 minDuration,
+            // uint256 maxDuration,
+            // uint256 annualPercentageReturn,
+            // uint256 capitalSupportedByStaking,
+            // uint256 capital,
+            // uint256 lockedCapital,
+            // uint256 balance,
+            // uint256 createdAt
         )
     {
         IBundle.Bundle memory bundle = _instanceService.getBundle(bundleId);
         IBundleToken token = _instanceService.getBundleToken();
 
         (
-            minSumInsured,
-            maxSumInsured,
-            minDuration,
-            maxDuration,
-            annualPercentageReturn
+            uint256 minSumInsured,
+            uint256 maxSumInsured,
+            uint256 minDuration,
+            uint256 maxDuration,
+            uint256 annualPercentageReturn
         ) = decodeBundleParamsFromFilter(bundle.filter);
 
-        return (
+        uint256 capitalSupportedByStaking = getSupportedCapitalAmount(bundleId);
+
+        info = BundleInfo(
+            bundleId,
             bundle.state,
             bundle.tokenId,
             token.ownerOf(bundle.tokenId),
@@ -145,6 +165,7 @@ contract DepegRiskpool is
             minDuration,
             maxDuration,
             annualPercentageReturn,
+            capitalSupportedByStaking,
             bundle.capital,
             bundle.lockedCapital,
             bundle.balance,
@@ -300,9 +321,6 @@ contract DepegRiskpool is
         if(sumInsured < minSumInsured) { sumInsuredOk = false; }
         if(sumInsured > maxSumInsured) { sumInsuredOk = false; }
 
-        // TODO add check if sumInsured is covered by capped capital
-        // depending on bundle statkes, ie 
-        // lockedcapital + sumInsured <= staking enabled bundle capital
         if(getSupportedCapitalAmount(bundleId) < bundle.lockedCapital + sumInsured) {
             sumInsuredOk = false;
         }
@@ -324,7 +342,7 @@ contract DepegRiskpool is
         returns(uint256 capitalCap)
     {
         if(address(_stakingDataProvider) == address(0)) {
-            return _bundleRiskCapitalCap;
+            return _bundleCapitalCap;
         }
 
         return _stakingDataProvider.getSupportedCapitalAmount(
@@ -346,8 +364,8 @@ contract DepegRiskpool is
         premiumAmount = sumInsured * policyDurationReturn / APR_100_PERCENTAGE;
     }
 
-    function getBundleRiskCapitalCap() public view returns (uint256 bundleRiskCapitalCap) {
-        return _bundleRiskCapitalCap;
+    function getBundleCapitalCap() public view returns (uint256 bundleCapitalCap) {
+        return _bundleCapitalCap;
     }
 
     function getMaxBundleLifetime() public pure returns(uint256 maxBundleLifetime) {
