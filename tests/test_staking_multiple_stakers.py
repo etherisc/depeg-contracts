@@ -32,9 +32,9 @@ def test_staking_happy_path(
     bundleId = create_bundle(instance, instanceOperator, investor, riskpool)
     gifStaking.updateBundleState(instanceId, bundleId)
 
-    yield100Percent = gifStaking.getYield100PercentLevel()
-    yield20Percent = yield100Percent / 5
-    gifStaking.setYield(yield20Percent)
+    reward100Percent = gifStaking.getReward100PercentLevel()
+    reward20Percent = reward100Percent / 5
+    gifStaking.setRewardPercentage(reward20Percent)
 
     initialDipBalance = 10**6 * 10**dip.decimals()
     dip.transfer(gifStaking, initialDipBalance, {'from':instanceOperator})
@@ -68,14 +68,14 @@ def test_staking_happy_path(
 
     print('--- test setup after increased staking ---')
     stakeInfo = gifStaking.getStakeInfo(instanceId, bundleId, staker)
-    yieldAmount = gifStaking.calculateYieldIncrement(stakeInfo)
+    rewardAmount = gifStaking.calculateRewardsIncrement(stakeInfo)
     increaseAmount = 5 * 10**4 * 10**dip.decimals()
     gifStaking.stake(instanceId, bundleId, increaseAmount, {'from': staker})
 
-    assert gifStaking.stakes(instanceId, bundleId, staker) == stakingAmount + yieldAmount + increaseAmount
+    assert gifStaking.stakes(instanceId, bundleId, staker) == stakingAmount + rewardAmount + increaseAmount
     assert gifStaking.stakes(instanceId, bundleId, staker2) == stakingAmount
 
-    totalStakes = 2 * stakingAmount + yieldAmount + increaseAmount
+    totalStakes = 2 * stakingAmount + rewardAmount + increaseAmount
     assert gifStaking.stakes(instanceId, bundleId) == totalStakes
     assert gifStaking.stakes(instanceId) == totalStakes
     assert gifStaking.stakes() == totalStakes
@@ -87,10 +87,10 @@ def test_staking_happy_path(
     withdrawalAmount = 7 * 10**4 * 10**dip.decimals()
     gifStaking.withdraw(instanceId, bundleId, withdrawalAmount, {'from': staker})
 
-    assert gifStaking.stakes(instanceId, bundleId, staker) == stakingAmount + yieldAmount + increaseAmount - withdrawalAmount
+    assert gifStaking.stakes(instanceId, bundleId, staker) == stakingAmount + rewardAmount + increaseAmount - withdrawalAmount
     assert gifStaking.stakes(instanceId, bundleId, staker2) == stakingAmount
 
-    totalStakes = 2 * stakingAmount + yieldAmount + increaseAmount - withdrawalAmount
+    totalStakes = 2 * stakingAmount + rewardAmount + increaseAmount - withdrawalAmount
     assert gifStaking.stakes(instanceId, bundleId) == totalStakes
     assert gifStaking.stakes(instanceId) == totalStakes
     assert gifStaking.stakes() == totalStakes
@@ -108,4 +108,4 @@ def test_staking_happy_path(
     assert gifStaking.stakes(instanceId) == stakingAmount
     assert gifStaking.stakes() == stakingAmount
 
-    assert dip.balanceOf(gifStaking) == initialDipBalance + stakingAmount - yieldAmount
+    assert dip.balanceOf(gifStaking) == initialDipBalance + stakingAmount - rewardAmount

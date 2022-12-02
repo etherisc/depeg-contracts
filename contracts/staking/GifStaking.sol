@@ -38,22 +38,23 @@ contract GifStaking is
         uint256 updatedAt;
     }
 
+    uint256 public constant MAINNET_ID = 1;
     address public constant DIP_CONTRACT_ADDRESS = 0xc719d010B63E5bbF2C0551872CD5316ED26AcD83;
     uint256 public constant DIP_DECIMALS = 18;
     uint256 public constant DIP_TO_TOKEN_PARITY_LEVEL_DECIMALS = 18;
     uint256 public constant DIP_TO_TOKEN_PARITY_LEVEL = 10**DIP_TO_TOKEN_PARITY_LEVEL_DECIMALS;
 
-    uint256 public constant YIELD_100_PERCENTAGE = 10**6;
-    uint256 public constant YIELD_MAX_PERCENTAGE = YIELD_100_PERCENTAGE / 3;
+    uint256 public constant REWARD_100_PERCENTAGE = 10**6;
+    uint256 public constant REWARD_MAX_PERCENTAGE = REWARD_100_PERCENTAGE / 3;
     uint256 public constant ONE_YEAR_DURATION = 365 * 24 * 3600; 
 
     IERC20Metadata private _dip;
-    uint256 private _yield;
+    uint256 private _rewardPercentage;
     bytes32 [] private _instanceIds;
     address private _stakingWallet;
     
-    // dip to token conversion rate
-    mapping(uint256 /* chainId */ => mapping(address /* tokenAddress */ => uint256 /* rate */ )) private _dipConversionRate;
+    // dip to token staking rate
+    mapping(uint256 /* chainId */ => mapping(address /* tokenAddress */ => uint256 /* rate */ )) private _dipStakingRate;
     mapping(uint256 /* chainId */ => mapping(address /* tokenAddress */ => uint256 /* decimals */ )) private _tokenDecimals;
     
     // instance and bundle state
@@ -93,24 +94,24 @@ contract GifStaking is
         external
         onlyOwner()
     {
-        require(block.chainid != 1, "ERROR:STK-010:DIP_ADDRESS_CHANGE_NOT_ALLOWED_ON_MAINNET");
+        require(block.chainid != MAINNET_ID, "ERROR:STK-010:DIP_ADDRESS_CHANGE_NOT_ALLOWED_ON_MAINNET");
         require(dipTokenAddress != address(0), "ERROR:STK-011:DIP_CONTRACT_ADDRESS_ZERO");
 
         _dip = IERC20Metadata(dipTokenAddress);
     }
 
-    // dip conversion rate: value of 1 dip in amount of provided token 
-    function setDipConversionRate(uint256 chainId, address tokenAddress, uint256 tokenDecimals, uint256 conversionRate) 
+    // dip staking rate: value of 1 dip in amount of provided token 
+    function setDipStakingRate(uint256 chainId, address tokenAddress, uint256 tokenDecimals, uint256 stakingRate) 
         external
         onlyOwner()
     {
         require(chainId > 0, "ERROR:STK-012:CHAIN_ID_ZERO");
         require(tokenAddress != address(0), "ERROR:STK-013:TOKEN_ADDRESS_ZERO");
         require(tokenDecimals > 0, "ERROR:STK-014:TOKEN_DECIMALS_ZERO");
-        require(conversionRate > 0, "ERROR:STK-015:CONVERSION_RATE_ZERO");
+        require(stakingRate > 0, "ERROR:STK-015:STAKING_RATE_ZERO");
 
-        _dipConversionRate[chainId][tokenAddress] = conversionRate;
-        _tokenDecimals[chainId][tokenAddress] = conversionRate;
+        _dipStakingRate[chainId][tokenAddress] = stakingRate;
+        _tokenDecimals[chainId][tokenAddress] = tokenDecimals;
 
         // special case for on chain token
         if(chainId == block.chainid) {
@@ -119,13 +120,13 @@ contract GifStaking is
         }
     }
 
-
-    function setYield(uint256 yieldPercentage)
+    // TODO rename to reward
+    function setRewardPercentage(uint256 rewardPercentage)
         external
         onlyOwner
     {
-        require(yieldPercentage <= YIELD_MAX_PERCENTAGE, "ERROR:STK-016:YIELD_EXEEDS_MAX_VALUE");
-        _yield = yieldPercentage;
+        require(rewardPercentage <= REWARD_MAX_PERCENTAGE, "ERROR:STK-016:REWARD_EXEEDS_MAX_VALUE");
+        _rewardPercentage = rewardPercentage;
     }
 
 
@@ -211,8 +212,8 @@ contract GifStaking is
             stakeInfo.createdAt = block.timestamp;
         }
 
-        uint256 amountIncludingYields = amount + calculateYieldIncrement(stakeInfo);
-        _increaseBundleStakes(stakeInfo, amountIncludingYields);
+        uint256 amountIncludingRewards = amount + calculateRewardsIncrement(stakeInfo);
+        _increaseBundleStakes(stakeInfo, amountIncludingRewards);
         _collectStakes(staker, amount);
     }
 
@@ -240,7 +241,7 @@ contract GifStaking is
         StakeInfo storage stakeInfo = _stakeInfo[instanceId][bundleId][staker];
         require(stakeInfo.updatedAt > 0, "ERROR:STK-051:ACCOUNT_WITHOUT_STAKING_RECORD");
 
-        stakeInfo.balance += calculateYieldIncrement(stakeInfo);
+        stakeInfo.balance += calculateRewardsIncrement(stakeInfo);
 
         if(amount == type(uint256).max) {
             amount = stakeInfo.balance;
@@ -256,8 +257,8 @@ contract GifStaking is
     }
 
 
-    function getYield100PercentLevel() public pure returns(uint256 yield100PercentLevel) { 
-        return YIELD_100_PERCENTAGE;
+    function getReward100PercentLevel() public pure returns(uint256 reward100PercentLevel) { 
+        return REWARD_100_PERCENTAGE;
     }
 
 
@@ -289,7 +290,7 @@ contract GifStaking is
     {
         InstanceInfo memory info = getInstanceInfo(instanceId);
         uint256 dipStakes = stakes(instanceId, bundleId);
-        return convertToTokenAmount(dipStakes, info.chainId, tokenAddress);
+        return calculateTokenAmountFromStaking(dipStakes, info.chainId, tokenAddress);
     }
 
 
@@ -298,17 +299,17 @@ contract GifStaking is
     }
 
 
-    function getDipConversionRate(uint256 chainId, address tokenAddress)
+    function getDipStakingRate(uint256 chainId, address tokenAddress)
         public
         view
-        returns(uint256 conversionRate)
+        returns(uint256 stakingRate)
     {
-        conversionRate = _dipConversionRate[chainId][tokenAddress];
-        require(_dipConversionRate[chainId][tokenAddress] > 0, "ERROR:STK-060:CONVERSION_RATE_ZERO");
+        stakingRate = _dipStakingRate[chainId][tokenAddress];
+        require(_dipStakingRate[chainId][tokenAddress] > 0, "ERROR:STK-060:STAKING_RATE_ZERO");
     }
 
 
-    function convertToTokenAmount(
+    function calculateTokenAmountFromStaking(
         uint256 dipAmount,
         uint256 chainId, 
         address tokenAddress 
@@ -317,7 +318,7 @@ contract GifStaking is
         view
         returns(uint256 tokenAmount)
     {
-        uint256 conversionRate = getDipConversionRate(chainId, tokenAddress);
+        uint256 stakingRate = getDipStakingRate(chainId, tokenAddress);
         uint256 tokenDecimals = _tokenDecimals[chainId][tokenAddress];
         uint256 numerator = 1;
         uint256 denominator = 1;
@@ -329,7 +330,7 @@ contract GifStaking is
             numerator = 10**(tokenDecimals - (DIP_DECIMALS + DIP_TO_TOKEN_PARITY_LEVEL_DECIMALS));
         }
 
-        tokenAmount = (dipAmount * conversionRate * numerator) / denominator;
+        tokenAmount = (dipAmount * stakingRate * numerator) / denominator;
     }
 
 
@@ -445,28 +446,29 @@ contract GifStaking is
     }
 
 
-    function calculateYieldIncrement(StakeInfo memory stakeInfo)
+    function calculateRewardsIncrement(StakeInfo memory stakeInfo)
         public
         view
-        returns(uint256 yieldAmount)
+        returns(uint256 rewardsAmount)
     {
         uint256 timeSinceLastUpdate = block.timestamp - stakeInfo.updatedAt;
 
         // TODO potentially reduce time depending on the time when the bundle has been closed
 
-        yieldAmount = calculateYield(stakeInfo.balance, timeSinceLastUpdate);
+        rewardsAmount = calculateRewards(stakeInfo.balance, timeSinceLastUpdate);
     }
 
 
-    function calculateYield(
+    // TODO evaluate and use floting point library
+    function calculateRewards(
         uint256 amount,
         uint256 duration
     ) 
         public view
-        returns(uint256 yieldAmount) 
+        returns(uint256 rewardAmount) 
     {
-        uint256 durationYield = _yield * duration / ONE_YEAR_DURATION;
-        yieldAmount = amount * durationYield / YIELD_100_PERCENTAGE;
+        uint256 rewardDuration = _rewardPercentage * duration / ONE_YEAR_DURATION;
+        rewardAmount = amount * rewardDuration / REWARD_100_PERCENTAGE;
     }
 
 

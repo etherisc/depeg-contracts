@@ -38,15 +38,15 @@ def test_staking_data_provider_minimal(
     print('--- setup token exchange rate ---')
     chainId = instanceService.getChainId()
     leverageFactor = 0.1
-    conversionRate = leverageFactor * gifStaking.getDipToTokenParityLevel() # 1 dip unlocks 10 cents (usd1)
+    stakingRate = leverageFactor * gifStaking.getDipToTokenParityLevel() # 1 dip unlocks 10 cents (usd1)
     usd1Decimals = 1 # just dummy value, real value will be picked up on-chain
     
     gifStaking.setDipContract(dip.address, {'from': instanceOperator})
-    gifStaking.setDipConversionRate(
+    gifStaking.setDipStakingRate(
         chainId, 
         usd1.address, 
         usd1Decimals,
-        conversionRate,
+        stakingRate,
         {'from': instanceOperator})
 
     print('--- add bundle stakes ---')

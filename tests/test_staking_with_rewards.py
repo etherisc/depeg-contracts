@@ -17,7 +17,7 @@ def isolation(fn_isolation):
     pass
 
 
-def test_staking_with_yield(
+def test_staking_with_rewards(
     instance,
     instanceOperator,
     investor,
@@ -31,9 +31,9 @@ def test_staking_with_yield(
     bundleId = create_bundle(instance, instanceOperator, investor, riskpool)
     gifStaking.updateBundleState(instanceId, bundleId)
 
-    yield100Percent = gifStaking.getYield100PercentLevel()
-    yield20Percent = yield100Percent / 5
-    gifStaking.setYield(yield20Percent)
+    reward100Percent = gifStaking.getReward100PercentLevel()
+    reward20Percent = reward100Percent / 5
+    gifStaking.setRewardPercentage(reward20Percent)
 
     initialDipBalance = 10**6 * 10**dip.decimals()
     dip.transfer(gifStaking, initialDipBalance, {'from':instanceOperator})
@@ -48,18 +48,18 @@ def test_staking_with_yield(
     print('stakeInfo {}'.format(stakeInfo))
 
     assert stakeInfo[3] == stakingAmount
-    assert gifStaking.calculateYieldIncrement(stakeInfo) == 0 
+    assert gifStaking.calculateRewardsIncrement(stakeInfo) == 0 
 
     print('--- wait one year ---')
     chain.sleep(gifStaking.getOneYearDuration())
     chain.mine(1)
 
-    yieldIncrement = gifStaking.calculateYieldIncrement(stakeInfo)
-    print('amount {} yieldIncrement {} percentage {}'.format(
-        stakingAmount, yieldIncrement, yieldIncrement/stakingAmount
+    rewardsIncrement = gifStaking.calculateRewardsIncrement(stakeInfo)
+    print('amount {} rewardsIncrement {} percentage {}'.format(
+        stakingAmount, rewardsIncrement, rewardsIncrement/stakingAmount
     ))
 
-    assert yieldIncrement == stakingAmount / 5
+    assert rewardsIncrement == stakingAmount / 5
 
     print('--- increase stake by 1 ---')
     stakingIncrement = 1
@@ -70,7 +70,7 @@ def test_staking_with_yield(
     stakeInfo2 = gifStaking.getStakeInfo(instanceId, bundleId, staker)
     print('stakeInfo2 {}'.format(stakeInfo2))
 
-    assert stakeInfo2[3] == stakingAmount + yieldIncrement + stakingIncrement
+    assert stakeInfo2[3] == stakingAmount + rewardsIncrement + stakingIncrement
     assert stakeInfo2[5] >= stakeInfo[5] + gifStaking.getOneYearDuration()
 
     print('--- partial stake withdrawal ---')

@@ -18,7 +18,7 @@ def isolation(fn_isolation):
     pass
 
 
-def test_happy_case_usd1(
+def test_happy_case(
     instanceOperator,
     gifStaking: GifStaking,
     dip: DIP,
@@ -28,20 +28,22 @@ def test_happy_case_usd1(
     gifStaking.setDipContract(dip.address, {'from': instanceOperator})
 
     parityLevel = gifStaking.getDipToTokenParityLevel()
-    conversionRate = parityLevel / 10 # 1 dip unlocks 10 cents (usd1)
+    stakingRate = parityLevel / 10 # 1 dip unlocks 10 cents (usd1)
     
-    gifStaking.setDipConversionRate(
+    # set staking rate for usd1
+    gifStaking.setDipStakingRate(
         web3.chain_id, 
         usd1.address, 
         1,
-        conversionRate,
+        stakingRate,
         {'from': instanceOperator})
     
-    gifStaking.setDipConversionRate(
+    # set staking rate for usd3
+    gifStaking.setDipStakingRate(
         web3.chain_id, 
         usd3.address, 
         1,
-        conversionRate,
+        stakingRate,
         {'from': instanceOperator})
 
     oneDip = 10**dip.decimals()
@@ -50,8 +52,8 @@ def test_happy_case_usd1(
 
     assert oneUsd1 != oneUsd3
 
-    usd1Amount = gifStaking.convertToTokenAmount(10 * oneDip, web3.chain_id, usd1.address)
-    usd3Amount = gifStaking.convertToTokenAmount(10 * oneDip, web3.chain_id, usd3.address)
+    usd1Amount = gifStaking.calculateTokenAmountFromStaking(10 * oneDip, web3.chain_id, usd1.address)
+    usd3Amount = gifStaking.calculateTokenAmountFromStaking(10 * oneDip, web3.chain_id, usd3.address)
 
     assert usd1Amount == oneUsd1
     assert usd3Amount == oneUsd3
