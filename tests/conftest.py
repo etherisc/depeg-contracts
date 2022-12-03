@@ -6,6 +6,7 @@ from brownie import (
     USD1,
     USD2,
     USD3,
+    UsdcPriceDataProvider,
     DepegProduct,
     DepegRiskpool,
     GifStaking,
@@ -127,6 +128,10 @@ def instance(instanceOperator, instanceWallet, gif) -> GifInstance: return GifIn
 def instanceService(instance): return instance.getInstanceService()
 
 #=== depeg deployed contracts fixtures ========================================#
+
+@pytest.fixture(scope="module")
+def usdcFeeder(usd1, instanceOperator) -> UsdcPriceDataProvider: 
+    return UsdcPriceDataProvider.deploy(usd1.address, {'from': instanceOperator})
 
 @pytest.fixture(scope="module")
 def gifDepegDeploy(

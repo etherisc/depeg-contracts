@@ -120,7 +120,6 @@ contract GifStaking is
         }
     }
 
-    // TODO rename to reward
     function setRewardPercentage(uint256 rewardPercentage)
         external
         onlyOwner
