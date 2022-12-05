@@ -130,7 +130,7 @@ def instanceService(instance): return instance.getInstanceService()
 #=== depeg deployed contracts fixtures ========================================#
 
 @pytest.fixture(scope="module")
-def usdcFeeder(usd1, instanceOperator) -> UsdcPriceDataProvider: 
+def usdc_feeder(usd1, instanceOperator) -> UsdcPriceDataProvider: 
     return UsdcPriceDataProvider.deploy(usd1.address, {'from': instanceOperator})
 
 @pytest.fixture(scope="module")

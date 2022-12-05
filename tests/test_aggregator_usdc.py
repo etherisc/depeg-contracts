@@ -37,95 +37,95 @@ def isolation(fn_isolation):
 
 
 def test_feeder_fixture(
-    usdcFeeder: UsdcPriceDataProvider,
+    usdc_feeder: UsdcPriceDataProvider,
     usd1: USD1
 ):
-    assert usdcFeeder.getAggregatorDecimals() == 8
+    assert usdc_feeder.getAggregatorDecimals() == 8
 
     if web3.chain_id == GANACHE:
-        assert usdcFeeder.getAggregatorAddress() == usdcFeeder.address
-        assert usdcFeeder.getTokenAddress() == usd1.address
+        assert usdc_feeder.getAggregatorAddress() == usdc_feeder.address
+        assert usdc_feeder.getTokenAddress() == usd1.address
     elif web3.chain_id == MAINNET:
-        assert usdcFeeder.getAggregatorAddress() == CHAINLINK_USDC_USD_FEED_MAINNET
-        assert usdcFeeder.getTokenAddress() == USDC_CONTACT_ADDRESS
+        assert usdc_feeder.getAggregatorAddress() == CHAINLINK_USDC_USD_FEED_MAINNET
+        assert usdc_feeder.getTokenAddress() == USDC_CONTACT_ADDRESS
     else:
         print('ERROR chain_id {} not supported'.format(web3.chain_id))
         assert False
 
 
-def test_test_data_ganache(usdcFeeder: UsdcPriceDataProvider):
+def test_test_data(usdc_feeder: UsdcPriceDataProvider):
 
     if web3.chain_id == GANACHE:
         print('on ganache we need to populate usdc aggregator data first')
-        injectDataToFeeder(usdcFeeder)
+        inject_data_to_reeder(usdc_feeder)
 
     for i in range(len(USDC_CHAINLINK_DATA)):
-        expectedData = data2roundData(i)
-        actualData = usdcFeeder.getRoundData(expectedData[0])
-        checkRound(actualData, expectedData)
+        expected_data = data_to_round_data(i)
+        actual_data = usdc_feeder.getRoundData(expected_data[0])
+        check_round(actual_data, expected_data)
 
     if web3.chain_id == GANACHE:
-        expectedData = data2roundData(len(USDC_CHAINLINK_DATA) - 1)
-        actualData = usdcFeeder.latestRoundData()
-        checkRound(actualData, expectedData)
+        expected_data = data_to_round_data(len(USDC_CHAINLINK_DATA) - 1)
+        actual_data = usdc_feeder.latestRoundData()
+        check_round(actual_data, expected_data)
 
 
-def checkRound(actualData, expectedData):
+def check_round(actual_data, expected_data):
     (
-        roundId,
+        round_id,
         answer,
-        startedAt,
-        updatedAt,
-        answeredInRound
-    ) = actualData
+        started_at,
+        updated_at,
+        answered_in_round
+    ) = actual_data
     
     (
-        expectedRoundId,
-        expectedAnswer,
-        expectedStartedAt,
-        expectedUpdatedAt,
-        expectedAnsweredInRound
-    ) = expectedData
+        expected_round_id,
+        expected_answer,
+        expected_started_at,
+        expected_updated_at,
+        expected_answered_in_round
+    ) = expected_data
 
-    assert roundId == expectedRoundId
-    assert answer == expectedAnswer
-    assert startedAt == expectedStartedAt
-    assert updatedAt == expectedUpdatedAt
-    assert answeredInRound == expectedAnsweredInRound
+    assert round_id == expected_round_id
+    assert answer == expected_answer
+    assert started_at == expected_started_at
+    assert updated_at == expected_updated_at
+    assert answered_in_round == expected_answered_in_round
 
 
-def injectDataToFeeder(usdcFeeder):
+def inject_data_to_reeder(usdc_feeder):
     for i in range(len(USDC_CHAINLINK_DATA)):
         (
-            roundId,
+            round_id,
             answer,
-            startedAt,
-            updatedAt,
-            answeredInRound
-        ) = data2roundData(i)
+            started_at,
+            updated_at,
+            answered_in_round
+        ) = data_to_round_data(i)
 
-        usdcFeeder.setRoundData(
-            roundId,
+        usdc_feeder.setRoundData(
+            round_id,
             answer,
-            startedAt,
-            updatedAt,
-            answeredInRound
+            started_at,
+            updated_at,
+            answered_in_round
         )
 
 
-def data2roundData(i:int):
+def data_to_round_data(i:int):
     data = USDC_CHAINLINK_DATA[i]
-    roundData = data.split()
-    roundId = int(roundData[0])
-    answer = int(roundData[1])
-    startedAt = int(roundData[2])
-    updatedAt = int(roundData[3])
-    answeredInRound = int(roundData[4])
+    round_data = data.split()
+    round_id = int(round_data[0])
+    answer = int(round_data[1])
+    started_at = int(round_data[2])
+    updated_at = int(round_data[3])
+    answered_in_round = int(round_data[4])
 
     return (
-        roundId,
+        round_id,
         answer,
-        startedAt,
-        updatedAt,
-        answeredInRound
+        started_at,
+        updated_at,
+        answered_in_round
     )
