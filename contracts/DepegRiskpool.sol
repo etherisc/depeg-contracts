@@ -126,21 +126,7 @@ contract DepegRiskpool is
     function getBundleInfo(uint256 bundleId)
         external
         view
-        returns(BundleInfo memory info
-            // IBundle.BundleState state,
-            // uint256 tokenId,
-            // address owner,
-            // uint256 minSumInsured,
-            // uint256 maxSumInsured,
-            // uint256 minDuration,
-            // uint256 maxDuration,
-            // uint256 annualPercentageReturn,
-            // uint256 capitalSupportedByStaking,
-            // uint256 capital,
-            // uint256 lockedCapital,
-            // uint256 balance,
-            // uint256 createdAt
-        )
+        returns(BundleInfo memory info)
     {
         IBundle.Bundle memory bundle = _instanceService.getBundle(bundleId);
         IBundleToken token = _instanceService.getBundleToken();

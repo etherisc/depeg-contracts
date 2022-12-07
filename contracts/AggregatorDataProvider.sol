@@ -20,6 +20,10 @@ contract AggregatorDataProvider is
     
     AggregatorV3Interface private _aggregator;
 
+    uint256 private _deviation;
+    uint256 private _heartbeat;
+    uint256 private _heartbeatMargin;
+
     string private _description;
     uint8 private _decimals;
     uint256 private _version;
@@ -30,6 +34,9 @@ contract AggregatorDataProvider is
 
     constructor(
         address aggregatorAddress,
+        uint256 deviationLevel, // 10**decimals() corresponding to 100%
+        uint256 heartbeatSeconds,
+        uint256 heartbeatMarginSeconds,
         string memory testDescription,
         uint8 testDecimals,
         uint256 testVersion
@@ -44,6 +51,10 @@ contract AggregatorDataProvider is
             _decimals = testDecimals;
             _version = testVersion;
         }
+
+        _deviation = deviationLevel;
+        _heartbeat = heartbeatSeconds;
+        _heartbeatMargin = heartbeatMarginSeconds;
     }
 
     function setRoundData (
@@ -69,6 +80,52 @@ contract AggregatorDataProvider is
 
     function getChainlinkAggregatorAddress() public view returns(address) {
         return address(_aggregator);
+    }
+
+    function isExceedingDeviation(uint256 price1, uint256 price2) 
+        public 
+        view 
+        returns(bool isExceeding)
+    {
+        if(price1 >= price2) {
+            if(price1 - price2 > _deviation) {
+                return true;
+            }
+        }
+        else if(price2 - price1 > _deviation) {
+            return true;
+        }
+
+        return false;
+    }
+
+    function isExceedingHeartbeat(uint256 time1, uint256 time2) 
+        public 
+        view 
+        returns(bool isExceeding)
+    {
+        if(time1 >= time2) {
+            if(time1 - time2 > _heartbeat + _heartbeatMargin) {
+                return true;
+            }
+        }
+        else if(time2 - time1 > _heartbeat + _heartbeatMargin) {
+            return true;
+        }
+
+        return false;
+    }
+
+    function deviation() public view returns (uint256) {
+        return _deviation;
+    }
+
+    function heartbeat() public view returns (uint256) {
+        return _heartbeat;
+    }
+
+    function heartbeatMargin() public view returns (uint256) {
+        return _heartbeatMargin;
     }
 
     function description() public override view returns (string memory) {

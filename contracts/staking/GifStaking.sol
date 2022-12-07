@@ -9,6 +9,7 @@ import "@etherisc/gif-interface/contracts/services/IInstanceService.sol";
 
 import "./IStakingDataProvider.sol";
 
+// TODO check/compare for function naming https://github.com/ethereum/EIPs/issues/900
 contract GifStaking is
     IStakingDataProvider,
     Ownable
@@ -21,6 +22,7 @@ contract GifStaking is
         uint256 createdAt;
     }
 
+    // TODO add instanceId, bundleId and (global) id for bundles
     struct BundleInfo {
         uint256 id;
         IBundle.BundleState state;
@@ -29,6 +31,7 @@ contract GifStaking is
         uint256 updatedAt;
     }
 
+    // TODO replace instanceId, bundleId with global bundleId
     struct StakeInfo {
         address staker;
         bytes32 instanceId;
@@ -216,7 +219,8 @@ contract GifStaking is
         _collectStakes(staker, amount);
     }
 
-
+    // TODO rename: withdraw => unstake, (align with naming below)
+    // https://github.com/ethereum/EIPs/issues/900
     function withdraw(
         bytes32 instanceId, 
         uint256 bundleId
