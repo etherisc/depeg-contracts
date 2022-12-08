@@ -8,13 +8,21 @@ chmod 755 ~/.solcx/solc*
 
 # Retrieve brownie dependencies
 export VERSION_OPEN_ZEPPELIN=4.7.3
-export VERSION_CHAINLINK=1.6.0
 wget -O /tmp/v${VERSION_OPEN_ZEPPELIN}.tar.gz https://github.com/OpenZeppelin/openzeppelin-contracts/archive/refs/tags/v${VERSION_OPEN_ZEPPELIN}.tar.gz 
-wget -O /tmp/v${VERSION_CHAINLINK}.tar.gz https://github.com/smartcontractkit/chainlink/archive/refs/tags/v${VERSION_CHAINLINK}.tar.gz
 mkdir -p ~/.brownie/packages/OpenZeppelin 
 cd ~/.brownie/packages/OpenZeppelin 
 tar xvfz /tmp/v${VERSION_OPEN_ZEPPELIN}.tar.gz 
 mv openzeppelin-contracts-${VERSION_OPEN_ZEPPELIN} openzeppelin-contracts@${VERSION_OPEN_ZEPPELIN} 
+
+export VERSION_CHAINLINK=1.6.0
+wget -O /tmp/v${VERSION_CHAINLINK}.tar.gz https://github.com/smartcontractkit/chainlink/archive/refs/tags/v${VERSION_CHAINLINK}.tar.gz
+mkdir -p ~/.brownie/packages/smartcontractkit 
+cd ~/.brownie/packages/smartcontractkit 
+tar xvfz /tmp/v${VERSION_CHAINLINK}.tar.gz 
+mv chainlink-${VERSION_CHAINLINK} chainlink@${VERSION_CHAINLINK}
+
+export VERSION_CHAINLINK=1.10.0
+wget -O /tmp/v${VERSION_CHAINLINK}.tar.gz https://github.com/smartcontractkit/chainlink/archive/refs/tags/v${VERSION_CHAINLINK}.tar.gz
 mkdir -p ~/.brownie/packages/smartcontractkit 
 cd ~/.brownie/packages/smartcontractkit 
 tar xvfz /tmp/v${VERSION_CHAINLINK}.tar.gz 
