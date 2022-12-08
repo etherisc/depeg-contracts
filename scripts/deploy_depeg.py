@@ -361,7 +361,7 @@ def deploy(
 
 def help():
     print('from scripts.deploy_depeg import all_in_1, new_bundle, best_quote, new_policy, inspect_bundle, inspect_bundles, inspect_applications, help')
-    print('(customer, customer2, product, riskpool, riskpoolWallet, usd1, instanceService, instanceOperator, processId, d) = all_in_1()')
+    print('(customer, customer2, product, riskpool, riskpoolWallet, usd2, instanceService, instanceOperator, processId, d) = all_in_1()')
     print('instanceService.getPolicy(processId)')
     print('instanceService.getBundle(1)')
     print('inspect_bundle(d, 1)')
@@ -370,14 +370,14 @@ def help():
     print('best_quote(d, 5000, 29)')
 
 
-def all_in_1(registry_address=None, tokenAddress=None):
-    a = stakeholders_accounts_ganache()
+def all_in_1(registry_address=None, tokenAddress=None, accounts=None):
+    a = accounts or stakeholders_accounts_ganache()
     if registry_address is None:
         registry_address = get_address('registry')
     if tokenAddress is None:
-        tokenAddress = get_address('erc20')
-    usd1 = contract_from_address(interface.IERC20, tokenAddress)
-    d = deploy_setup_including_token(a, usd1, registry_address)
+        tokenAddress = get_address('usd2')
+    usd2 = contract_from_address(interface.IERC20, tokenAddress)
+    d = deploy_setup_including_token(a, usd2, registry_address)
 
     customer = d[CUSTOMER1]
     customer2 = d[CUSTOMER2]
@@ -388,7 +388,7 @@ def all_in_1(registry_address=None, tokenAddress=None):
     riskpoolWallet = d[RISKPOOL_WALLET]
     processId = d[PROCESS_ID1]
 
-    return (customer, customer2, product, riskpool, riskpoolWallet, usd1, instanceService, instanceOperator, processId, d)
+    return (customer, customer2, product, riskpool, riskpoolWallet, usd2, instanceService, instanceOperator, processId, d)
 
 
 def get_address(name):
@@ -684,7 +684,7 @@ def inspect_bundle(d, bundleId):
     print('- nft {}'.format(bundle[2]))
     print('- state {}'.format(bundle[3]))
     print('- filter')
-    print('  + sum insured {}-{} [USD1]'.format(minSumInsured, maxSumInsured))
+    print('  + sum insured {}-{} [USD2]'.format(minSumInsured, maxSumInsured))
     print('  + coverage duration {}-{} [days]'.format(minDuration/sPerD, maxDuration/sPerD))
     print('  + apr {} [%]'.format(100 * annualPercentageReturn/riskpool.getApr100PercentLevel()))
     print('- financials')
