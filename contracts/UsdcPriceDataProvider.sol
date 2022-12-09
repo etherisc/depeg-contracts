@@ -14,7 +14,9 @@ contract UsdcPriceDataProvider is
     uint8 public constant CHAINLINK_USDC_DECIMALS = 8;
 
     uint256 public constant DEPEG_TRIGGER_PRICE = 995 * 10**CHAINLINK_USDC_DECIMALS / 1000; // USDC below 0.995 USD triggers depeg alert
-    uint256 public constant DEPEG_RECOVER_PRICE = 999 * 10**CHAINLINK_USDC_DECIMALS / 1000; // USDC at/above 0.999 USD is find and/or is considered a recovery from a depeg alert
+    uint256 public constant DEPEG_RECOVERY_PRICE = 999 * 10**CHAINLINK_USDC_DECIMALS / 1000; // USDC at/above 0.999 USD is find and/or is considered a recovery from a depeg alert
+    uint256 public constant DEPEG_RECOVERY_WINDOW = 24 * 3600;
+    
     uint256 public constant PRICE_INFO_HISTORY_DURATION = 7 * 24 * 3600; // keep price info for 1 week
 
     string public constant CHAINLINK_TEST_DESCRIPTION = "USDC / USD (Ganache)";
@@ -33,6 +35,10 @@ contract UsdcPriceDataProvider is
 
     mapping(uint256 /* price-id */=> PriceInfo) private _priceData;
     uint256 [] private _priceIds;
+
+    uint256 private _lastPriceId;
+    uint256 private _triggeredAt;
+    uint256 private _depeggedAt;
 
     constructor(address testTokenAddress) 
         AggregatorDataProvider(
@@ -69,30 +75,59 @@ contract UsdcPriceDataProvider is
         returns(PriceInfo memory priceInfo)
     {
         require(priceId > 0, "PRICE_ID_ZERO");
-        require(priceId < type(uint80).max, "PRICE_ID_EXEEDING_UINT80");
+        require(
+            priceId == type(uint256).max
+            || (priceId < type(uint80).max && _lastPriceId == 0)
+            || priceId == _lastPriceId + 1,
+            "PRICE_ID_INVALID");
 
-        (
-            uint80 roundId,
-            int256 answer,
-            uint256 startedAt,
-            uint256 updatedAt,
-            uint80 answeredInRound
-        ) = getRoundData(uint80(priceId));
+        uint80 roundId;
+        int256 answer;
+        uint256 startedAt;
+        uint256 updatedAt;
+        uint80 answeredInRound;
+
+        if(priceId == type(uint256).max) {
+            (
+                roundId,
+                answer,
+                startedAt,
+                updatedAt,
+                answeredInRound
+            ) = latestRoundData();
+        }
+        else {
+            (
+                roundId,
+                answer,
+                startedAt,
+                updatedAt,
+                answeredInRound
+            ) = getRoundData(uint80(priceId));
+        }
 
         require(answer >= 0, "NEGATIVE_PRICE_VALUES_INVALID");
 
-        // TODO caluclate this based on data feed history
         uint256 price = uint256(answer);
+        IPriceDataProvider.ComplianceState compliance = _calculateCompliance(roundId, price, updatedAt);
+        IPriceDataProvider.StabilityState stability =_calculateStability(roundId, price, updatedAt);
+
         priceInfo = PriceInfo(
             roundId,
             price,
-            _calculateCompliance(roundId, price, updatedAt),
-            _calculateStability(roundId, price),
+            compliance,
+            stability,
+            _triggeredAt,
+            _depeggedAt,
             updatedAt
         );
 
+        _lastPriceId = roundId;
+
+        // TODO verify if this is really needed ...
         _updatePriceData(priceInfo);
     }
+
 
     function _calculateCompliance(
         uint256 roundId,
@@ -147,29 +182,69 @@ contract UsdcPriceDataProvider is
         return IPriceDataProvider.ComplianceState.FailedMultipleTimes;
     }
 
+
     function _calculateStability(
         uint256 roundId,
-        uint256 price
+        uint256 price,
+        uint256 updatedAt
     )
         internal
-        view
         returns(IPriceDataProvider.StabilityState stability)
     {
-        if(_priceIds.length < 1) {
+        if(_lastPriceId == 0) {
             return IPriceDataProvider.StabilityState.Initializing;
         }
 
-        if(price >= DEPEG_RECOVER_PRICE) {
-            return IPriceDataProvider.StabilityState.Stable;
+        // once depegged, state remains depegged
+        if(_depeggedAt > 0) {
+            return IPriceDataProvider.StabilityState.Depegged;
         }
 
-        if(price >= DEPEG_TRIGGER_PRICE) {
-            // TODO check last state to decide if we are stable or remain in triggered
-            return IPriceDataProvider.StabilityState.Stable;
+        // check triggered state:
+        // triggered and not recovered within recovery window
+        if(_triggeredAt > 0) {
+
+            // check if recovery run out of time and we have depegged
+            if(updatedAt - _triggeredAt > DEPEG_RECOVERY_WINDOW) {
+                emit LogPriceDataDepegged (
+                    roundId,
+                    price,
+                    _triggeredAt,
+                    updatedAt);
+
+                _depeggedAt = updatedAt;
+                return IPriceDataProvider.StabilityState.Depegged;
+            }
+
+            // check for potential recovery
+            if(price >= DEPEG_RECOVERY_PRICE) {
+                emit LogPriceDataRecovered (
+                    roundId,
+                    price,
+                    _triggeredAt,
+                    updatedAt);
+
+                _triggeredAt = 0;
+                return IPriceDataProvider.StabilityState.Stable;
+            }
+
+            // remaining in triggered state
+            return IPriceDataProvider.StabilityState.Triggered;
+        } 
+
+        // check potential change into triggerd state
+        if(price <= DEPEG_TRIGGER_PRICE) {
+            emit LogPriceDataTriggered (
+                roundId,
+                price,
+                updatedAt);
+
+            _triggeredAt = updatedAt;
+            return IPriceDataProvider.StabilityState.Triggered;
         }
 
-        // TODO check history of last 24h to decide if we have a depeg event
-        return IPriceDataProvider.StabilityState.Triggered;
+        // everything fine 
+        return IPriceDataProvider.StabilityState.Stable;
     }
 
     function _updatePriceData(PriceInfo memory priceInfo) 
@@ -187,6 +262,15 @@ contract UsdcPriceDataProvider is
             _priceIds.push(newPriceId);
         }
     }
+
+    function getTriggeredAt() external override view returns(uint256 triggeredAt) {
+        return _triggeredAt;
+    }
+
+    function getDepeggedAt() external override view returns(uint256 depeggedAt) {
+        return _depeggedAt;
+    }
+
 
     function getAggregatorAddress() external override view returns(address priceInfoSourceAddress) {
         return getChainlinkAggregatorAddress();

@@ -31,11 +31,30 @@ interface IPriceDataProvider {
         uint256 currentCreatedAt,
         uint256 lastCreatedAt);
 
+    event LogPriceDataTriggered (
+        uint256 priceId,
+        uint256 price,
+        uint256 triggeredAt);
+
+    event LogPriceDataRecovered (
+        uint256 priceId,
+        uint256 price,
+        uint256 triggeredAt,
+        uint256 recoveredAt);
+
+    event LogPriceDataDepegged (
+        uint256 priceId,
+        uint256 price,
+        uint256 triggeredAt,
+        uint256 depeggedAt);
+
     struct PriceInfo {
         uint256 id;
         uint256 price;
         ComplianceState compliance;
         StabilityState stability;
+        uint256 triggeredAt;
+        uint256 depeggedAt;
         uint256 createdAt;
     }
 
@@ -48,6 +67,9 @@ interface IPriceDataProvider {
     ) 
         external 
         returns(PriceInfo memory priceInfo);
+
+    function getTriggeredAt() external view returns(uint256 triggeredAt);
+    function getDepeggedAt() external view returns(uint256 depeggedAt);
 
     function getAggregatorAddress() external view returns(address aggregatorAddress);
     function getHeartbeat() external view returns(uint256 heartbeatSeconds);
