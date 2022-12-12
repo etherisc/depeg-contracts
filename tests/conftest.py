@@ -139,6 +139,7 @@ def gifDepegDeploy(
     productOwner: Account, 
     investor: Account, 
     usd1: USD1,
+    usd2: USD2,
     riskpoolKeeper: Account, 
     riskpoolWallet: Account
 ) -> GifDepegProductComplete:
@@ -147,6 +148,7 @@ def gifDepegDeploy(
         productOwner, 
         investor,
         usd1,
+        usd2,
         riskpoolKeeper, 
         riskpoolWallet)
 

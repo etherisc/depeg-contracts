@@ -30,20 +30,27 @@ contract DepegProduct is
 
     event LogDepegOracleTriggered(uint256 exchangeRate);
 
+    address private _protectedToken;
     DepegRiskpool private _riskPool;
     // hack to have ITreasury in brownie.interface
     TreasuryModule private _treasury;
 
     constructor(
         bytes32 productName,
-        address registry,
+        address protectedToken,
         address token,
+        address registry,
         uint256 riskpoolId
     )
         Product(productName, token, POLICY_FLOW, riskpoolId, registry)
     {
+        require(protectedToken != address(0), "ERROR:DP-001:PROTECTED_TOKEN_ZERO");
+        require(protectedToken != token, "ERROR:DP-002:PROTECTED_TOKEN_AND_TOKEN_IDENTICAL");
+
         IComponent poolComponent = _instanceService.getComponent(riskpoolId); 
         address poolAddress = address(poolComponent);
+
+        _protectedToken = protectedToken;
         _riskPool = DepegRiskpool(poolAddress);
         _treasury = TreasuryModule(_instanceService.getTreasuryAddress());
     }
@@ -172,8 +179,8 @@ contract DepegProduct is
         view
         returns(bytes32 processId)
     {
-        require(_processIdsForHolder[policyHolder].length > 0, "ERROR:DP-001:NO_POLICIES");
-        require(idx < _processIdsForHolder[policyHolder].length, "ERROR:DP-002:POLICY_INDEX_TOO_LARGE");
+        require(_processIdsForHolder[policyHolder].length > 0, "ERROR:DP-051:NO_POLICIES");
+        require(idx < _processIdsForHolder[policyHolder].length, "ERROR:DP-052:POLICY_INDEX_TOO_LARGE");
         return _processIdsForHolder[policyHolder][idx];
     }
 
@@ -197,6 +204,11 @@ contract DepegProduct is
 
         emit LogDepegPolicyProcessed(processId);
     }
+
+    function getProtectedToken() external view returns(address protectedToken) {
+        return _protectedToken;
+    }
+
 
     function applications() external view returns(uint256 applicationCount) {
         return _applications.length;

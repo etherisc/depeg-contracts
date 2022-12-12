@@ -4,6 +4,7 @@ import pytest
 from brownie.network.account import Account
 from brownie import (
     USD1,
+    USD2,
 )
 
 from scripts.util import b2s
@@ -55,6 +56,7 @@ def test_product_deploy(
     riskpool,
     riskpoolWallet: Account,
     usd1: USD1,
+    usd2: USD2,
 ):
     # check role assignements
     poRole = instanceService.getProductOwnerRole()
@@ -74,10 +76,15 @@ def test_product_deploy(
 
     # TODO check fee specification once this is available from instanceService
 
+    # check token
+    assert usd1.symbol() == 'USDC'
+    assert usd2.symbol() == 'USDT'
+
     # check product
     assert product.getRiskpoolId() == riskpool.getId()
-    assert product.getToken() == usd1
+    assert product.getProtectedToken() == usd1 # usdc
+    assert product.getToken() == usd2 # usdt
 
     # check riskpool
     assert riskpool.getWallet() == riskpoolWallet
-    assert riskpool.getErc20Token() == usd1
+    assert riskpool.getErc20Token() == usd2 # usdt
