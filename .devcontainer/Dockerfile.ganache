@@ -7,7 +7,7 @@ RUN mkdir /ganache
 
 CMD ganache-cli \
     --mnemonic "candy maple cake sugar pudding cream honey rich smooth crumble sweet treat" \
-    --chain.chainId 1234 \
+    --chain.chainId 1337 \
     --port 7545 \
     --accounts 20 \
     --database.dbPath /ganache \

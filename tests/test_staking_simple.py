@@ -28,7 +28,19 @@ def test_staking_happy_path(
 ):
     instanceId = instanceService.getInstanceId()
     bundleId = create_bundle(instance, instanceOperator, investor, riskpool)
+
+    assert gifStaking.bundles() == 0
+
     gifStaking.updateBundleState(instanceId, bundleId)
+
+    assert gifStaking.bundles() == 1
+
+    bundleKey = gifStaking.getBundleKey(0).dict()
+    assert bundleKey['instanceId'] == instanceId
+    assert bundleKey['bundleId'] == bundleId
+
+    with brownie.reverts('ERROR:STK-063:BUNDLE_INDEX_TOO_LARGE'):
+        gifStaking.getBundleKey(1)
 
     print('--- test setup before any staking ---')
     assert gifStaking.stakes(instanceId, bundleId, staker) == 0
@@ -44,15 +56,15 @@ def test_staking_happy_path(
     assert gifStaking.stakes(instanceId, bundleId, staker) == stakingAmount
     assert dip.balanceOf(gifStaking) == stakingAmount
 
-    stakeInfo = gifStaking.getStakeInfo(instanceId, bundleId, staker)
+    stakeInfo = gifStaking.getStakeInfo(instanceId, bundleId, staker).dict()
     print('stakeInfo {}'.format(stakeInfo))
 
-    assert stakeInfo[0] == staker
-    assert stakeInfo[1] == instanceId
-    assert stakeInfo[2] == bundleId
-    assert stakeInfo[3] == stakingAmount
-    assert stakeInfo[4] > 0
-    assert stakeInfo[5] == stakeInfo[4]
+    assert stakeInfo['staker'] == staker
+    assert stakeInfo['key'][0] == instanceId
+    assert stakeInfo['key'][1] == bundleId
+    assert stakeInfo['balance'] == stakingAmount
+    assert stakeInfo['createdAt'] > 0
+    assert stakeInfo['updatedAt'] == stakeInfo['createdAt']
 
     print('--- test setup after second increased staking ---')
     chain.sleep(1) # force updatedAt > createdAt
@@ -62,12 +74,12 @@ def test_staking_happy_path(
     assert gifStaking.stakes(instanceId, bundleId, staker) == stakingAmount + increaseAmount
     assert dip.balanceOf(gifStaking) == stakingAmount + increaseAmount
 
-    stakeInfo2 = gifStaking.getStakeInfo(instanceId, bundleId, staker)
+    stakeInfo2 = gifStaking.getStakeInfo(instanceId, bundleId, staker).dict()
     print('stakeInfo2 {}'.format(stakeInfo2))
 
-    assert stakeInfo2[3] == stakingAmount + increaseAmount
-    assert stakeInfo2[4] == stakeInfo[4]
-    assert stakeInfo2[5] > stakeInfo[4]
+    assert stakeInfo2['balance'] == stakingAmount + increaseAmount
+    assert stakeInfo2['createdAt'] == stakeInfo['createdAt']
+    assert stakeInfo2['updatedAt'] > stakeInfo['createdAt']
 
     print('--- test setup after withdrawal of some staking ---')
     chain.sleep(1)
@@ -78,12 +90,12 @@ def test_staking_happy_path(
     assert gifStaking.stakes(instanceId, bundleId, staker) == stakingAmount + increaseAmount - withdrawalAmount
     assert dip.balanceOf(gifStaking) == stakingAmount + increaseAmount - withdrawalAmount
 
-    stakeInfo3 = gifStaking.getStakeInfo(instanceId, bundleId, staker)
+    stakeInfo3 = gifStaking.getStakeInfo(instanceId, bundleId, staker).dict()
     print('stakeInfo3 {}'.format(stakeInfo3))
 
-    assert stakeInfo3[3] == stakingAmount + increaseAmount - withdrawalAmount
-    assert stakeInfo3[4] == stakeInfo[4]
-    assert stakeInfo3[5] > stakeInfo2[5]
+    assert stakeInfo3['balance'] == stakingAmount + increaseAmount - withdrawalAmount
+    assert stakeInfo3['createdAt'] == stakeInfo['createdAt']
+    assert stakeInfo3['updatedAt'] > stakeInfo2['createdAt']
 
     print('--- test setup after withdrawal of remaining staking ---')
     chain.sleep(1)
@@ -92,9 +104,9 @@ def test_staking_happy_path(
     assert gifStaking.stakes(instanceId, bundleId, staker) == 0
     assert dip.balanceOf(gifStaking) == 0
 
-    stakeInfo4 = gifStaking.getStakeInfo(instanceId, bundleId, staker)
+    stakeInfo4 = gifStaking.getStakeInfo(instanceId, bundleId, staker).dict()
     print('stakeInfo4 {}'.format(stakeInfo4))
 
-    assert stakeInfo4[3] == 0
-    assert stakeInfo4[4] == stakeInfo[4]
-    assert stakeInfo4[5] > stakeInfo3[5]
+    assert stakeInfo4['balance'] == 0
+    assert stakeInfo4['createdAt'] == stakeInfo['createdAt']
+    assert stakeInfo4['updatedAt'] > stakeInfo3['createdAt']

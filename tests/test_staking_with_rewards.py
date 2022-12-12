@@ -47,7 +47,7 @@ def test_staking_with_rewards(
     stakeInfo = gifStaking.getStakeInfo(instanceId, bundleId, staker)
     print('stakeInfo {}'.format(stakeInfo))
 
-    assert stakeInfo[3] == stakingAmount
+    assert stakeInfo[2] == stakingAmount
     assert gifStaking.calculateRewardsIncrement(stakeInfo) == 0 
 
     print('--- wait one year ---')
@@ -67,11 +67,11 @@ def test_staking_with_rewards(
 
     assert dip.balanceOf(gifStaking) == initialDipBalance + stakingAmount + stakingIncrement
 
-    stakeInfo2 = gifStaking.getStakeInfo(instanceId, bundleId, staker)
+    stakeInfo2 = gifStaking.getStakeInfo(instanceId, bundleId, staker).dict()
     print('stakeInfo2 {}'.format(stakeInfo2))
 
-    assert stakeInfo2[3] == stakingAmount + rewardsIncrement + stakingIncrement
-    assert stakeInfo2[5] >= stakeInfo[5] + gifStaking.getOneYearDuration()
+    assert stakeInfo2['balance'] == stakingAmount + rewardsIncrement + stakingIncrement
+    assert stakeInfo2['updatedAt'] >= stakeInfo[4] + gifStaking.getOneYearDuration()
 
     print('--- partial stake withdrawal ---')
     withdrawalAmount = 70000000000000000000001
@@ -79,19 +79,19 @@ def test_staking_with_rewards(
 
     assert dip.balanceOf(gifStaking) == initialDipBalance + stakingAmount + stakingIncrement - withdrawalAmount
 
-    stakeInfo3 = gifStaking.getStakeInfo(instanceId, bundleId, staker)
+    stakeInfo3 = gifStaking.getStakeInfo(instanceId, bundleId, staker).dict()
     print('stakeInfo3 {}'.format(stakeInfo3))
 
     expectedBalance = 50000000000000000000000
-    assert stakeInfo3[3] == expectedBalance
+    assert stakeInfo3['balance'] == expectedBalance
 
     print('--- remaining stake withdrawal ---')
     gifStaking.withdraw(instanceId, bundleId, {'from': staker})
 
     assert dip.balanceOf(gifStaking) == initialDipBalance + stakingAmount + stakingIncrement - withdrawalAmount - expectedBalance
 
-    stakeInfo4 = gifStaking.getStakeInfo(instanceId, bundleId, staker)
+    stakeInfo4 = gifStaking.getStakeInfo(instanceId, bundleId, staker).dict()
     print('stakeInfo4 {}'.format(stakeInfo4))
 
     expectedBalance = 0
-    assert stakeInfo4[3] == expectedBalance
+    assert stakeInfo4['balance'] == expectedBalance

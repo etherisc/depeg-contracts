@@ -54,7 +54,8 @@ def test_update_bundle(
     bundleInfo = gifStaking.getBundleInfo(instanceId, bundleId).dict()
     print('bundleInfo {}'.format(bundleInfo))
 
-    assert bundleInfo['id'] == bundleId # id
+    assert bundleInfo['key'][0] == instanceService.getInstanceId() # id
+    assert bundleInfo['key'][1] == bundleId # id
     assert bundleInfo['state'] == bundle['state'] # enum BundleState { Active, Locked, Closed, Burned }
     assert bundleInfo['closedSince'] == 0 # closed since
     assert bundleInfo['createdAt'] >= bundle['createdAt'] # createdAt

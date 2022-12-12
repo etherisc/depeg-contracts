@@ -22,20 +22,22 @@ contract GifStaking is
         uint256 createdAt;
     }
 
-    // TODO add instanceId, bundleId and (global) id for bundles
+    struct BundleKey {
+        bytes32 instanceId;
+        uint256 bundleId;
+    }
+
     struct BundleInfo {
-        uint256 id;
+        BundleKey key;
         IBundle.BundleState state;
         uint256 closedSince;
         uint256 createdAt;
         uint256 updatedAt;
     }
 
-    // TODO replace instanceId, bundleId with global bundleId
     struct StakeInfo {
         address staker;
-        bytes32 instanceId;
-        uint256 bundleId;
+        BundleKey key;
         uint256 balance;
         uint256 createdAt;
         uint256 updatedAt;
@@ -53,7 +55,10 @@ contract GifStaking is
 
     IERC20Metadata private _dip;
     uint256 private _rewardPercentage;
+
     bytes32 [] private _instanceIds;
+    BundleKey [] private _bundleKeys;
+
     address private _stakingWallet;
     
     // dip to token staking rate
@@ -209,8 +214,7 @@ contract GifStaking is
         // handling for new stakes
         if(stakeInfo.createdAt == 0) {
             stakeInfo.staker = staker;
-            stakeInfo.instanceId = instanceId;
-            stakeInfo.bundleId = bundleId;
+            stakeInfo.key = BundleKey(instanceId, bundleId);
             stakeInfo.createdAt = block.timestamp;
         }
 
@@ -367,6 +371,15 @@ contract GifStaking is
     }
 
 
+    function bundles() external view returns(uint256 numberOfBundles) {
+        return _bundleKeys.length;
+    }
+
+    function getBundleKey(uint256 idx) external view returns(BundleKey memory key) {
+        require(idx < _bundleKeys.length, "ERROR:STK-063:BUNDLE_INDEX_TOO_LARGE");
+        return _bundleKeys[idx];
+    }
+
     function getBundleInfo(
         bytes32 instanceId,
         uint256 bundleId
@@ -509,10 +522,12 @@ contract GifStaking is
     {
         BundleInfo storage info = _bundleInfo[instanceId][bundleId];
         
-        // handling for new bundles
+        // handle new bundle
         if(info.createdAt == 0) {
-            info.id = bundleId;
+            info.key = BundleKey(instanceId, bundleId);
             info.createdAt = block.timestamp;
+
+            _bundleKeys.push(info.key);
         }
 
         // handling of first state change to closed state
@@ -531,8 +546,8 @@ contract GifStaking is
     )
         internal
     {
-        _stakedAmount[stakeInfo.instanceId][stakeInfo.bundleId] += amount;
-        _instanceStakedAmount[stakeInfo.instanceId] += amount;
+        _stakedAmount[stakeInfo.key.instanceId][stakeInfo.key.bundleId] += amount;
+        _instanceStakedAmount[stakeInfo.key.instanceId] += amount;
         _overallStakedAmount += amount;
 
         stakeInfo.balance += amount;
@@ -547,8 +562,8 @@ contract GifStaking is
         internal
     {
         require(amount <= stakeInfo.balance, "ERROR:STK-090:WITHDRAWAL_AMOUNT_EXCEEDS_STAKING_BALANCE");
-        _stakedAmount[stakeInfo.instanceId][stakeInfo.bundleId] -= amount;
-        _instanceStakedAmount[stakeInfo.instanceId] -= amount;
+        _stakedAmount[stakeInfo.key.instanceId][stakeInfo.key.bundleId] -= amount;
+        _instanceStakedAmount[stakeInfo.key.instanceId] -= amount;
         _overallStakedAmount -= amount;
 
         stakeInfo.balance -= amount;
