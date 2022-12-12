@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.2;
 
+import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+
 import "./AggregatorDataProvider.sol";
 import "./IPriceDataProvider.sol";
 
@@ -32,13 +34,7 @@ contract UsdcPriceDataProvider is
     uint256 public constant CHAINLINK_USDC_USD_HEARTBEAT = 24 * 3600;
 
     IERC20Metadata private _token;
-
-    mapping(uint256 /* price-id */=> PriceInfo) private _priceData;
-    uint256 [] private _priceIds;
-
-    uint256 private _lastPriceId;
-    uint256 private _triggeredAt;
-    uint256 private _depeggedAt;
+    PriceInfo private _latestPriceInfo;
 
     constructor(address testTokenAddress) 
         AggregatorDataProvider(
@@ -59,54 +55,53 @@ contract UsdcPriceDataProvider is
         }
     }
 
-
-    function getLatestPriceInfo()
-        public override
-        returns(PriceInfo memory priceInfo)
+    function hasNewPriceInfo()
+        external override
+        view
+        returns(
+            bool newInfoAvailable, 
+            uint256 timeDelta
+        )
     {
-        return getPriceInfo(type(uint256).max);
+        (
+            uint80 roundId,
+            int256 answer,
+            uint256 startedAt,
+            uint256 updatedAt,
+            uint80 answeredInRound
+        ) = latestRoundData();
+
+        if(roundId == _latestPriceInfo.id) {
+            return (
+                false,
+                0
+            );
+        }
+
+        return (
+            true,
+            updatedAt - _latestPriceInfo.createdAt
+        );
     }
 
 
-    function getPriceInfo(
-        uint256 priceId
-    ) 
+
+    function processLatestPriceInfo()
         public override
         returns(PriceInfo memory priceInfo)
     {
-        require(priceId > 0, "PRICE_ID_ZERO");
-        require(
-            priceId == type(uint256).max
-            || (priceId < type(uint80).max && _lastPriceId == 0)
-            || priceId == _lastPriceId + 1,
-            "PRICE_ID_INVALID");
+        (
+            uint80 roundId,
+            int256 answer,
+            uint256 startedAt,
+            uint256 updatedAt,
+            uint80 answeredInRound
+        ) = latestRoundData();
 
-        uint80 roundId;
-        int256 answer;
-        uint256 startedAt;
-        uint256 updatedAt;
-        uint80 answeredInRound;
-
-        if(priceId == type(uint256).max) {
-            (
-                roundId,
-                answer,
-                startedAt,
-                updatedAt,
-                answeredInRound
-            ) = latestRoundData();
-        }
-        else {
-            (
-                roundId,
-                answer,
-                startedAt,
-                updatedAt,
-                answeredInRound
-            ) = getRoundData(uint80(priceId));
-        }
+        // TODO add check if we really need to process anyhting
 
         require(answer >= 0, "NEGATIVE_PRICE_VALUES_INVALID");
+        require(roundId >= _latestPriceInfo.id, "PRICE_ID_SEQUENCE_INVALID");
 
         uint256 price = uint256(answer);
         IPriceDataProvider.ComplianceState compliance = _calculateCompliance(roundId, price, updatedAt);
@@ -117,15 +112,12 @@ contract UsdcPriceDataProvider is
             price,
             compliance,
             stability,
-            _triggeredAt,
-            _depeggedAt,
+            _latestPriceInfo.triggeredAt,
+            _latestPriceInfo.depeggedAt,
             updatedAt
         );
 
-        _lastPriceId = roundId;
-
-        // TODO verify if this is really needed ...
-        _updatePriceData(priceInfo);
+        _latestPriceInfo = priceInfo;
     }
 
 
@@ -137,34 +129,31 @@ contract UsdcPriceDataProvider is
         internal
         returns(IPriceDataProvider.ComplianceState compliance)
     {
-        if(_priceIds.length < 1) {
+        if(_latestPriceInfo.id == 0) {
             return IPriceDataProvider.ComplianceState.Initializing;
         }
 
         // check against last recored states to decide compliance state
         bool isCompliant = true;
-        uint256 lastIdx = _priceIds.length - 1;
-        uint256 lastPriceId = _priceIds[lastIdx];
-        PriceInfo memory lastInfo = _priceData[lastPriceId];
 
         // check deviation
-        if(isExceedingDeviation(price, lastInfo.price)) {
+        if(isExceedingDeviation(price, _latestPriceInfo.price)) {
             emit LogPriceDataDeviationExceeded(
                 roundId,
-                price > lastInfo.price ? price - lastInfo.price : lastInfo.price - price,
+                price > _latestPriceInfo.price ? price - _latestPriceInfo.price : _latestPriceInfo.price - price,
                 price,
-                lastInfo.price);
+                _latestPriceInfo.price);
 
             isCompliant = false;
         }
 
         // check heartbeat
-        if(isExceedingHeartbeat(updatedAt, lastInfo.createdAt)) {
+        if(isExceedingHeartbeat(updatedAt, _latestPriceInfo.createdAt)) {
             emit LogPriceDataHeartbeatExceeded(
                 roundId,
-                updatedAt - lastInfo.createdAt,
+                updatedAt - _latestPriceInfo.createdAt,
                 updatedAt,
-                lastInfo.createdAt);
+                _latestPriceInfo.createdAt);
 
             isCompliant = false;
         }
@@ -173,8 +162,8 @@ contract UsdcPriceDataProvider is
             return IPriceDataProvider.ComplianceState.Valid;
         }
 
-        if(lastInfo.compliance == IPriceDataProvider.ComplianceState.Valid
-            || lastInfo.compliance == IPriceDataProvider.ComplianceState.Initializing) 
+        if(_latestPriceInfo.compliance == IPriceDataProvider.ComplianceState.Valid
+            || _latestPriceInfo.compliance == IPriceDataProvider.ComplianceState.Initializing) 
         {
             return IPriceDataProvider.ComplianceState.FailedOnce;
         }
@@ -191,28 +180,28 @@ contract UsdcPriceDataProvider is
         internal
         returns(IPriceDataProvider.StabilityState stability)
     {
-        if(_lastPriceId == 0) {
+        if(_latestPriceInfo.id == 0) {
             return IPriceDataProvider.StabilityState.Initializing;
         }
 
         // once depegged, state remains depegged
-        if(_depeggedAt > 0) {
+        if(_latestPriceInfo.depeggedAt > 0) {
             return IPriceDataProvider.StabilityState.Depegged;
         }
 
         // check triggered state:
         // triggered and not recovered within recovery window
-        if(_triggeredAt > 0) {
+        if(_latestPriceInfo.triggeredAt > 0) {
 
             // check if recovery run out of time and we have depegged
-            if(updatedAt - _triggeredAt > DEPEG_RECOVERY_WINDOW) {
+            if(updatedAt - _latestPriceInfo.triggeredAt > DEPEG_RECOVERY_WINDOW) {
                 emit LogPriceDataDepegged (
                     roundId,
                     price,
-                    _triggeredAt,
+                    _latestPriceInfo.triggeredAt,
                     updatedAt);
 
-                _depeggedAt = updatedAt;
+                _latestPriceInfo.depeggedAt = updatedAt;
                 return IPriceDataProvider.StabilityState.Depegged;
             }
 
@@ -221,10 +210,10 @@ contract UsdcPriceDataProvider is
                 emit LogPriceDataRecovered (
                     roundId,
                     price,
-                    _triggeredAt,
+                    _latestPriceInfo.triggeredAt,
                     updatedAt);
 
-                _triggeredAt = 0;
+                _latestPriceInfo.triggeredAt = 0;
                 return IPriceDataProvider.StabilityState.Stable;
             }
 
@@ -239,7 +228,7 @@ contract UsdcPriceDataProvider is
                 price,
                 updatedAt);
 
-            _triggeredAt = updatedAt;
+            _latestPriceInfo.triggeredAt = updatedAt;
             return IPriceDataProvider.StabilityState.Triggered;
         }
 
@@ -247,28 +236,20 @@ contract UsdcPriceDataProvider is
         return IPriceDataProvider.StabilityState.Stable;
     }
 
-    function _updatePriceData(PriceInfo memory priceInfo) 
-        internal
+    function getLatestPriceInfo()
+        public override
+        view
+        returns(PriceInfo memory priceInfo)
     {
-        uint256 latestPriceId = 0;
-        uint256 newPriceId = priceInfo.id;
-
-        if(_priceIds.length > 0) {
-            latestPriceId = _priceIds[_priceIds.length - 1];
-        }
-
-        if(_priceData[newPriceId].createdAt == 0 && newPriceId > latestPriceId) {
-            _priceData[newPriceId] = priceInfo;
-            _priceIds.push(newPriceId);
-        }
+        return _latestPriceInfo;
     }
 
     function getTriggeredAt() external override view returns(uint256 triggeredAt) {
-        return _triggeredAt;
+        return _latestPriceInfo.triggeredAt;
     }
 
     function getDepeggedAt() external override view returns(uint256 depeggedAt) {
-        return _depeggedAt;
+        return _latestPriceInfo.depeggedAt;
     }
 
 
@@ -288,7 +269,7 @@ contract UsdcPriceDataProvider is
         return decimals();
     }
 
-    function getToken() external override view returns(IERC20Metadata tokenAddress) {
-        return _token;
+    function getToken() external override view returns(address tokenAddress) {
+        return address(_token);
     }
 }

@@ -53,6 +53,7 @@ def test_product_deploy(
     productOwner,
     riskpoolKeeper,
     product,
+    usdc_feeder,
     riskpool,
     riskpoolWallet: Account,
     usd1: USD1,
@@ -77,13 +78,15 @@ def test_product_deploy(
     # TODO check fee specification once this is available from instanceService
 
     # check token
+    assert usdc_feeder.getToken() == usd1
     assert usd1.symbol() == 'USDC'
     assert usd2.symbol() == 'USDT'
 
     # check product
-    assert product.getRiskpoolId() == riskpool.getId()
+    assert product.getPriceDataProvider() == usdc_feeder
     assert product.getProtectedToken() == usd1 # usdc
     assert product.getToken() == usd2 # usdt
+    assert product.getRiskpoolId() == riskpool.getId()
 
     # check riskpool
     assert riskpool.getWallet() == riskpoolWallet

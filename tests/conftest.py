@@ -1,6 +1,7 @@
 import pytest
 
 from brownie import (
+    interface,
     Wei,
     Contract, 
     USD1,
@@ -138,7 +139,7 @@ def gifDepegDeploy(
     instance: GifInstance, 
     productOwner: Account, 
     investor: Account, 
-    usd1: USD1,
+    usdc_feeder,
     usd2: USD2,
     riskpoolKeeper: Account, 
     riskpoolWallet: Account
@@ -147,7 +148,7 @@ def gifDepegDeploy(
         instance, 
         productOwner, 
         investor,
-        usd1,
+        usdc_feeder,
         usd2,
         riskpoolKeeper, 
         riskpoolWallet)

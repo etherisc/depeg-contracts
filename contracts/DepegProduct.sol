@@ -9,6 +9,7 @@ import "@etherisc/gif-interface/contracts/modules/ITreasury.sol";
 import "@etherisc/gif-contracts/contracts/modules/TreasuryModule.sol";
 
 
+import "./IPriceDataProvider.sol";
 import "./DepegRiskpool.sol";
 
 contract DepegProduct is 
@@ -30,27 +31,32 @@ contract DepegProduct is
 
     event LogDepegOracleTriggered(uint256 exchangeRate);
 
+    IPriceDataProvider private _priceDataProvider;
     address private _protectedToken;
+
     DepegRiskpool private _riskPool;
     // hack to have ITreasury in brownie.interface
     TreasuryModule private _treasury;
 
     constructor(
         bytes32 productName,
-        address protectedToken,
+        address priceDataProvider,
         address token,
         address registry,
         uint256 riskpoolId
     )
         Product(productName, token, POLICY_FLOW, riskpoolId, registry)
     {
-        require(protectedToken != address(0), "ERROR:DP-001:PROTECTED_TOKEN_ZERO");
-        require(protectedToken != token, "ERROR:DP-002:PROTECTED_TOKEN_AND_TOKEN_IDENTICAL");
+        require(priceDataProvider != address(0), "ERROR:DP-001:PRIZE_DATA_PROVIDER_ZERO");
+        _priceDataProvider = IPriceDataProvider(priceDataProvider);
+
+        _protectedToken = _priceDataProvider.getToken();
+        require(_protectedToken != address(0), "ERROR:DP-002:PROTECTED_TOKEN_ZERO");
+        require(_protectedToken != token, "ERROR:DP-003:PROTECTED_TOKEN_AND_TOKEN_IDENTICAL");
 
         IComponent poolComponent = _instanceService.getComponent(riskpoolId); 
         address poolAddress = address(poolComponent);
 
-        _protectedToken = protectedToken;
         _riskPool = DepegRiskpool(poolAddress);
         _treasury = TreasuryModule(_instanceService.getTreasuryAddress());
     }
@@ -203,6 +209,10 @@ contract DepegProduct is
         _close(processId);
 
         emit LogDepegPolicyProcessed(processId);
+    }
+
+    function getPriceDataProvider() external view returns(address priceDataProvider) {
+        return address(_priceDataProvider);
     }
 
     function getProtectedToken() external view returns(address protectedToken) {

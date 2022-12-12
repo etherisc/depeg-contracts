@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.2;
 
-import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
-
 interface IPriceDataProvider {
 
     enum ComplianceState {
@@ -58,14 +56,18 @@ interface IPriceDataProvider {
         uint256 createdAt;
     }
 
-    function getLatestPriceInfo()
+    function hasNewPriceInfo()
+        external
+        view
+        returns(bool newInfoAvailable, uint256 timeSinceLastUpdate);
+
+    function processLatestPriceInfo()
         external 
         returns(PriceInfo memory priceInfo);
-    
-    function getPriceInfo(
-        uint256 priceId
-    ) 
-        external 
+
+    function getLatestPriceInfo()
+        external
+        view 
         returns(PriceInfo memory priceInfo);
 
     function getTriggeredAt() external view returns(uint256 triggeredAt);
@@ -76,5 +78,5 @@ interface IPriceDataProvider {
     function getDeviation() external view returns(uint256 deviationLevel);
     function getDecimals() external view returns(uint8 aggregatorDecimals);
 
-    function getToken() external view returns(IERC20Metadata token);
+    function getToken() external view returns(address token);
 }

@@ -426,24 +426,6 @@ def new_bundle(
         maxDurationDays,
         aprPercentage
     ) 
-    # tokenAddress = riskpool.getErc20Token()
-    # token = contract_from_address(interface.IERC20, tokenAddress)
-
-    # token.transfer(investor, funding, {'from': instanceOperator})
-    # token.approve(instance.getTreasury(), funding, {'from': investor})
-
-    # apr100level = riskpool.getApr100PercentLevel();
-    # apr = apr100level * aprPercentage / 100
-
-    # spd = 24*3600
-    # riskpool.createBundle(
-    #     minSumInsured,
-    #     maxSumInsured,
-    #     minDurationDays * spd,
-    #     maxDurationDays * spd,
-    #     apr,
-    #     funding, 
-    #     {'from': investor})
 
 
 def inspect_fee(

@@ -6,7 +6,7 @@ import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 contract AggregatorDataProvider is 
     AggregatorV3Interface 
 {
-    // matches return data for getRoundData/latestRoundData
+    // matches return data for latestRoundData
     struct ChainlinkRoundData {
         uint80 roundId;
         int256 answer;

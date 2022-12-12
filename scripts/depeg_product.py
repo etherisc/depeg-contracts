@@ -115,13 +115,13 @@ class GifDepegRiskpool(object):
 
 class GifDepegProduct(object):
 
-    def __init__(self, 
-        instance: GifInstance, 
-        protectedToken, 
-        erc20Token, 
-        productOwner: Account, 
-        riskpool: GifDepegRiskpool, 
-        name, 
+    def __init__(self,
+        instance: GifInstance,
+        priceDataProvider: Account,
+        erc20Token: Account,
+        productOwner: Account,
+        riskpool: GifDepegRiskpool,
+        name,
         publishSource=False
     ):
         self.riskpool = riskpool
@@ -148,7 +148,7 @@ class GifDepegProduct(object):
         
         self.product = DepegProduct.deploy(
             s2b(name),
-            protectedToken.address,
+            priceDataProvider.address,
             erc20Token.address,
             registry,
             riskpool.getId(),
@@ -212,11 +212,11 @@ class GifDepegProduct(object):
 
 class GifDepegProductComplete(object):
 
-    def __init__(self, 
-        instance: GifInstance, 
-        productOwner: Account, 
+    def __init__(self,
+        instance: GifInstance,
+        productOwner: Account,
         investor: Account,
-        protectedToken: Account,
+        priceDataProvider: Account,
         erc20Token: Account,
         riskpoolKeeper: Account,
         riskpoolWallet: Account,
@@ -242,7 +242,7 @@ class GifDepegProductComplete(object):
 
         self.product = GifDepegProduct(
             instance,
-            protectedToken,
+            priceDataProvider,
             erc20Token, 
             productOwner, 
             self.riskpool,
