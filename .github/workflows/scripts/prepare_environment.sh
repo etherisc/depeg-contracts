@@ -33,6 +33,9 @@ npm install --global ganache
 
 # Install brownie
 python3 -m pip install --user pipx
+echo "pipx installed"
 python3 -m pipx ensurepath 
+echo "ensurepath finished"
 pipx install eth-brownie
+echo "eth-brownie installed"
 
