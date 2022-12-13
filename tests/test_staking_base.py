@@ -47,19 +47,22 @@ def test_update_bundle(
     assert instanceService.bundles() == 1
 
     bundle = instanceService.getBundle(bundleId).dict()
-    print('bundle {}'.format(bundle))
+    token = instanceService.getComponentToken(bundle['riskpoolId'])
+    print('bundle {} token {}'.format(bundle, token))
 
     instanceId = instanceService.getInstanceId()
     gifStaking.updateBundleState(instanceId, bundleId)
     bundleInfo = gifStaking.getBundleInfo(instanceId, bundleId).dict()
     print('bundleInfo {}'.format(bundleInfo))
 
-    assert bundleInfo['key'][0] == instanceService.getInstanceId() # id
-    assert bundleInfo['key'][1] == bundleId # id
+    assert bundleInfo['key'][0] == instanceService.getInstanceId()
+    assert bundleInfo['key'][1] == bundleId 
+    assert bundleInfo['chainId'] == instanceService.getChainId()
+    assert bundleInfo['token'] == token # riskpool token for riskpool associated with bundle
     assert bundleInfo['state'] == bundle['state'] # enum BundleState { Active, Locked, Closed, Burned }
-    assert bundleInfo['closedSince'] == 0 # closed since
-    assert bundleInfo['createdAt'] >= bundle['createdAt'] # createdAt
-    assert bundleInfo['updatedAt'] == bundleInfo['createdAt'] # updatedAt
+    assert bundleInfo['closedSince'] == 0
+    assert bundleInfo['createdAt'] >= bundle['createdAt']
+    assert bundleInfo['updatedAt'] == bundleInfo['createdAt']
 
 
 def test_re_register_instance(

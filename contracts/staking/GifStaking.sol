@@ -2,6 +2,7 @@
 pragma solidity 0.8.2;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
 import "@etherisc/gif-interface/contracts/modules/IRegistry.sol";
@@ -29,6 +30,8 @@ contract GifStaking is
 
     struct BundleInfo {
         BundleKey key;
+        uint256 chainId;
+        address token;
         IBundle.BundleState state;
         uint256 closedSince;
         uint256 createdAt;
@@ -172,14 +175,16 @@ contract GifStaking is
     {
         IInstanceService instanceService = _getInstanceService(instanceId);
         IBundle.Bundle memory bundle = instanceService.getBundle(bundleId);
+        IERC20 token = instanceService.getComponentToken(bundle.riskpoolId);
 
-        _updateBundleState(instanceId, bundleId, bundle.state);
+        _updateBundleState(instanceId, bundleId, address(token), bundle.state);
     }
 
 
     function updateBundleState(
         bytes32 instanceId,
         uint256 bundleId,
+        address token,
         IBundle.BundleState state        
     )
         external
@@ -187,8 +192,9 @@ contract GifStaking is
         instanceOnDifferentChain(instanceId)
     {
         require(bundleId > 0, "ERROR:STK-030:BUNDLE_ID_ZERO");
+        require(token != address(0), "ERROR:STK-031:TOKEN_ADDRESS_ZERO");
 
-        _updateBundleState(instanceId, bundleId, state);
+        _updateBundleState(instanceId, bundleId, token, state);
     }
 
 
@@ -516,15 +522,20 @@ contract GifStaking is
     function _updateBundleState(
         bytes32 instanceId,
         uint256 bundleId,
+        address token,
         IBundle.BundleState state        
     )
         internal
     {
+        require(_instanceInfo[instanceId].createdAt > 0, "ERROR:STK-090:INSTANCE_NOT_REGISTERED");
+
         BundleInfo storage info = _bundleInfo[instanceId][bundleId];
         
         // handle new bundle
         if(info.createdAt == 0) {
             info.key = BundleKey(instanceId, bundleId);
+            info.chainId = _instanceInfo[instanceId].chainId;
+            info.token = token;
             info.createdAt = block.timestamp;
 
             _bundleKeys.push(info.key);
@@ -561,7 +572,7 @@ contract GifStaking is
     )
         internal
     {
-        require(amount <= stakeInfo.balance, "ERROR:STK-090:WITHDRAWAL_AMOUNT_EXCEEDS_STAKING_BALANCE");
+        require(amount <= stakeInfo.balance, "ERROR:STK-100:WITHDRAWAL_AMOUNT_EXCEEDS_STAKING_BALANCE");
         _stakedAmount[stakeInfo.key.instanceId][stakeInfo.key.bundleId] -= amount;
         _instanceStakedAmount[stakeInfo.key.instanceId] -= amount;
         _overallStakedAmount -= amount;
@@ -598,7 +609,7 @@ contract GifStaking is
         view
         returns(IInstanceService instanceService)
     {
-        require(_instanceInfo[instanceId].createdAt > 0, "ERROR:STK-100:INSTANCE_NOT_REGISTERED");
+        require(_instanceInfo[instanceId].createdAt > 0, "ERROR:STK-110:INSTANCE_NOT_REGISTERED");
         return _getInstanceServiceFromRegistry(_instanceInfo[instanceId].registry);
     }
     
