@@ -36,6 +36,8 @@ python3 -m pip install --user pipx
 echo "pipx installed"
 python3 -m pipx ensurepath 
 echo "ensurepath finished"
+pip install packaging==21.3
+echo "packaging 21.3 installed"
 pipx install eth-brownie
 echo "eth-brownie installed"
 
