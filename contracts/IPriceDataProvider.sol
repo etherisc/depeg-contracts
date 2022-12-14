@@ -59,7 +59,10 @@ interface IPriceDataProvider {
     function hasNewPriceInfo()
         external
         view
-        returns(bool newInfoAvailable, uint256 timeSinceLastUpdate);
+        returns(
+            bool newInfoAvailable, 
+            uint256 priceId,
+            uint256 timeSinceLastUpdate);
 
     function processLatestPriceInfo()
         external 

@@ -60,6 +60,7 @@ contract UsdcPriceDataProvider is
         view
         returns(
             bool newInfoAvailable, 
+            uint256 priceId,
             uint256 timeDelta
         )
     {
@@ -74,12 +75,14 @@ contract UsdcPriceDataProvider is
         if(roundId == _latestPriceInfo.id) {
             return (
                 false,
+                roundId,
                 0
             );
         }
 
         return (
             true,
+            roundId,
             updatedAt - _latestPriceInfo.createdAt
         );
     }
@@ -98,10 +101,12 @@ contract UsdcPriceDataProvider is
             uint80 answeredInRound
         ) = latestRoundData();
 
-        // TODO add check if we really need to process anyhting
-
         require(answer >= 0, "NEGATIVE_PRICE_VALUES_INVALID");
         require(roundId >= _latestPriceInfo.id, "PRICE_ID_SEQUENCE_INVALID");
+
+        if(roundId == _latestPriceInfo.id) {
+            return _latestPriceInfo;
+        }
 
         uint256 price = uint256(answer);
         IPriceDataProvider.ComplianceState compliance = _calculateCompliance(roundId, price, updatedAt);

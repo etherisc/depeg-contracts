@@ -16,6 +16,12 @@ contract DepegProduct is
     Product
 {
 
+    enum DepegState {
+        Active, // normal operation
+        Paused, // stop selling policies, might recover to active
+        Deactivated  // stop selling policies, manual reset to active needed by owner
+    }
+
     bytes32 public constant NAME = "DepegProduct";
     bytes32 public constant VERSION = "0.1";
     bytes32 public constant POLICY_FLOW = "PolicyDefaultFlow";
@@ -29,8 +35,20 @@ contract DepegProduct is
     event LogDepegPolicyCreated(bytes32 policyId, address policyHolder, uint256 premiumAmount, uint256 sumInsuredAmount);
     event LogDepegPolicyProcessed(bytes32 policyId);
 
-    event LogDepegOracleTriggered(uint256 exchangeRate);
+    event LogDepegPriceInfoUpdated(
+        uint256 priceId,
+        uint256 price,
+        uint256 triggeredAt,
+        uint256 depeggedAt,
+        uint256 createdAt
+    );
 
+    event LogDepegProductDeactivated(uint256 priceId, uint256 deactivatedAt);
+    event LogDepegProductReactivated(uint256 reactivatedAt);
+    event LogDepegProductPaused(uint256 priceId, uint256 pausedAt);
+    event LogDepegProductUnpaused(uint256 priceId, uint256 unpausedAt);
+
+    DepegState private _state;
     IPriceDataProvider private _priceDataProvider;
     address private _protectedToken;
 
@@ -47,6 +65,9 @@ contract DepegProduct is
     )
         Product(productName, token, POLICY_FLOW, riskpoolId, registry)
     {
+        // initial product state is active
+        _state = DepegState.Active;
+
         require(priceDataProvider != address(0), "ERROR:DP-001:PRIZE_DATA_PROVIDER_ZERO");
         _priceDataProvider = IPriceDataProvider(priceDataProvider);
 
@@ -59,6 +80,148 @@ contract DepegProduct is
 
         _riskPool = DepegRiskpool(poolAddress);
         _treasury = TreasuryModule(_instanceService.getTreasuryAddress());
+    }
+
+
+    function applyForPolicy(
+        uint256 sumInsured,
+        uint256 duration,
+        uint256 maxPremium
+    ) 
+        external 
+        returns(bytes32 processId)
+    {
+        require(_state == DepegState.Active, "ERROR:DP-010:PRODUCT_NOT_ACTIVE");
+
+        (
+            uint256 feeAmount, 
+            uint256 maxNetPremium
+        ) = _treasury.calculateFee(getId(), maxPremium);
+
+        address policyHolder = msg.sender;
+        bytes memory metaData = "";
+        bytes memory applicationData = _riskPool.encodeApplicationParameterAsData(
+            duration,
+            maxNetPremium
+        );
+
+        processId = _newApplication(
+            policyHolder, 
+            maxPremium, 
+            sumInsured,
+            metaData,
+            applicationData);
+
+        _applications.push(processId);
+        _processIdsForHolder[policyHolder].push(processId);
+
+        emit LogDepegApplicationCreated(
+            processId, 
+            policyHolder, 
+            maxPremium, 
+            maxNetPremium, 
+            sumInsured);
+
+        bool success = _underwrite(processId);
+
+        if (success) {
+            _policies.push(processId);
+
+            emit LogDepegPolicyCreated(
+                processId, 
+                policyHolder, 
+                maxPremium, 
+                sumInsured);
+        }
+    }
+
+
+    // TODO make sure return value cannot be manipulated
+    // by circumventing prduct contract and directly updating usdc feed contract
+    function hasNewPriceInfo()
+        external
+        view
+        returns(
+            bool newInfoAvailable, 
+            uint256 priceId,
+            uint256 timeSinceLastUpdate
+        )
+    {
+        return _priceDataProvider.hasNewPriceInfo();
+    }
+
+    function getDepegState()
+        external
+        view
+        returns(DepegState state)
+    {
+        return _state;
+    }
+
+    function getLatestPriceInfo()
+        external
+        view 
+        returns(IPriceDataProvider.PriceInfo memory priceInfo)
+    {
+        return _priceDataProvider.getLatestPriceInfo();
+    }
+
+
+    function updatePriceInfo()
+        external
+        returns(IPriceDataProvider.PriceInfo memory priceInfo)
+    {
+        IPriceDataProvider.PriceInfo memory priceInfoOld = _priceDataProvider.getLatestPriceInfo();
+        priceInfo = _priceDataProvider.processLatestPriceInfo();
+
+        // no new info -> no reward
+        if(priceInfoOld.id == priceInfo.id) {
+            return priceInfo;
+        }
+
+        emit LogDepegPriceInfoUpdated(
+            priceInfo.id,
+            priceInfo.price,
+            priceInfo.triggeredAt,
+            priceInfo.depeggedAt,
+            priceInfo.createdAt
+        );
+
+        // when product is deactivated return and don't care about
+        // price info stability
+        if(_state == DepegState.Deactivated) {
+            return priceInfo;
+        }
+
+        // product not (yet) deactivated
+        // update product state depending on price info stability
+        if(priceInfo.stability == IPriceDataProvider.StabilityState.Depegged) {
+            _state = DepegState.Deactivated;
+            emit LogDepegProductDeactivated(priceInfo.id, block.timestamp);
+        }
+        else if(priceInfo.stability == IPriceDataProvider.StabilityState.Triggered) {
+            if(_state == DepegState.Active) {
+                emit LogDepegProductPaused(priceInfo.id, block.timestamp);
+            }
+
+            _state = DepegState.Paused;
+        }
+        else if(priceInfo.stability == IPriceDataProvider.StabilityState.Stable) {
+            if(_state == DepegState.Paused) {
+                emit LogDepegProductUnpaused(priceInfo.id, block.timestamp);
+            }
+
+            _state = DepegState.Active;
+        }
+    }
+
+
+    function reactivateProduct()
+        external
+        onlyOwner()
+    {
+        _state = DepegState.Active;
+        emit LogDepegProductReactivated(block.timestamp);
     }
 
 
@@ -111,6 +274,7 @@ contract DepegProduct is
         fractionFullUnit = _treasury.getFractionFullUnit();
     }
 
+
     function calculatePremium(uint256 netPremium) public view returns(uint256 premiumAmount) {
         ITreasury.FeeSpecification memory feeSpec = getFeeSpecification();
         uint256 fractionFullUnit = _treasury.getFractionFullUnit();
@@ -121,56 +285,6 @@ contract DepegProduct is
         premiumAmount /= fractionFullUnit - fraction;
     }
 
-
-    function applyForPolicy(
-        uint256 sumInsured,
-        uint256 duration,
-        uint256 maxPremium
-    ) 
-        external 
-        returns(bytes32 processId)
-    {
-        (
-            uint256 feeAmount, 
-            uint256 maxNetPremium
-        ) = _treasury.calculateFee(getId(), maxPremium);
-
-        address policyHolder = msg.sender;
-        bytes memory metaData = "";
-        bytes memory applicationData = _riskPool.encodeApplicationParameterAsData(
-            duration,
-            maxNetPremium
-        );
-
-        processId = _newApplication(
-            policyHolder, 
-            maxPremium, 
-            sumInsured,
-            metaData,
-            applicationData);
-
-        _applications.push(processId);
-        _processIdsForHolder[policyHolder].push(processId);
-
-        emit LogDepegApplicationCreated(
-            processId, 
-            policyHolder, 
-            maxPremium, 
-            maxNetPremium, 
-            sumInsured);
-
-        bool success = _underwrite(processId);
-
-        if (success) {
-            _policies.push(processId);
-
-            emit LogDepegPolicyCreated(
-                processId, 
-                policyHolder, 
-                maxPremium, 
-                sumInsured);
-        }
-    }
 
     function processIds(address policyHolder)
         external 
@@ -190,21 +304,9 @@ contract DepegProduct is
         return _processIdsForHolder[policyHolder][idx];
     }
 
-    function triggerOracle() 
-        external
-    {
-
-        uint256 exchangeRate = 10**6;
-
-        emit LogDepegOracleTriggered(
-            exchangeRate
-        );
-    }    
-
     function processPolicy(bytes32 processId)
         public
     {
-
         _expire(processId);
         _close(processId);
 
