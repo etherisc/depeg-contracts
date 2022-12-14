@@ -359,20 +359,127 @@ def test_product_lifecycle_trigger_and_recover(
 
 
 def test_product_lifecycle_depeg(
+    instance,
+    instanceOperator,
+    investor,
+    riskpool,
     productOwner,
-    product
+    product,
+    customer,
 ):
+    # fund riskpool
+    create_bundle(
+        instance,
+        instanceOperator,
+        investor,
+        riskpool)
+
+    # obtain data provider contract from product
     data_provider = contract_from_address(
         UsdcPriceDataProvider, 
         product.getPriceDataProvider())
 
-    for i in range(3):
+    # inject some initial price data
+    for i in range(5):
         inject_and_update_data(product, data_provider, generate_next_data(i), productOwner)
 
     # check base line
     assert product.getDepegState() == 0 #  enum DepegState { Active, Paused, Deactivated }
 
-    # TODO implement depeg lifecycle test
+    # generate trigger data
+    print('--- set price to trigger price ---')
+    trigger_data = generate_next_data(
+        5,
+        price = TRIGGER_PRICE,
+        delta_time = 12 * 3600)
+
+    (round_id, price, timestamp) = trigger_data.split()[:3]
+    timestamp = int(timestamp)
+    timestemp_trigger = timestamp
+
+    tx = inject_and_update_data(product, data_provider, trigger_data, productOwner)
+    assert len(tx.events) == 4
+    assert 'LogPriceDataTriggered' in tx.events
+
+    assert product.getDepegState() == 1 #  enum DepegState { Active, Paused, Deactivated }
+
+    print('--- keep price at trigger price ---')
+    trigger_data = generate_next_data(
+        6,
+        price = TRIGGER_PRICE,
+        last_update=timestamp,
+        delta_time = 23 * 3600)
+
+    (round_id, price, timestamp) = trigger_data.split()[:3]
+    timestamp = int(timestamp)
+
+    tx = inject_and_update_data(product, data_provider, trigger_data, productOwner)
+    assert len(tx.events) == 1
+    assert product.getDepegState() == 1 #  enum DepegState { Active, Paused, Deactivated }
+
+    print('--- move into depeg state (stay triggered for >= 24h) ---')
+    trigger_data = generate_next_data(
+        7,
+        price = TRIGGER_PRICE,
+        last_update=timestamp,
+        delta_time = 2 * 3600)
+
+    (round_id, price, timestamp) = trigger_data.split()[:3]
+    timestamp = int(timestamp)
+    timestamp_depeg = timestamp
+
+    tx = inject_and_update_data(product, data_provider, trigger_data, productOwner)
+    assert product.getDepegState() == 2 #  enum DepegState { Active, Paused, Deactivated }
+
+    assert len(tx.events) == 3
+    assert 'LogPriceDataDepegged' in tx.events
+    assert 'LogDepegPriceInfoUpdated' in tx.events
+    assert tx.events['LogDepegPriceInfoUpdated']['priceId'] == round_id
+    assert tx.events['LogDepegPriceInfoUpdated']['price'] == TRIGGER_PRICE
+    assert tx.events['LogDepegPriceInfoUpdated']['triggeredAt'] == timestemp_trigger
+    assert tx.events['LogDepegPriceInfoUpdated']['depeggedAt'] == timestamp_depeg
+    assert tx.events['LogDepegPriceInfoUpdated']['createdAt'] == timestamp
+
+    assert 'LogDepegProductDeactivated' in tx.events
+    assert tx.events['LogDepegProductDeactivated']['priceId'] == round_id
+    assert abs(int(tx.events['LogDepegProductDeactivated']['deactivatedAt']) - timestamp_depeg) <= 5
+
+    # check that no polcy can be created in depeg state
+    sumInsured = 10000
+    durationDays = 60
+    maxPremium = 750
+
+    with brownie.reverts('ERROR:DP-010:PRODUCT_NOT_ACTIVE'):
+        apply_for_policy(
+            instance,
+            instanceOperator,
+            product,
+            customer,
+            sumInsured,
+            durationDays,
+            maxPremium)
+
+    print('--- remain in depeg state (with recovered price) ---')
+    trigger_data = generate_next_data(
+        8,
+        price = RECOVERY_PRICE + 10,
+        last_update=timestamp,
+        delta_time = 10 * 3600)
+
+    tx = inject_and_update_data(product, data_provider, trigger_data, productOwner)
+    # check we're still in depeg state
+    assert product.getDepegState() == 2 #  enum DepegState { Active, Paused, Deactivated }
+
+    # check that recovered price does not mean creating policies is working again
+    with brownie.reverts('ERROR:DP-010:PRODUCT_NOT_ACTIVE'):
+        apply_for_policy(
+            instance,
+            instanceOperator,
+            product,
+            customer,
+            sumInsured,
+            durationDays,
+            maxPremium)
 
 
 def inject_and_update_data(product, usdc_feeder, data, owner):
