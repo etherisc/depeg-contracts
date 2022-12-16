@@ -11,5 +11,4 @@ CMD ganache-cli \
     --port 7545 \
     --accounts 20 \
     --database.dbPath /ganache \
-    -b 1 \
     -h "0.0.0.0"

@@ -11,7 +11,7 @@ from scripts.const import (
 from brownie.network.account import Account
 
 from scripts.util import s2b
-from scripts.instance_test import GifInstance
+from scripts.instance import GifInstance
 
 # enforce function isolation for tests below
 @pytest.fixture(autouse=True)

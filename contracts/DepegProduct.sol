@@ -19,8 +19,11 @@ contract DepegProduct is
     enum DepegState {
         Active, // normal operation
         Paused, // stop selling policies, might recover to active
-        Deactivated  // stop selling policies, manual reset to active needed by owner
+        Depegged  // stop selling policies, manual reset to active needed by owner
     }
+
+    uint256 public constant MAINNET = 1;
+    uint256 public constant GANACHE = 1337;
 
     bytes32 public constant NAME = "DepegProduct";
     bytes32 public constant VERSION = "0.1";
@@ -91,6 +94,8 @@ contract DepegProduct is
         external 
         returns(bytes32 processId)
     {
+        // block policy creation when protected stable coin
+        // is triggered or depegged
         require(_state == DepegState.Active, "ERROR:DP-010:PRODUCT_NOT_ACTIVE");
 
         (
@@ -133,6 +138,23 @@ contract DepegProduct is
                 maxPremium, 
                 sumInsured);
         }
+    }
+
+
+    function requestPayout(bytes32 processId)
+        external
+        returns(
+            uint256 claimId,
+            uint256 payoutId,
+            uint256 payoutAmount
+        )
+    {
+        // ensure that we are depegged
+        require(_state == DepegState.Depegged, "ERROR:DP-020:STATE_NOT_DEPEGGED");
+
+        // TODO map walletAddress -> latestProcessId
+        // require eine wallet address kann max eine aktive policy haben
+        address protectedWallet = msg.sender;
     }
 
 
@@ -189,14 +211,14 @@ contract DepegProduct is
 
         // when product is deactivated return and don't care about
         // price info stability
-        if(_state == DepegState.Deactivated) {
+        if(_state == DepegState.Depegged) {
             return priceInfo;
         }
 
         // product not (yet) deactivated
         // update product state depending on price info stability
         if(priceInfo.stability == IPriceDataProvider.StabilityState.Depegged) {
-            _state = DepegState.Deactivated;
+            _state = DepegState.Depegged;
             emit LogDepegProductDeactivated(priceInfo.id, block.timestamp);
         }
         else if(priceInfo.stability == IPriceDataProvider.StabilityState.Triggered) {
@@ -220,6 +242,8 @@ contract DepegProduct is
         external
         onlyOwner()
     {
+        require(block.chainid == GANACHE, "ERROR:DP-040:CHAIN_ID_NOT_GANACHE");
+
         _state = DepegState.Active;
         emit LogDepegProductReactivated(block.timestamp);
     }

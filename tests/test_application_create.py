@@ -81,7 +81,9 @@ def test_create_application(
     riskpoolBalanceAfter = instanceService.getBalance(riskpool.getId())
     instanceBalanceAfter = token.balanceOf(instanceWallet)
 
-    premiumFees = 0.1 * maxPremium + 3
+    fixedFee = 0
+    fractionalFee = 0.1
+    premiumFees = fractionalFee * maxPremium + fixedFee
     netPremium = maxPremium - premiumFees
 
     (

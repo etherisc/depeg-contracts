@@ -24,7 +24,7 @@ from scripts.util import (
     get_package,
 )
 
-from scripts.instance_test import (
+from scripts.instance import (
     GifRegistry,
     GifInstance,
 )
@@ -120,10 +120,10 @@ def testCoin(instanceOperator, gif) -> Contract: return gif.TestCoin.deploy({'fr
 #=== gif instance fixtures ====================================================#
 
 @pytest.fixture(scope="module")
-def registry(instanceOperator, gif) -> GifRegistry: return GifRegistry(instanceOperator, gif)
+def registry(instanceOperator) -> GifRegistry: return GifRegistry(instanceOperator, None)
 
 @pytest.fixture(scope="module")
-def instance(instanceOperator, instanceWallet, gif) -> GifInstance: return GifInstance(instanceOperator, instanceWallet, gif)
+def instance(instanceOperator, instanceWallet) -> GifInstance: return GifInstance(instanceOperator, instanceWallet)
 
 @pytest.fixture(scope="module")
 def instanceService(instance): return instance.getInstanceService()

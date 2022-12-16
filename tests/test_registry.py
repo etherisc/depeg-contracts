@@ -4,7 +4,7 @@ import pytest
 from brownie.network.account import Account
 
 from scripts.util import b2s
-from scripts.instance_test import GifRegistry
+from scripts.instance import GifRegistry
 
 # enforce function isolation for tests below
 @pytest.fixture(autouse=True)

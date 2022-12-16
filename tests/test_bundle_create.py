@@ -60,7 +60,9 @@ def test_create_bundle(
         aprPercentage)
 
     # check wallet balances against bundle investment
-    capital_fees = 0.05 * bundle_funding + 42
+    fixedFee = 0
+    fractionalFee = 0
+    capital_fees = fractionalFee * bundle_funding + fixedFee
     net_capital = bundle_funding - capital_fees
 
     assert instanceService.bundles() == 1

@@ -13,7 +13,7 @@ from brownie import (
 )
 
 from scripts.util import s2b
-from scripts.instance_test import GifInstance
+from scripts.instance import GifInstance
 
 class GifDepegRiskpool(object):
 
@@ -30,7 +30,8 @@ class GifDepegRiskpool(object):
         instanceService = instance.getInstanceService()
         instanceOperatorService = instance.getInstanceOperatorService()
         componentOwnerService = instance.getComponentOwnerService()
-        riskpoolService = instance.getRiskpoolService()
+        # TODO cleanup
+        # riskpoolService = instance.getRiskpoolService()
 
         print('------ setting up riskpool ------')
 
@@ -87,8 +88,8 @@ class GifDepegRiskpool(object):
             {'from': instance.getOwner()})
 
         # 7) setup capital fees
-        fixedFee = 42
-        fractionalFee = instanceService.getFeeFractionFullUnit() / 20 # corresponds to 5%
+        fixedFee = 0
+        fractionalFee = 0 # corresponds to 0%
         print('7) creating capital fee spec (fixed: {}, fractional: {}) for riskpool id {} by instance operator {}'.format(
             fixedFee, fractionalFee, self.riskpool.getId(), instance.getOwner()))
         
@@ -177,7 +178,7 @@ class GifDepegProduct(object):
             erc20Token,
             {'from': instance.getOwner()}) 
 
-        fixedFee = 3
+        fixedFee = 0
         fractionalFee = instanceService.getFeeFractionFullUnit() / 10 # corresponds to 10%
         print('6) creating premium fee spec (fixed: {}, fractional: {}) for product id {} by instance operator {}'.format(
             fixedFee, fractionalFee, self.product.getId(), instance.getOwner()))

@@ -1,11 +1,15 @@
-from brownie import web3
-
 from brownie.network import accounts
 from brownie.network.account import Account
 
 from brownie import (
     interface,
     network,
+    web3,
+    DIP,
+    USD1,
+    USD2,
+    GifStaking,
+    UsdcPriceDataProvider,
     DepegProduct,
     DepegRiskpool
 )
@@ -13,7 +17,15 @@ from brownie import (
 from scripts.depeg_product import GifDepegProductComplete
 from scripts.instance import GifInstance
 from scripts.setup import create_bundle
-from scripts.util import contract_from_address, s2b32
+
+from scripts.util import (
+    contract_from_address,
+    get_package
+)
+
+STAKING = 'staking'
+STAKER = 'staker'
+DIP_TOKEN = 'dipToken'
 
 INSTANCE_OPERATOR = 'instanceOperator'
 INSTANCE_WALLET = 'instanceWallet'
@@ -24,7 +36,8 @@ PRODUCT_OWNER = 'productOwner'
 CUSTOMER1 = 'customer1'
 CUSTOMER2 = 'customer2'
 
-ERC20_TOKEM = 'erc20Token'
+ERC20_PROTECTED_TOKEN = 'erc20ProtectedToken'
+ERC20_TOKEN = 'erc20Token'
 INSTANCE = 'instance'
 INSTANCE_SERVICE = 'instanceService'
 INSTANCE_OPERATOR_SERVICE = 'instanceOperatorService'
@@ -61,7 +74,7 @@ REQUIRED_FUNDS = {
 
 
 def stakeholders_accounts_ganache():
-    # define stakeholder accounts    
+    # define stakeholder accounts  
     instanceOperator=accounts[0]
     instanceWallet=accounts[1]
     riskpoolKeeper=accounts[2]
@@ -70,6 +83,7 @@ def stakeholders_accounts_ganache():
     productOwner=accounts[5]
     customer=accounts[6]
     customer2=accounts[7]
+    staker=accounts[8]
 
     return {
         INSTANCE_OPERATOR: instanceOperator,
@@ -80,6 +94,7 @@ def stakeholders_accounts_ganache():
         PRODUCT_OWNER: productOwner,
         CUSTOMER1: customer,
         CUSTOMER2: customer2,
+        STAKER: staker,
     }
 
 
@@ -121,7 +136,7 @@ def check_funds(stakeholders_accounts, erc20_token):
         erc20_success = check_erc20_funds(a, erc20_token)
     else:
         print('WARNING: no erc20 token defined, skipping erc20 funds checking')
-    
+
     return native_token_success & erc20_success
 
 
@@ -165,8 +180,8 @@ def _print_constants():
 def _get_balances(stakeholders_accounts):
     balance = {}
 
-    for accountName, account in stakeholders_accounts.items():
-        balance[accountName] = account.balance()
+    for account_name, account in stakeholders_accounts.items():
+        balance[account_name] = account.balance()
 
     return balance
 
@@ -203,21 +218,28 @@ def _pretty_print_delta(title, balances_delta):
     print('=============================')
 
 
-def deploy_setup_including_token(
-    stakeholders_accounts, 
-    erc20_token,
+def instance_from_registry_X(
+    stakeholders_accounts,
     registry_address,
 ):
-    return deploy(stakeholders_accounts, erc20_token, registry_address, None)
+    instance = GifInstance(
+        stakeholders_accounts[INSTANCE_OPERATOR], 
+        instanceWallet=instanceWallet)
+
+    deployment = _add_instance_to_deployment(
+        stakeholders_accounts,
+        instance)
+
+    return deployment
 
 
-def deploy(
-    stakeholders_accounts, 
+def deploy_new_instance_X(
+    stakeholders_accounts,
+    dip_token,
+    erc20_protected_token,
     erc20_token,
-    registry_address,
-    publishSource=False
+    publish_source=False
 ):
-
     # define stakeholder accounts
     a = stakeholders_accounts
     instanceOperator=a[INSTANCE_OPERATOR]
@@ -228,101 +250,62 @@ def deploy(
     productOwner=a[PRODUCT_OWNER]
     customer=a[CUSTOMER1]
     customer2=a[CUSTOMER2]
+    staker=a[STAKER]
+
+    mult_dip = 10**dip_token.decimals()
+    mult = 10**erc20_token.decimals()
 
     if not check_funds(a, erc20_token):
         print('ERROR: insufficient funding, aborting deploy')
         return
 
-    # assess balances at beginning of deploy
-    balances_before = _get_balances(stakeholders_accounts)
+    # # assess balances at beginning of deploy
+    # balances_before = _get_balances(stakeholders_accounts)
 
-    if not erc20_token:
-        print('ERROR: no erc20 defined, aborting deploy')
-        return
+    # if not dip_token:
+    #     print('ERROR: no dip token defined, aborting deploy')
+    #     return
 
-    print('====== setting erc20 token to {} ======'.format(erc20_token))
+    # if not erc20_protected_token:
+    #     print('ERROR: no protected erc20 defined, aborting deploy')
+    #     return
+
+    # if not erc20_token:
+    #     print('ERROR: no erc20 defined, aborting deploy')
+    #     return
+
+    # print('====== token setup ======')
+    # print('- dip {} {}'.format(dip_token, dip_token.symbol()))
+    # print('- protected {} {}'.format(erc20_protected_token, erc20_protected_token.symbol()))
+    # print('- premium {} {}'.format(erc20_token, erc20_token.symbol()))
+    
     erc20Token = erc20_token
 
     print('====== deploy gif instance ======')
-    instance = GifInstance(instanceOperator, registryAddress=registry_address, instanceWallet=instanceWallet, publishSource=publishSource)
+    instance = GifInstance(
+        instanceOperator, 
+        # registryAddress=registry_address, 
+        instanceWallet=instanceWallet, 
+        # publishSource=publish_source
+        gif=get_package('gif-contracts'))
+        
+    
     instanceService = instance.getInstanceService()
     instanceOperatorService = instance.getInstanceOperatorService()
     componentOwnerService = instance.getComponentOwnerService()
 
-    print('====== deploy depeg product ======')
-    depegDeploy = GifDepegProductComplete(instance, productOwner, investor, erc20Token, riskpoolKeeper, riskpoolWallet, publishSource=publishSource)
-
-    # assess balances at beginning of deploy
-    balances_after_deploy = _get_balances(stakeholders_accounts)
-
-    depegProduct = depegDeploy.getProduct()
-    depegRiskpool = depegDeploy.getRiskpool()
-
-    product = depegProduct.getContract()
-    riskpool = depegRiskpool.getContract()
+    deployment = _add_instance_to_deployment(
+        stakeholders_accounts,
+        instance)
 
     print('====== create initial setup ======')
 
-    print('1) set up bundles for erc20')
-    tmp_d = {}
-    tmp_d['instance'] = instance
-    tmp_d[INSTANCE_OPERATOR] = instanceOperator
-    tmp_d[INSTANCE_SERVICE] = instanceService
-    tmp_d[PRODUCT] = product
-    tmp_d[CUSTOMER1] = customer
-    tmp_d[INVESTOR] = investor
-    tmp_d[RISKPOOL] = riskpool
     initialFunding = 100000
-    maxSumInsured = 20000
 
     print('2) riskpool wallet {} approval for instance treasury {}'.format(
         riskpoolWallet, instance.getTreasury()))
-    
-    erc20Token.approve(instance.getTreasury(), 10 * initialFunding * 10 ** 6, {'from': riskpoolWallet})
 
-    print('3) riskpool bundle creation by investor {}'.format(
-        investor))
-    
-    new_bundle(tmp_d, initialFunding * 10 ** 6, 8000 * 10 ** 6, maxSumInsured * 10 ** 6, 60, 90, 1.7)
-    new_bundle(tmp_d, initialFunding * 10 ** 6, 4000 * 10 ** 6, maxSumInsured * 10 ** 6, 30, 80, 2.1)
-    new_bundle(tmp_d, initialFunding * 10 ** 6, 5000 * 10 ** 6, maxSumInsured * 10 ** 6, 14, 30, 3.3)
-    new_bundle(tmp_d, initialFunding * 10 ** 6, 2000 * 10 ** 6, maxSumInsured * 10 ** 6, 20, 60, 4.2)
-    new_bundle(tmp_d, initialFunding * 10 ** 6, 1000 * 10 ** 6, maxSumInsured * 10 ** 6, 10, 45, 5.0)
-
-    customerFunding=1000 * 10 ** 6
-    print('5) customer {} funding (transfer/approve) with {} token for erc20 {}'.format(
-        customer, customerFunding, erc20Token))
-
-    erc20Token.transfer(customer, customerFunding, {'from': instanceOperator})
-    erc20Token.approve(instance.getTreasury(), customerFunding, {'from': customer})
-
-    # policy creation
-    sumInsured = 20000 * 10 ** 6
-    duration = 50
-    maxPremium = 1000 * 10 ** 6
-    print('6) policy creation for customers {}'.format(customer))
-    processId = new_policy(tmp_d, sumInsured, duration, maxPremium)
-
-    deploy_result = {
-        INSTANCE_OPERATOR: instanceOperator,
-        INSTANCE_WALLET: instanceWallet,
-        RISKPOOL_KEEPER: riskpoolKeeper,
-        RISKPOOL_WALLET: riskpoolWallet,
-        INVESTOR: investor,
-        PRODUCT_OWNER: productOwner,
-        CUSTOMER1: customer,
-        CUSTOMER2: customer2,
-        ERC20_TOKEM: contract_from_address(interface.ERC20, erc20Token),
-        INSTANCE: instance,
-        INSTANCE_SERVICE: contract_from_address(interface.IInstanceService, instanceService),
-        INSTANCE_OPERATOR_SERVICE: contract_from_address(interface.IInstanceOperatorService, instanceOperatorService),
-        COMPONENT_OWNER_SERVICE: contract_from_address(interface.IComponentOwnerService, componentOwnerService),
-        PRODUCT: contract_from_address(DepegProduct, product),
-        RISKPOOL: contract_from_address(DepegRiskpool, riskpool),
-        PROCESS_ID1: processId,
-    }
-
-    print('deploy_result: {}'.format(deploy_result))
+    erc20Token.approve(instance.getTreasury(), 10 * initialFunding * mult, {'from': riskpoolWallet})
 
     print('====== deploy and setup creation complete ======')
     print('')
@@ -356,12 +339,73 @@ def deploy(
     _pretty_print_delta('gas usage deploy', delta_deploy)
     _pretty_print_delta('gas usage total', delta_total)
 
-    return deploy_result
+    deployment = _add_instance_to_deployment(
+        stakeholders_accounts,
+        instance)
+
+    deployment[DIP_TOKEN] = dip_token
+    deployment[ERC20_PROTECTED_TOKEN] = erc20_protected_token
+    deployment[ERC20_TOKEN] = contract_from_address(interface.ERC20, erc20Token)
+
+    deployment[PRODUCT] = contract_from_address(DepegProduct, product)
+    deployment[RISKPOOL] = contract_from_address(DepegRiskpool, riskpool)
+    deployment[RISKPOOL_WALLET] = riskpoolWallet
+
+    print('deployment: {}'.format(deploy_result))
+
+    return deployment
+
+
+def _add_tokens_to_deployment(
+    deployment,
+    dip,
+    usd1,
+    usd2
+):
+    deployment[DIP_TOKEN] = dip
+    deployment[ERC20_PROTECTED_TOKEN] = usd1
+    deployment[ERC20_TOKEN] = usd2
+
+    return deployment
+
+
+def _copy_hashmap(map_in):
+    map_out = {}
+
+    for key, value in elements(map_in):
+        map_out[key] = value
+    
+    return map_out
+
+
+def _add_instance_to_deployment(
+    deployment,
+    instance
+):
+    deployment[INSTANCE] = instance
+    deployment[INSTANCE_SERVICE] = instance.getInstanceService()
+    deployment[INSTANCE_WALLET] = deployment[INSTANCE_SERVICE].getInstanceWallet()
+
+    deployment[INSTANCE_OPERATOR_SERVICE] = instance.getInstanceOperatorService()
+    deployment[COMPONENT_OWNER_SERVICE] = instance.getComponentOwnerService()
+
+    return deployment
+
+
+def _add_product_to_deployment(
+    deployment,
+    product,
+    riskpool
+):
+    deployment[PRODUCT] = product
+    deployment[RISKPOOL] = riskpool
+
+    return deployment
 
 
 def help():
     print('from scripts.deploy_depeg import all_in_1, new_bundle, best_quote, new_policy, inspect_bundle, inspect_bundles, inspect_applications, help')
-    print('(customer, customer2, product, riskpool, riskpoolWallet, usd2, instanceService, instanceOperator, processId, d) = all_in_1()')
+    print('(customer, customer2, product, riskpool, riskpoolWallet, investor, staking, staker, dip, usd1, usd2, instanceService, instanceOperator, processId, d) = all_in_1()')
     print('instanceService.getPolicy(processId)')
     print('instanceService.getBundle(1)')
     print('inspect_bundle(d, 1)')
@@ -370,25 +414,197 @@ def help():
     print('best_quote(d, 5000, 29)')
 
 
-def all_in_1(registry_address=None, tokenAddress=None, accounts=None):
-    a = accounts or stakeholders_accounts_ganache()
-    if registry_address is None:
-        registry_address = get_address('registry')
-    if tokenAddress is None:
-        tokenAddress = get_address('usd2')
-    usd2 = contract_from_address(interface.IERC20, tokenAddress)
-    d = deploy_setup_including_token(a, usd2, registry_address)
+def all_in_1(
+    stakeholders_accounts=None,
+    registry_address=None,
+    staking_address=None,
+    dip_address=None,
+    usd1_address=None,
+    usd2_address=None,
+    deploy_all=False,
+    disable_staking=False,
+    publish_source=False
+):
+    a = stakeholders_accounts or stakeholders_accounts_ganache()
 
-    customer = d[CUSTOMER1]
-    customer2 = d[CUSTOMER2]
-    instanceService = d[INSTANCE_SERVICE]
-    instanceOperator = d[INSTANCE_OPERATOR]
-    product = d[PRODUCT]
-    riskpool = d[RISKPOOL]
-    riskpoolWallet = d[RISKPOOL_WALLET]
-    processId = d[PROCESS_ID1]
+    # assess balances at beginning of deploy
+    balances_before = _get_balances(a)
 
-    return (customer, customer2, product, riskpool, riskpoolWallet, usd2, instanceService, instanceOperator, processId, d)
+    # deploy full setup including tokens, and gif instance
+    if deploy_all:
+        dip = DIP.deploy({'from':a[INSTANCE_OPERATOR]}, publish_source=publish_source)
+        usd1 = USD1.deploy({'from':a[INSTANCE_OPERATOR]}, publish_source=publish_source)
+        usd2 = USD2.deploy({'from':a[INSTANCE_OPERATOR]}, publish_source=publish_source)
+        instance = GifInstance(
+            instanceOperator=a[INSTANCE_OPERATOR], 
+            instanceWallet=a[INSTANCE_WALLET])
+
+    # reuse tokens and gif instgance from existing deployments
+    else:
+        dip = contract_from_address(
+            interface.IERC20Metadata, 
+            dip_address or get_address('dip'))
+
+        usd1 = contract_from_address(
+            interface.IERC20Metadata, 
+            usd1_address or get_address('usd1'))
+
+        usd2 = contract_from_address(
+            interface.IERC20Metadata, 
+            usd2_address or get_address('usd2'))
+
+        instance = GifInstance(
+            instanceOperator=a[INSTANCE_OPERATOR], 
+            instanceWallet=a[INSTANCE_WALLET],
+            registryAddress=registry_address or get_address('registry'))
+
+    print('====== token setup ======')
+    print('- dip {} {}'.format(dip.symbol(), dip))
+    print('- protected {} {}'.format(usd1.symbol(), usd1))
+    print('- premium {} {}'.format(usd2.symbol(), usd2))
+
+    # populate deployment hashmap
+    deployment = _copy_map(a)
+    deployment = _add_tokens_to_deployment(deployment, dip, usd1, usd2)
+    deployment = _add_instance_to_deployment(deployment, instance)
+
+    balances_after_instance_setup = _get_balances(a)
+
+    # deploy and setup for depeg product + riskpool
+    instance_service = instance.getInstanceService()
+
+    productOwner = a[PRODUCT_OWNER]
+    investor = a[INVESTOR]
+    riskpoolKeeper = a[RISKPOOL_KEEPER]
+    riskpoolWallet = a[RISKPOOL_WALLET]
+    
+    print('====== deploy price data provider ======')
+    priceDataProvider = UsdcPriceDataProvider.deploy(
+        usd1.address,
+        {'from': productOwner},
+        publish_source=publish_source)
+
+    print('====== deploy depeg product/riskpool ======')
+    depegDeploy = GifDepegProductComplete(
+        instance,
+        productOwner,
+        investor,
+        priceDataProvider,
+        usd2,
+        riskpoolKeeper,
+        riskpoolWallet,
+        publishSource=publish_source)
+
+    # assess balances at beginning of deploy
+    balances_after_deploy = _get_balances(a)
+
+    depegProduct = depegDeploy.getProduct()
+    depegRiskpool = depegDeploy.getRiskpool()
+
+    product = depegProduct.getContract()
+    riskpool = depegRiskpool.getContract()
+
+    deployment = _add_product_to_deployment(deployment, product, riskpool)
+
+    # deploy staking (if not yet done)
+    if staking_address is None:
+        staking_address = get_address('staking')
+
+        if staking_address is None:
+            staking = GifStaking.deploy(
+                {'from':a[INSTANCE_OPERATOR]})
+
+            staking.setDipContract(
+                dip,
+                {'from':a[INSTANCE_OPERATOR]})
+
+            staking_address = staking.address
+
+    staking = contract_from_address(GifStaking, staking_address)
+    staking_rate = 0.1 * staking.getDipToTokenParityLevel() # 1 dip unlocks 10 cents (usd1)
+
+    staking.setDipStakingRate(
+        instance_service.getChainId(),
+        usd2.address,
+        usd2.decimals(),
+        staking_rate,
+        {'from': a[INSTANCE_OPERATOR]})
+
+    print('--- create riskpool setup ---')
+    mult = 10**usd2.decimals()
+    mult_dip = 10**dip.decimals()
+
+    # fund riskpool
+    initial_funding = 100000
+    max_sum_insured = 20000
+    chain_id = instance_service.getChainId()
+    instance_id = instance_service.getInstanceId()
+    bundle_id1 = new_bundle(deployment, initial_funding * mult, 8000 * mult, max_sum_insured * mult, 60, 90, 1.7)
+    bundle_id2 = new_bundle(deployment, initial_funding * mult, 4000 * mult, max_sum_insured * mult, 30, 80, 2.1)
+
+    # approval necessary for payouts or pulling out funds by investor
+    usd2.approve(
+        instance_service.getTreasuryAddress(),
+        10 * initial_funding * mult,
+        {'from': deployment[RISKPOOL_WALLET]})
+
+    # link riskpool to staking
+    if not disable_staking:
+        riskpool.setStakingDataProvider(staking, {'from': a[RISKPOOL_KEEPER]})
+
+    print('--- register instance and bundles for staking ---')
+    staking.registerGifInstance(
+        instance_id,
+        chain_id,
+        instance.getRegistry(),
+        {'from':a[INSTANCE_OPERATOR]})
+
+    staking.updateBundleState(instance_id, bundle_id1, {'from': a[INSTANCE_OPERATOR]})
+    staking.updateBundleState(instance_id, bundle_id2, {'from': a[INSTANCE_OPERATOR]})
+
+    print('--- fund staker with dips and stake to bundles ---')
+    dip_funding =  2 * initial_funding
+    dip_funding /= (staking.getDipStakingRate(chain_id, usd2)/10**dip.decimals())
+    dip.transfer(a[STAKER], dip_funding, {'from': a[INSTANCE_OPERATOR]})
+    dip.approve(staking.getStakingWallet(), dip_funding, {'from':a[STAKER]}) 
+
+    # leave staker with 0.2 * dip_funding as 'play' funding for later use
+    staking.stake(instance_id, bundle_id1, 0.3 * dip_funding, {'from': a[STAKER]})
+    staking.stake(instance_id, bundle_id2, 0.5 * dip_funding, {'from': a[STAKER]})
+
+    print('--- create policy ---')
+    customer_funding=1000 * mult
+    usd2.transfer(a[CUSTOMER1], customer_funding, {'from': a[INSTANCE_OPERATOR]})
+    usd2.approve(instance_service.getTreasuryAddress(), customer_funding, {'from': a[CUSTOMER1]})
+
+    sum_insured = 20000 * mult
+    duration = 50
+    max_premium = 1000 * mult
+    process_id = new_policy(
+        deployment,
+        sum_insured,
+        duration,
+        max_premium)
+    
+    inspect_bundles(deployment)
+    inspect_applications(deployment)
+
+    return (
+        deployment[CUSTOMER1],
+        deployment[CUSTOMER2],
+        deployment[PRODUCT],
+        deployment[RISKPOOL],
+        deployment[RISKPOOL_WALLET],
+        deployment[INVESTOR],
+        staking,
+        deployment[STAKER],
+        deployment[DIP_TOKEN],
+        deployment[ERC20_PROTECTED_TOKEN],
+        deployment[ERC20_TOKEN],
+        deployment[INSTANCE_SERVICE],
+        deployment[INSTANCE_OPERATOR],
+        process_id,
+        deployment)
 
 
 def get_address(name):
@@ -400,6 +616,7 @@ def get_address(name):
                 return t
     return None
 
+
 def new_bundle(
     d,
     funding,
@@ -409,16 +626,11 @@ def new_bundle(
     maxDurationDays,
     aprPercentage
 ) -> int:
-    instance = d['instance']
-    instanceOperator = d['instanceOperator']
-    investor = d['investor']
-    riskpool = d['riskpool']
-
     return create_bundle(
-        instance,
-        instanceOperator,
-        investor,
-        riskpool,
+        d[INSTANCE],
+        d[INSTANCE_OPERATOR],
+        d[INVESTOR],
+        d[RISKPOOL],
         funding,
         minSumInsured,
         maxSumInsured,
@@ -737,3 +949,12 @@ def from_registry(
         print('no riskpool returned (None)')
 
     return (instance, product, riskpool)
+
+
+def _copy_map(map_in):
+    map_out = {}
+
+    for key, value in map_in.items():
+        map_out[key] = value
+
+    return map_out

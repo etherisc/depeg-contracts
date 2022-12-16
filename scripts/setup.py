@@ -7,7 +7,7 @@ from brownie import (
     DepegRiskpool
 )
 
-from scripts.instance_test import GifInstance
+from scripts.instance import GifInstance
 from scripts.util import contract_from_address
 
 
@@ -48,8 +48,9 @@ def create_bundle(
     tokenAddress = riskpool.getErc20Token()
     token = contract_from_address(interface.IERC20, tokenAddress)
 
+    instanceService = instance.getInstanceService()
     token.transfer(investor, funding, {'from': instanceOperator})
-    token.approve(instance.getTreasury(), funding, {'from': investor})
+    token.approve(instanceService.getTreasuryAddress(), funding, {'from': investor})
 
     apr100level = riskpool.getApr100PercentLevel();
     apr = apr100level * aprPercentage / 100
