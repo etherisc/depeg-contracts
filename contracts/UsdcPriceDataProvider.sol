@@ -49,9 +49,14 @@ contract UsdcPriceDataProvider is
     {
         if(block.chainid == MAINNET) {
             _token = IERC20Metadata(USDC_CONTACT_ADDRESS);
-        }
-        else if(block.chainid == GANACHE) {
+        } else if(block.chainid == GANACHE) {
             _token = IERC20Metadata(testTokenAddress);
+        } else if(block.chainid == GANACHE2) {
+            _token = IERC20Metadata(testTokenAddress);
+        } else if(block.chainid == MUMBAI) {
+            _token = IERC20Metadata(testTokenAddress);
+        } else {
+            revert("ERROR:UPDP-001:UNSUPPORTED_CHAIN_ID");
         }
     }
 
