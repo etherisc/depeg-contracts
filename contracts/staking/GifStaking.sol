@@ -625,3 +625,4 @@ contract GifStaking is
         instanceService = IInstanceService(registry.getContract("InstanceService"));
     }
 } 
+
