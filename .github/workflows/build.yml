@@ -105,6 +105,7 @@ jobs:
       - name: Compile contracts
         run: brownie compile --all
       - run: touch .env
+      - run: .github/workflows/scripts/touch_gif_package_dotenv.sh
 
       # shell does not read .bashrc so nvm must be sourced manually each time
       - name: Start ganache
