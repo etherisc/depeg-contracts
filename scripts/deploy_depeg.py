@@ -443,17 +443,26 @@ def all_in_1(
 
     # reuse tokens and gif instgance from existing deployments
     else:
-        dip = contract_from_address(
-            interface.IERC20Metadata, 
-            dip_address or get_address('dip'))
+        if dip_address or get_address('dip'):
+            dip = contract_from_address(
+                interface.IERC20Metadata, 
+                dip_address or get_address('dip'))
+        else:
+            dip = DIP.deploy({'from':a[INSTANCE_OPERATOR]}, publish_source=publish_source)
+        
+        if usd1_address or get_address('usd1'):
+            usd1 = contract_from_address(
+                interface.IERC20Metadata, 
+                usd1_address or get_address('usd1'))
+        else:
+            usd1 = USD1.deploy({'from':a[INSTANCE_OPERATOR]}, publish_source=publish_source)
 
-        usd1 = contract_from_address(
-            interface.IERC20Metadata, 
-            usd1_address or get_address('usd1'))
-
-        usd2 = contract_from_address(
-            interface.IERC20Metadata, 
-            usd2_address or get_address('usd2'))
+        if usd2_address or get_address('usd2'):
+            usd2 = contract_from_address(
+                interface.IERC20Metadata, 
+                usd2_address or get_address('usd2'))
+        else:
+            usd2 = USD2.deploy({'from':a[INSTANCE_OPERATOR]}, publish_source=publish_source)
 
         instance = GifInstance(
             instanceOperator=a[INSTANCE_OPERATOR], 
@@ -745,6 +754,11 @@ def inspect_applications(d):
     instanceService = d[INSTANCE_SERVICE]
     product = d[PRODUCT]
     riskpool = d[RISKPOOL]
+    usd1 = d[ERC20_PROTECTED_TOKEN]
+    usd2 = d[ERC20_TOKEN]
+
+    mul_usd1 = 10**usd1.decimals()
+    mul_usd2 = 10**usd2.decimals()
 
     processIds = product.applications()
 
@@ -773,17 +787,17 @@ def inspect_applications(d):
             policy = None
             kind = 'application'
 
-        print('{} {} {} {} {} {} {} {} {} {}'.format(
+        print('{} {} {} {} {} {} {:.1f} {:.1f} {} {:.1f}'.format(
             idx,
             customer[:6],
             productId,
             processId,
             kind,
             state,
-            premium,
-            suminsured,
+            premium/mul_usd2,
+            suminsured/mul_usd1,
             duration/(24*3600),
-            maxpremium
+            maxpremium/mul_usd2
         ))
 
 
@@ -836,28 +850,36 @@ def get_bundle_data(
 def inspect_bundles(d):
     instanceService = d[INSTANCE_SERVICE]
     riskpool = d[RISKPOOL]
+    usd1 = d[ERC20_PROTECTED_TOKEN]
+    usd2 = d[ERC20_TOKEN]
 
+    mul_usd1 = 10**usd1.decimals()
+    mul_usd2 = 10**usd2.decimals()
     bundleData = get_bundle_data(instanceService, riskpool)
 
     # print header row
-    print('i riskpool bundle apr minsuminsured maxsuminsured minduration maxduration capital locked capacity')
+    print('i riskpool bundle apr token1 minsuminsured maxsuminsured minduration maxduration token2 capital locked capacity staking policies')
 
     # print individual rows
     for idx in range(len(bundleData)):
         b = bundleData[idx]
+        bi = riskpool.getBundleInfo(b['bundleId']).dict()
 
-        print('{} {} {} {:.3f} {} {} {} {} {} {} {} {}'.format(
+        print('{} {} {} {:.3f} {} {:.1f} {:.1f} {} {} {} {:.1f} {:.1f} {:.1f} {:.1f} {}'.format(
             b['idx'],
             b['riskpoolId'],
             b['bundleId'],
             b['apr'],
-            b['minSumInsured'],
-            b['maxSumInsured'],
+            usd1.symbol(),
+            b['minSumInsured']/mul_usd1,
+            b['maxSumInsured']/mul_usd1,
             b['minDuration'],
             b['maxDuration'],
-            b['capital'],
-            b['locked'],
-            b['capacity'],
+            usd2.symbol(),
+            b['capital']/mul_usd2,
+            b['locked']/mul_usd2,
+            b['capacity']/mul_usd2,
+            bi['capitalSupportedByStaking']/mul_usd2,
             b['policies']
         ))
 
