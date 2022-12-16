@@ -624,5 +624,4 @@ contract GifStaking is
         IRegistry registry = IRegistry(registryAddress);
         instanceService = IInstanceService(registry.getContract("InstanceService"));
     }
-} 
-
+}
