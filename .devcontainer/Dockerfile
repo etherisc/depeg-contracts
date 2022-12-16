@@ -31,7 +31,7 @@ RUN echo 'eval "$(mcfly init zsh)"' >> ~/.zshrc \
 RUN pip install eth-brownie
 
 # [Optional] Uncomment this line to install global node packages.
-RUN npm install -g ganache solhint prettier prettier-plugin-solidity solhint-plugin-prettier
+RUN npm install -g ganache@7.6.0 solhint prettier prettier-plugin-solidity solhint-plugin-prettier
 
 # # download required solidity compiler
 COPY .devcontainer/scripts/install_solidity.sh /tmp

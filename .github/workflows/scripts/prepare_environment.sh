@@ -29,7 +29,7 @@ tar xvfz /tmp/v${VERSION_CHAINLINK}.tar.gz
 mv chainlink-${VERSION_CHAINLINK} chainlink@${VERSION_CHAINLINK}
 
 # Install ganache
-npm install --global ganache
+npm install --global ganache@7.6.0
 
 # Install brownie
 python3 -m pip install --user pipx
