@@ -23,6 +23,8 @@ from scripts.util import (
     get_package
 )
 
+from os.path import exists
+
 STAKING = 'staking'
 STAKER = 'staker'
 DIP_TOKEN = 'dipToken'
@@ -608,6 +610,8 @@ def all_in_1(
 
 
 def get_address(name):
+    if not exists('gif_instance_address.txt'):
+        return None
     with open('gif_instance_address.txt') as file:
         for line in file:
             if line.startswith(name):
