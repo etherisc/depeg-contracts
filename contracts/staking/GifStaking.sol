@@ -112,7 +112,12 @@ contract GifStaking is
     }
 
     // dip staking rate: value of 1 dip in amount of provided token 
-    function setDipStakingRate(uint256 chainId, address tokenAddress, uint256 tokenDecimals, uint256 stakingRate) 
+    function setDipStakingRate(
+        uint256 chainId, 
+        address tokenAddress, 
+        uint256 tokenDecimals, 
+        uint256 stakingRate
+    ) 
         external
         onlyOwner()
     {
@@ -289,6 +294,21 @@ contract GifStaking is
         returns(uint256 stakedDipAmount)
     {
         return stakes(instanceId, bundleId);
+    }
+
+
+    function calculateRequiredStakingAmount(
+        uint256 chainId,
+        address targetTokenAddress,
+        uint256 targetAmount
+    )
+        external
+        view
+        returns(uint256 stakingAmount)
+    {
+        uint256 stakingRate = getDipStakingRate(chainId, targetTokenAddress);
+        uint256 stakingAmountBase = targetAmount * DIP_TO_TOKEN_PARITY_LEVEL / stakingRate;
+        stakingAmount = stakingAmountBase * 10**DIP_DECIMALS / 10**_tokenDecimals[chainId][targetTokenAddress];
     }
 
 

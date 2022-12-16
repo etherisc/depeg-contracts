@@ -441,7 +441,7 @@ def all_in_1(
             instanceOperator=a[INSTANCE_OPERATOR], 
             instanceWallet=a[INSTANCE_WALLET])
 
-    # reuse tokens and gif instgance from existing deployments
+    # where available reuse tokens and gif instgance from existing deployments
     else:
         if dip_address or get_address('dip'):
             dip = contract_from_address(
@@ -532,7 +532,8 @@ def all_in_1(
             staking_address = staking.address
 
     staking = contract_from_address(GifStaking, staking_address)
-    staking_rate = 0.1 * staking.getDipToTokenParityLevel() # 1 dip unlocks 10 cents (usd1)
+    parity_level = staking.getDipToTokenParityLevel()
+    staking_rate = parity_level / 10 # 1 dip unlocks 10 cents (usd1)
 
     staking.setDipStakingRate(
         instance_service.getChainId(),
@@ -574,14 +575,16 @@ def all_in_1(
     staking.updateBundleState(instance_id, bundle_id2, {'from': a[INSTANCE_OPERATOR]})
 
     print('--- fund staker with dips and stake to bundles ---')
-    dip_funding =  2 * initial_funding
-    dip_funding /= (staking.getDipStakingRate(chain_id, usd2)/10**dip.decimals())
-    dip.transfer(a[STAKER], dip_funding, {'from': a[INSTANCE_OPERATOR]})
-    dip.approve(staking.getStakingWallet(), dip_funding, {'from':a[STAKER]}) 
+    target_usd2 = 2 * initial_funding
+    target_amount = target_usd2 * 10**usd1.decimals()
+    required_dip = staking.calculateRequiredStakingAmount(chain_id, usd2, target_amount)
 
-    # leave staker with 0.2 * dip_funding as 'play' funding for later use
-    staking.stake(instance_id, bundle_id1, 0.3 * dip_funding, {'from': a[STAKER]})
-    staking.stake(instance_id, bundle_id2, 0.5 * dip_funding, {'from': a[STAKER]})
+    dip.transfer(a[STAKER], required_dip, {'from': a[INSTANCE_OPERATOR]})
+    dip.approve(staking.getStakingWallet(), required_dip, {'from':a[STAKER]}) 
+
+    # leave staker with 0.1 * required_dip as 'play' funding for later use
+    staking.stake(instance_id, bundle_id1, 0.4 * required_dip, {'from': a[STAKER]})
+    staking.stake(instance_id, bundle_id2, 0.5 * required_dip, {'from': a[STAKER]})
 
     print('--- create policy ---')
     customer_funding=1000 * mult

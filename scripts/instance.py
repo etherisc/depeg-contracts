@@ -72,7 +72,7 @@ class GifRegistry(object):
 
         print('owner {}'.format(instanceOperator))
         print('registry.address {}'.format(self.registry.address))
-        print('registry.getContract(InstanceOperatorService) {}'.format(self.registry.getContract(s2h('InstanceOperatorService'))))
+        print('registry.getContract(\'InstanceOperatorService\') {}'.format(self.registry.getContract(s2b('InstanceOperatorService'))))
 
     def getOwner(self) -> Account:
         return self.instanceOperator
