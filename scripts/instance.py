@@ -96,12 +96,13 @@ class GifInstance(GifRegistry):
         
         if registryAddress is None:
             self.deployWithRegistry()
+
+            self.instanceOperatorService.setInstanceWallet(
+                instanceWallet,
+                {'from': instanceOperator})
+
         else:
             self.createFromRegistry()
-    
-        self.instanceOperatorService.setInstanceWallet(
-            instanceWallet,
-            {'from': instanceOperator})
 
 
     def createFromRegistry(self):

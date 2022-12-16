@@ -123,7 +123,7 @@ def test_feeder_fixture(
     assert usdc_feeder.getHeartbeat() == 24 * 3600
     assert usdc_feeder.getDeviation() == 0.0025 * 10**8
 
-    if web3.chain_id == GANACHE:
+    if web3.chain_id == GANACHE or web3.chain_id == GANACHE2:
         assert usdc_feeder.getAggregatorAddress() == usdc_feeder.address
         assert usdc_feeder.getToken() == usd1
     elif web3.chain_id == MAINNET:

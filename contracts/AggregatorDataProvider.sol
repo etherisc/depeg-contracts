@@ -16,8 +16,8 @@ contract AggregatorDataProvider is
     }
 
     uint256 public constant MAINNET = 1;
-    uint256 public constant GANACHE = 1234;
-    uint256 public constant GANACHE2 = 1337;
+    uint256 public constant GANACHE = 1337;
+    uint256 public constant GANACHE2 = 1234;
     uint256 public constant MUMBAI = 80001;
     
     AggregatorV3Interface private _aggregator;

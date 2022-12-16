@@ -75,6 +75,101 @@ REQUIRED_FUNDS = {
 }
 
 
+def help():
+    print('from scripts.deploy_depeg import all_in_1, verify_deploy, new_bundle, best_quote, new_policy, inspect_bundle, inspect_bundles, inspect_applications, help')
+    print('(customer, customer2, product, riskpool, riskpoolWallet, investor, staking, staker, dip, usd1, usd2, instanceService, instanceOperator, processId, d) = all_in_1(deploy_all=True)')
+    print('verify_deploy(d, usd1, usd2, dip, product)')
+    print('instanceService.getPolicy(processId).dict()')
+    print('instanceService.getBundle(1).dict()')
+    print('inspect_bundle(d, 1)')
+    print('inspect_bundles(d)')
+    print('inspect_applications(d)')
+    print('best_quote(d, 5000, 29)')
+
+
+def verify_deploy(
+    stakeholder_accounts, 
+    erc20_protected_token,
+    erc20_token,
+    dip_token,
+    product
+):
+    # define stakeholder accounts
+    a = stakeholder_accounts
+    instanceOperator=a[INSTANCE_OPERATOR]
+    instanceWallet=a[INSTANCE_WALLET]
+    riskpoolKeeper=a[RISKPOOL_KEEPER]
+    riskpoolWallet=a[RISKPOOL_WALLET]
+    productOwner=a[PRODUCT_OWNER]
+    investor=a[INVESTOR]
+    customer=a[CUSTOMER1]
+    staker=a[STAKER]
+
+    registry_address = product.getRegistry()
+    product_id = product.getId()
+    riskpool_id = product.getRiskpoolId()
+    price_data_provider_address = product.getPriceDataProvider()
+    price_data_provider = contract_from_address(interface.IPriceDataProvider, price_data_provider_address)
+
+    (
+        instance, 
+        product, 
+        riskpool
+    ) = from_component(
+        product.address, 
+        productId=product_id,
+        riskpoolId=riskpool_id
+    )
+
+    instanceService = instance.getInstanceService()
+    verify_element('Registry', instanceService.getRegistry(), registry_address)
+    verify_element('InstanceOperator', instanceService.getInstanceOperator(), instanceOperator)
+    verify_element('InstanceWallet', instanceService.getInstanceWallet(), instanceWallet)
+
+    verify_element('RiskpoolId', riskpool.getId(), riskpool_id)
+    verify_element('RiskpoolType', instanceService.getComponentType(riskpool_id), 2)
+    verify_element('RiskpoolState', instanceService.getComponentState(riskpool_id), 3)
+    verify_element('RiskpoolKeeper', riskpool.owner(), riskpoolKeeper)
+    verify_element('RiskpoolWallet', instanceService.getRiskpoolWallet(riskpool_id), riskpoolWallet)
+    verify_element('RiskpoolBalance', instanceService.getBalance(riskpool_id), erc20_token.balanceOf(riskpoolWallet))
+    verify_element('RiskpoolToken', riskpool.getErc20Token(), erc20_token.address)
+
+    verify_element('ProductId', product.getId(), product_id)
+    verify_element('ProductType', instanceService.getComponentType(product_id), 1)
+    verify_element('ProductState', instanceService.getComponentState(product_id), 3)
+    verify_element('ProductOwner', product.owner(), productOwner)
+    verify_element('ProductProtectedToken', product.getProtectedToken(), erc20_protected_token.address)
+    verify_element('ProductToken', product.getToken(), erc20_token.address)
+    verify_element('ProductRiskpool', product.getRiskpoolId(), riskpool_id)
+
+    print('InstanceWalletBalance {:.2f}'.format(erc20_token.balanceOf(instanceService.getInstanceWallet())/10**erc20_token.decimals()))
+    print('RiskpoolWalletTVL {:.2f}'.format(instanceService.getTotalValueLocked(riskpool_id)/10**erc20_token.decimals()))
+    print('RiskpoolWalletCapacity {:.2f}'.format(instanceService.getCapacity(riskpool_id)/10**erc20_token.decimals()))
+    print('RiskpoolWalletBalance {:.2f}'.format(erc20_token.balanceOf(instanceService.getRiskpoolWallet(riskpool_id))/10**erc20_token.decimals()))
+
+    print('RiskpoolBundles {}'.format(riskpool.bundles()))
+    print('ProductApplications {}'.format(product.applications()))
+
+    inspect_bundles(stakeholder_accounts)
+    inspect_applications(stakeholder_accounts)
+
+    verify_element('PriceDataProviderToken', price_data_provider.getToken(), erc20_protected_token.address)
+    print('TODO add additional price data provider checks')
+
+    print('TODO add staking/staking data provider check')
+
+
+def verify_element(
+    element,
+    value,
+    expected_value
+):
+    if value == expected_value:
+        print('{} OK {}'.format(element, value))
+    else:
+        print('{} ERROR {} expected {}'.format(element, value, expected_value))
+
+
 def stakeholders_accounts_ganache():
     # define stakeholder accounts  
     instanceOperator=accounts[0]
@@ -403,17 +498,6 @@ def _add_product_to_deployment(
     deployment[RISKPOOL] = riskpool
 
     return deployment
-
-
-def help():
-    print('from scripts.deploy_depeg import all_in_1, new_bundle, best_quote, new_policy, inspect_bundle, inspect_bundles, inspect_applications, help')
-    print('(customer, customer2, product, riskpool, riskpoolWallet, investor, staking, staker, dip, usd1, usd2, instanceService, instanceOperator, processId, d) = all_in_1()')
-    print('instanceService.getPolicy(processId)')
-    print('instanceService.getBundle(1)')
-    print('inspect_bundle(d, 1)')
-    print('inspect_bundles(d)')
-    print('inspect_applications(d)')
-    print('best_quote(d, 5000, 29)')
 
 
 def all_in_1(
@@ -916,9 +1000,14 @@ def inspect_bundle(d, bundleId):
     print('  + capacity {}'.format(bundle[5]-bundle[6]))
     print('  + balance {}'.format(bundle[7]))
 
-def from_component(componentAddress):
+
+def from_component(
+    componentAddress,
+    productId=0,
+    riskpoolId=0
+):
     component = contract_from_address(interface.IComponent, componentAddress)
-    return from_registry(component.getRegistry())
+    return from_registry(component.getRegistry(), productId=productId, riskpoolId=riskpoolId)
 
 
 def from_registry(
@@ -946,7 +1035,7 @@ def from_registry(
                 print('returning last product available')
         
         componentAddress = instanceService.getComponent(componentId)
-        product = contract_from_address(AyiiProduct, componentAddress)
+        product = contract_from_address(DepegProduct, componentAddress)
 
         if product.getType() != 1:
             product = None
@@ -967,7 +1056,7 @@ def from_registry(
                 print('returning last riskpool available')
         
         componentAddress = instanceService.getComponent(componentId)
-        riskpool = contract_from_address(AyiiRiskpool, componentAddress)
+        riskpool = contract_from_address(DepegRiskpool, componentAddress)
 
         if riskpool.getType() != 2:
             riskpool = None
