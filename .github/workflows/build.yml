@@ -51,10 +51,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
-      - name: Set up Python 3.9.15
+      - name: Set up Python 3.9
         uses: actions/setup-python@v4
         with:
-          python-version: '3.9.15'
+          python-version: '3.9'
       - name: Setup node environment
         uses: actions/setup-node@v3
         with:
@@ -123,10 +123,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
-      - name: Set up Python 3.9.15
+      - name: Set up Python 3.9
         uses: actions/setup-python@v4
         with:
-          python-version: '3.9.15'
+          python-version: '3.9'
 
       - name: Setup node environment
         uses: actions/setup-node@v3
