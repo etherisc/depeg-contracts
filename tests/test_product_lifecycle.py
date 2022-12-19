@@ -57,6 +57,7 @@ def test_generate_data():
 
 
 def test_product_lifecycle_startup(
+    instanceOperator,
     productOwner,
     product,
     usd1
@@ -78,7 +79,7 @@ def test_product_lifecycle_startup(
 
     # create initial data point and inject to pr
     data = generate_next_data(0)
-    inject_data(price_data_provider, data, productOwner)
+    inject_data(price_data_provider, data, instanceOperator)
 
     # check again
     info = product.hasNewPriceInfo().dict()
@@ -136,7 +137,7 @@ def test_product_lifecycle_trigger(
 
     # inject some initial price data
     for i in range(5):
-        inject_and_update_data(product, data_provider, generate_next_data(i), productOwner)
+        inject_and_update_data(product, data_provider, generate_next_data(i), instanceOperator)
 
     # check base line
     assert product.getDepegState() == 0 #  enum DepegState { Active, Paused, Deactivated }
@@ -152,7 +153,7 @@ def test_product_lifecycle_trigger(
         delta_time = 12 * 3600
         )
 
-    tx = inject_and_update_data(product, data_provider, above_trigger_data, productOwner)
+    tx = inject_and_update_data(product, data_provider, above_trigger_data, instanceOperator)
     assert 'LogDepegPriceInfoUpdated' in tx.events
     assert 'LogDepegProductPaused' not in tx.events
     assert product.getDepegState() == 0 #  enum DepegState { Active, Paused, Deactivated }
@@ -194,7 +195,7 @@ def test_product_lifecycle_trigger(
     (round_id, price, timestamp) = trigger_data.split()[:3]
     timestamp = int(timestamp)
 
-    tx = inject_and_update_data(product, data_provider, trigger_data, productOwner)
+    tx = inject_and_update_data(product, data_provider, trigger_data, instanceOperator)
     assert len(tx.events) == 3
     assert 'LogPriceDataTriggered' in tx.events
     assert 'LogDepegPriceInfoUpdated' in tx.events
@@ -248,7 +249,7 @@ def test_product_lifecycle_trigger_and_recover(
 
     # inject some initial price data
     for i in range(5):
-        inject_and_update_data(product, data_provider, generate_next_data(i), productOwner)
+        inject_and_update_data(product, data_provider, generate_next_data(i), instanceOperator)
 
     # check base line
     assert product.getDepegState() == 0 #  enum DepegState { Active, Paused, Deactivated }
@@ -263,7 +264,7 @@ def test_product_lifecycle_trigger_and_recover(
     (round_id, price, timestamp) = trigger_data.split()[:3]
     timestamp = int(timestamp)
 
-    tx = inject_and_update_data(product, data_provider, trigger_data, productOwner)
+    tx = inject_and_update_data(product, data_provider, trigger_data, instanceOperator)
     assert len(tx.events) == 4
     assert 'LogPriceDataTriggered' in tx.events
 
@@ -294,7 +295,7 @@ def test_product_lifecycle_trigger_and_recover(
     (round_id, price, timestamp) = trigger_data.split()[:3]
     timestamp = int(timestamp)
 
-    tx = inject_and_update_data(product, data_provider, trigger_data, productOwner)
+    tx = inject_and_update_data(product, data_provider, trigger_data, instanceOperator)
     assert len(tx.events) == 1
     assert 'LogDepegPriceInfoUpdated' in tx.events
 
@@ -320,7 +321,7 @@ def test_product_lifecycle_trigger_and_recover(
     (round_id, price, timestamp) = trigger_data.split()[:3]
     timestamp = int(timestamp)
 
-    tx = inject_and_update_data(product, data_provider, trigger_data, productOwner)
+    tx = inject_and_update_data(product, data_provider, trigger_data, instanceOperator)
     assert len(tx.events) == 4
     assert 'LogPriceDataRecovered' in tx.events
     assert 'LogDepegPriceInfoUpdated' in tx.events
@@ -381,7 +382,7 @@ def test_product_lifecycle_depeg(
 
     # inject some initial price data
     for i in range(5):
-        inject_and_update_data(product, data_provider, generate_next_data(i), productOwner)
+        inject_and_update_data(product, data_provider, generate_next_data(i), instanceOperator)
 
     # check base line
     assert product.getDepegState() == 0 #  enum DepegState { Active, Paused, Deactivated }
@@ -397,7 +398,7 @@ def test_product_lifecycle_depeg(
     timestamp = int(timestamp)
     timestemp_trigger = timestamp
 
-    tx = inject_and_update_data(product, data_provider, trigger_data, productOwner)
+    tx = inject_and_update_data(product, data_provider, trigger_data, instanceOperator)
     assert len(tx.events) == 4
     assert 'LogPriceDataTriggered' in tx.events
 
@@ -413,7 +414,7 @@ def test_product_lifecycle_depeg(
     (round_id, price, timestamp) = trigger_data.split()[:3]
     timestamp = int(timestamp)
 
-    tx = inject_and_update_data(product, data_provider, trigger_data, productOwner)
+    tx = inject_and_update_data(product, data_provider, trigger_data, instanceOperator)
     assert len(tx.events) == 1
     assert product.getDepegState() == 1 #  enum DepegState { Active, Paused, Deactivated }
 
@@ -428,7 +429,7 @@ def test_product_lifecycle_depeg(
     timestamp = int(timestamp)
     timestamp_depeg = timestamp
 
-    tx = inject_and_update_data(product, data_provider, trigger_data, productOwner)
+    tx = inject_and_update_data(product, data_provider, trigger_data, instanceOperator)
     assert product.getDepegState() == 2 #  enum DepegState { Active, Paused, Deactivated }
 
     assert len(tx.events) == 3
@@ -466,7 +467,7 @@ def test_product_lifecycle_depeg(
         last_update=timestamp,
         delta_time = 10 * 3600)
 
-    tx = inject_and_update_data(product, data_provider, trigger_data, productOwner)
+    tx = inject_and_update_data(product, data_provider, trigger_data, instanceOperator)
     # check we're still in depeg state
     assert product.getDepegState() == 2 #  enum DepegState { Active, Paused, Deactivated }
 
