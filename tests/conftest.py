@@ -131,8 +131,8 @@ def instanceService(instance): return instance.getInstanceService()
 #=== depeg deployed contracts fixtures ========================================#
 
 @pytest.fixture(scope="module")
-def usdc_feeder(usd1, instanceOperator) -> UsdcPriceDataProvider: 
-    return UsdcPriceDataProvider.deploy(usd1.address, {'from': instanceOperator})
+def usdc_feeder(usd1, productOwner) -> UsdcPriceDataProvider: 
+    return UsdcPriceDataProvider.deploy(usd1.address, {'from': productOwner})
 
 @pytest.fixture(scope="module")
 def gifDepegDeploy(

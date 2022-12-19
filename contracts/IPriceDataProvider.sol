@@ -94,7 +94,8 @@ interface IPriceDataProvider {
     function getDeviation() external view returns(uint256 deviationLevel);
     function getDecimals() external view returns(uint8 aggregatorDecimals);
 
-    function getToken() external view returns(address token);
+    function getToken() external view returns(address);
+    function getOwner() external view returns(address);
 
     function isMainnetProvider() external view returns(bool);
     function isTestnetProvider() external view returns(bool);

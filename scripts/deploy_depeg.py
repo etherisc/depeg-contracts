@@ -154,6 +154,7 @@ def verify_deploy(
     inspect_applications(stakeholder_accounts)
 
     verify_element('PriceDataProviderToken', price_data_provider.getToken(), erc20_protected_token.address)
+    verify_element('PriceDataProviderOwner', price_data_provider.getOwner(), productOwner)
     print('TODO add additional price data provider checks')
 
     print('TODO add staking/staking data provider check')

@@ -324,8 +324,12 @@ contract UsdcPriceDataProvider is
         return decimals();
     }
 
-    function getToken() external override view returns(address tokenAddress) {
+    function getToken() external override view returns(address) {
         return address(_token);
+    }
+
+    function getOwner() external override view returns(address) {
+        return owner();
     }
 
     function isMainnetProvider()
