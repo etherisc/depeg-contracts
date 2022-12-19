@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.2;
 
+import "@openzeppelin/contracts/access/Ownable.sol";
+
 import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 
 contract AggregatorDataProvider is 
+    Ownable,
     AggregatorV3Interface 
 {
     // matches return data for latestRoundData
@@ -33,6 +36,10 @@ contract AggregatorDataProvider is
     mapping(uint80 /* round id */ => ChainlinkRoundData) private _aggregatorData;
     uint80 [] private _roundIds;
 
+    modifier onlyTestnet() {
+        require(isTestnet(), "ERROR:ADP-001:NOT_TEST_CHAIN");
+        _;
+    }
 
     constructor(
         address aggregatorAddress,
@@ -43,16 +50,19 @@ contract AggregatorDataProvider is
         uint8 testDecimals,
         uint256 testVersion
     ) 
+        Ownable()
     {
-        if(block.chainid == MAINNET) {
+        if(isMainnet()) {
             _aggregator = AggregatorV3Interface(aggregatorAddress);
-        }
-        else if(block.chainid == GANACHE) {
+        } else if(isTestnet()) {
             _aggregator = AggregatorV3Interface(address(this));
-            _description = testDescription;
-            _decimals = testDecimals;
-            _version = testVersion;
+        } else {
+            revert("ERROR:ADP-010:CHAIN_NOT_SUPPORTET");
         }
+
+        _description = testDescription;
+        _decimals = testDecimals;
+        _version = testVersion;
 
         _deviation = deviationLevel;
         _heartbeat = heartbeatSeconds;
@@ -67,9 +77,9 @@ contract AggregatorDataProvider is
         uint80 answeredInRound
     )
         external
+        onlyOwner()
+        onlyTestnet()
     {
-        require(block.chainid == GANACHE, "CHAIN_NOT_GANACHE");
-
         _roundIds.push(roundId);
         _aggregatorData[roundId] = ChainlinkRoundData(
             roundId,
@@ -77,6 +87,36 @@ contract AggregatorDataProvider is
             startedAt,
             updatedAt,
             answeredInRound
+        );
+    }
+
+    function getRoundData(uint80 _roundId)
+        public override
+        view
+        returns (
+            uint80 roundId,
+            int256 answer,
+            uint256 startedAt,
+            uint256 updatedAt,
+            uint80 answeredInRound
+        )
+    {
+        if(isMainnet()) {
+            return _aggregator.getRoundData(_roundId);
+        }
+
+        if(_roundId == type(uint80).max && _roundIds.length > 0) {
+            _roundId = _roundIds[_roundIds.length - 1];
+        }
+
+        ChainlinkRoundData memory data = _aggregatorData[_roundId];
+
+        return (
+            data.roundId,
+            data.answer,
+            data.startedAt,
+            data.updatedAt,
+            data.answeredInRound
         );
     }
 
@@ -131,7 +171,7 @@ contract AggregatorDataProvider is
     }
 
     function description() public override view returns (string memory) {
-        if(block.chainid == MAINNET) {
+        if(isMainnet()) {
             return _aggregator.description();
         }
 
@@ -139,7 +179,7 @@ contract AggregatorDataProvider is
     }
 
     function decimals() public override view returns(uint8) {
-        if(block.chainid == MAINNET) {
+        if(isMainnet()) {
             return _aggregator.decimals();
         }
 
@@ -147,7 +187,7 @@ contract AggregatorDataProvider is
     }
 
     function version() public override view returns (uint256) {
-        if(block.chainid == MAINNET) {
+        if(isMainnet()) {
             return _aggregator.version();
         }
 
@@ -165,40 +205,28 @@ contract AggregatorDataProvider is
             uint80 answeredInRound
         )
     {
-        if(block.chainid == MAINNET) {
+        if(isMainnet()) {
             return _aggregator.latestRoundData();
         }
 
         return getRoundData(type(uint80).max);
     }
 
-    function getRoundData(uint80 _roundId)
-        public override
+    function isMainnet()
+        public
         view
-        returns (
-            uint80 roundId,
-            int256 answer,
-            uint256 startedAt,
-            uint256 updatedAt,
-            uint80 answeredInRound
-        )
+        returns(bool)
     {
-        if(block.chainid == MAINNET) {
-            return _aggregator.getRoundData(_roundId);
-        }
+        return block.chainid == MAINNET;
+    }    
 
-        if(_roundId == type(uint80).max && _roundIds.length > 0) {
-            _roundId = _roundIds[_roundIds.length - 1];
-        }
-
-        ChainlinkRoundData memory data = _aggregatorData[_roundId];
-
-        return (
-            data.roundId,
-            data.answer,
-            data.startedAt,
-            data.updatedAt,
-            data.answeredInRound
-        );
-    }
+    function isTestnet()
+        public
+        view
+        returns(bool)
+    {
+        return (block.chainid == GANACHE)
+            || (block.chainid == GANACHE2)
+            || (block.chainid == MUMBAI);
+    }    
 }

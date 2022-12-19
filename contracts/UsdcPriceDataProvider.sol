@@ -6,10 +6,12 @@ import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import "./AggregatorDataProvider.sol";
 import "./IPriceDataProvider.sol";
 
-contract UsdcPriceDataProvider is 
+contract UsdcPriceDataProvider is
     AggregatorDataProvider, 
     IPriceDataProvider
 {
+    event LogUsdcProviderForcedDepeg (uint256 updatedTriggeredAt, uint256 forcedDepegAt);
+    event LogUsdcProviderResetDepeg (uint256 resetDepegAt);
 
     address public constant USDC_CONTACT_ADDRESS = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
     address public constant CHAINLINK_USDC_USD_FEED_MAINNET = 0x8fFfFfd4AfB6115b954Bd326cbe7B4BA576818f6;
@@ -35,8 +37,9 @@ contract UsdcPriceDataProvider is
 
     IERC20Metadata private _token;
     PriceInfo private _latestPriceInfo;
+    PriceInfo private _depegPriceInfo;
 
-    constructor(address testTokenAddress) 
+    constructor(address tokenAddress) 
         AggregatorDataProvider(
             CHAINLINK_USDC_USD_FEED_MAINNET, 
             CHAINLINK_USDC_USD_DEVIATION,
@@ -47,17 +50,91 @@ contract UsdcPriceDataProvider is
             CHAINLINK_TEST_VERSION
         )
     {
-        if(block.chainid == MAINNET) {
+        if(isMainnet()) {
             _token = IERC20Metadata(USDC_CONTACT_ADDRESS);
-        } else if(block.chainid == GANACHE) {
-            _token = IERC20Metadata(testTokenAddress);
-        } else if(block.chainid == GANACHE2) {
-            _token = IERC20Metadata(testTokenAddress);
-        } else if(block.chainid == MUMBAI) {
-            _token = IERC20Metadata(testTokenAddress);
+        } else if(isTestnet()) {
+            _token = IERC20Metadata(tokenAddress);
         } else {
-            revert("ERROR:UPDP-001:UNSUPPORTED_CHAIN_ID");
+            revert("ERROR:UPDP-010:CHAIN_NOT_SUPPORTET");
         }
+    }
+
+
+    function processLatestPriceInfo()
+        public override
+        returns(PriceInfo memory priceInfo)
+    {
+        (
+            uint80 roundId,
+            int256 answer,
+            uint256 startedAt,
+            uint256 updatedAt,
+            uint80 answeredInRound
+        ) = latestRoundData();
+
+        require(answer >= 0, "ERROR:UPDP-020:NEGATIVE_PRICE_VALUES_INVALID");
+        require(roundId >= _latestPriceInfo.id, "ERROR:UPDP-021:PRICE_ID_SEQUENCE_INVALID");
+
+        if(roundId == _latestPriceInfo.id) {
+            return _latestPriceInfo;
+        }
+
+        uint256 price = uint256(answer);
+        IPriceDataProvider.ComplianceState compliance = _calculateCompliance(roundId, price, updatedAt);
+        IPriceDataProvider.StabilityState stability =_calculateStability(roundId, price, updatedAt);
+
+        priceInfo = PriceInfo(
+            roundId,
+            price,
+            compliance,
+            stability,
+            _latestPriceInfo.triggeredAt,
+            _latestPriceInfo.depeggedAt,
+            updatedAt
+        );
+
+        // record depeg price info
+        // the price recorded here will be used to determine payout amounts
+        if(_depegPriceInfo.depeggedAt == 0 && priceInfo.depeggedAt > 0) {
+            _depegPriceInfo = priceInfo;
+        }
+
+        _latestPriceInfo = priceInfo;
+    }
+
+    function forceDepegForNextPriceInfo()
+        external override
+        onlyOwner()
+        onlyTestnet()
+    {
+        require(_latestPriceInfo.triggeredAt > DEPEG_RECOVERY_WINDOW, "ERROR:UPDP-030:TRIGGERED_AT_TOO_SMALL");
+        _latestPriceInfo.triggeredAt -= DEPEG_RECOVERY_WINDOW;
+
+        emit LogUsdcProviderForcedDepeg(_latestPriceInfo.triggeredAt, block.timestamp);
+    }
+
+    function resetDepeg()
+        external override
+        onlyOwner()
+        onlyTestnet()
+    {
+        // reset any info that will be copied over
+        // to next latest price info
+        _latestPriceInfo.compliance = IPriceDataProvider.ComplianceState.Valid;
+        _latestPriceInfo.stability = IPriceDataProvider.StabilityState.Stable;
+        _latestPriceInfo.triggeredAt = 0;
+        _latestPriceInfo.depeggedAt = 0;
+
+        // reset depeg price info
+        _depegPriceInfo.id = 0;
+        _depegPriceInfo.price = 0;
+        _depegPriceInfo.compliance = IPriceDataProvider.ComplianceState.Initializing;
+        _depegPriceInfo.stability = IPriceDataProvider.StabilityState.Initializing;
+        _depegPriceInfo.triggeredAt = 0;
+        _depegPriceInfo.depeggedAt = 0;
+        _depegPriceInfo.createdAt = 0;
+
+        emit LogUsdcProviderResetDepeg(block.timestamp);
     }
 
     function hasNewPriceInfo()
@@ -91,45 +168,6 @@ contract UsdcPriceDataProvider is
             updatedAt - _latestPriceInfo.createdAt
         );
     }
-
-
-
-    function processLatestPriceInfo()
-        public override
-        returns(PriceInfo memory priceInfo)
-    {
-        (
-            uint80 roundId,
-            int256 answer,
-            uint256 startedAt,
-            uint256 updatedAt,
-            uint80 answeredInRound
-        ) = latestRoundData();
-
-        require(answer >= 0, "NEGATIVE_PRICE_VALUES_INVALID");
-        require(roundId >= _latestPriceInfo.id, "PRICE_ID_SEQUENCE_INVALID");
-
-        if(roundId == _latestPriceInfo.id) {
-            return _latestPriceInfo;
-        }
-
-        uint256 price = uint256(answer);
-        IPriceDataProvider.ComplianceState compliance = _calculateCompliance(roundId, price, updatedAt);
-        IPriceDataProvider.StabilityState stability =_calculateStability(roundId, price, updatedAt);
-
-        priceInfo = PriceInfo(
-            roundId,
-            price,
-            compliance,
-            stability,
-            _latestPriceInfo.triggeredAt,
-            _latestPriceInfo.depeggedAt,
-            updatedAt
-        );
-
-        _latestPriceInfo = priceInfo;
-    }
-
 
     function _calculateCompliance(
         uint256 roundId,
@@ -254,6 +292,14 @@ contract UsdcPriceDataProvider is
         return _latestPriceInfo;
     }
 
+    function getDepegPriceInfo()
+        public override
+        view
+        returns(PriceInfo memory priceInfo)
+    {
+        return _depegPriceInfo;
+    }
+
     function getTriggeredAt() external override view returns(uint256 triggeredAt) {
         return _latestPriceInfo.triggeredAt;
     }
@@ -261,7 +307,6 @@ contract UsdcPriceDataProvider is
     function getDepeggedAt() external override view returns(uint256 depeggedAt) {
         return _latestPriceInfo.depeggedAt;
     }
-
 
     function getAggregatorAddress() external override view returns(address priceInfoSourceAddress) {
         return getChainlinkAggregatorAddress();
@@ -282,4 +327,21 @@ contract UsdcPriceDataProvider is
     function getToken() external override view returns(address tokenAddress) {
         return address(_token);
     }
+
+    function isMainnetProvider()
+        public override
+        view
+        returns(bool)
+    {
+        return isMainnet();
+    }
+
+    function isTestnetProvider()
+        public override
+        view
+        returns(bool)
+    {
+        return isTestnet();
+    }
+
 }

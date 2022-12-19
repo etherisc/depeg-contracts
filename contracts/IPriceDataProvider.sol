@@ -56,6 +56,18 @@ interface IPriceDataProvider {
         uint256 createdAt;
     }
 
+    function processLatestPriceInfo()
+        external 
+        returns(PriceInfo memory priceInfo);
+
+    // only on testnets
+    function forceDepegForNextPriceInfo()
+        external;
+
+    // only on testnets
+    function resetDepeg()
+        external;
+
     function hasNewPriceInfo()
         external
         view
@@ -64,11 +76,12 @@ interface IPriceDataProvider {
             uint256 priceId,
             uint256 timeSinceLastUpdate);
 
-    function processLatestPriceInfo()
-        external 
+    function getLatestPriceInfo()
+        external
+        view 
         returns(PriceInfo memory priceInfo);
 
-    function getLatestPriceInfo()
+    function getDepegPriceInfo()
         external
         view 
         returns(PriceInfo memory priceInfo);
@@ -82,4 +95,7 @@ interface IPriceDataProvider {
     function getDecimals() external view returns(uint8 aggregatorDecimals);
 
     function getToken() external view returns(address token);
+
+    function isMainnetProvider() external view returns(bool);
+    function isTestnetProvider() external view returns(bool);
 }

@@ -188,6 +188,14 @@ contract DepegProduct is
         return _priceDataProvider.getLatestPriceInfo();
     }
 
+    function getDepegPriceInfo()
+        external
+        view 
+        returns(IPriceDataProvider.PriceInfo memory priceInfo)
+    {
+        return _priceDataProvider.getDepegPriceInfo();
+    }
+
 
     function updatePriceInfo()
         external
@@ -242,7 +250,7 @@ contract DepegProduct is
         external
         onlyOwner()
     {
-        require(block.chainid == GANACHE, "ERROR:DP-040:CHAIN_ID_NOT_GANACHE");
+        require(_priceDataProvider.isTestnetProvider(), "ERROR:DP-040:NOT_TESTNET");
 
         _state = DepegState.Active;
         emit LogDepegProductReactivated(block.timestamp);
