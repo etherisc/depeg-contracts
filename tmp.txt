@@ -1,0 +1,38 @@
+depeg
+
+=== priorization ===
+- token registration
+
+=== backlog ===
+staking
+- split into registry and staking
+- stop rewards once bundle lifetime is exceeded
+
+investing
+- add bundle lifetime attribute
+- add bundle name attribute
+
+mumbay
+- price generator script
+  + stable: rand .9955 - 1.02
+  + trigger: 1x at 0.995, then rand 0.98 ,- .998
+  + depeg: 1x .97, 1x.93, backdate triggered at, 1x.88
+
+product
+- add wallet address attribute
+- figure out how to assess blance for account at depeg time (after the fact)
+- claim payout
+  + withdrawal period
+  + policy considered expired after withdrawal  period
+  + policy holder to actively withraw payout per/from protected wallet
+  + token balance at block timestamp
+  + withdrawPayout
+
+
+=== done 20.12.22 ===
+
+=== done 18/19.12.22 ===
+- store depeg price
+- testnet functions
+  + subtract24hFromTriggeredAt
+  + reactivate

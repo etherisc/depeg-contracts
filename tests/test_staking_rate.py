@@ -31,18 +31,18 @@ def test_happy_case(
     stakingRate = parityLevel / 10 # 1 dip unlocks 10 cents (usd1)
     
     # set staking rate for usd1
+    gifStaking.registerToken(usd1.address, {'from': instanceOperator})
     gifStaking.setDipStakingRate(
-        web3.chain_id, 
         usd1.address, 
-        1,
+        web3.chain_id, 
         stakingRate,
         {'from': instanceOperator})
     
     # set staking rate for usd3
+    gifStaking.registerToken(usd3.address, {'from': instanceOperator})
     gifStaking.setDipStakingRate(
-        web3.chain_id, 
         usd3.address, 
-        1,
+        web3.chain_id, 
         stakingRate,
         {'from': instanceOperator})
 
@@ -71,10 +71,10 @@ def test_conversion_calculation_usd1(
     staking_rate = parity_level / 10 # 1 dip unlocks 10 cents (usd1)
     
     # set staking rate for usd1
+    gifStaking.registerToken(usd1.address, {'from': instanceOperator})
     gifStaking.setDipStakingRate(
-        web3.chain_id, 
         usd1.address, 
-        1,
+        web3.chain_id, 
         staking_rate,
         {'from': instanceOperator})
     
@@ -113,10 +113,10 @@ def test_conversion_calculation_usd3(
     staking_rate = parity_level / 4 # 1 dip unlocks 25 cents (usd3)
     
     # set staking rate for usd1
+    gifStaking.registerToken(usd3.address, {'from': instanceOperator})
     gifStaking.setDipStakingRate(
-        web3.chain_id, 
         usd3.address, 
-        1,
+        web3.chain_id, 
         staking_rate,
         {'from': instanceOperator})
     

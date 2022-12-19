@@ -51,6 +51,7 @@ def test_staking_full_setup(
     riskpool.setStakingDataProvider(gifStaking)
 
     print('--- link gif staking to gif instance ---')
+    gifStaking.registerToken(riskpool.getErc20Token())
     gifStaking.updateBundleState(instanceId, bundleId)
 
     print('--- setup token exchange rate ---')
@@ -61,9 +62,8 @@ def test_staking_full_setup(
     
     gifStaking.setDipContract(dip.address, {'from': instanceOperator})
     gifStaking.setDipStakingRate(
-        chainId, 
         usd2.address, 
-        usd2Decimals,
+        chainId, 
         stakingRate,
         {'from': instanceOperator})
 

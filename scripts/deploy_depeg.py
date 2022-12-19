@@ -620,10 +620,13 @@ def all_in_1(
     parity_level = staking.getDipToTokenParityLevel()
     staking_rate = parity_level / 10 # 1 dip unlocks 10 cents (usd1)
 
-    staking.setDipStakingRate(
-        instance_service.getChainId(),
+    staking.registerToken(
         usd2.address,
-        usd2.decimals(),
+        {'from': a[INSTANCE_OPERATOR]})
+
+    staking.setDipStakingRate(
+        usd2.address,
+        instance_service.getChainId(),
         staking_rate,
         {'from': a[INSTANCE_OPERATOR]})
 

@@ -23,6 +23,17 @@ contract GifStaking is
         uint256 createdAt;
     }
 
+    struct TokenKey {
+        address token;
+        uint256 chainId;
+    }
+    struct TokenInfo {
+        TokenKey key;
+        string symbol;
+        uint8 decimals;
+        uint256 createdAt;
+    }
+
     struct BundleKey {
         bytes32 instanceId;
         uint256 bundleId;
@@ -30,8 +41,9 @@ contract GifStaking is
 
     struct BundleInfo {
         BundleKey key;
-        uint256 chainId;
-        address token;
+        TokenKey tokenKey;
+        string tokenSymbol;
+        uint8 tokenDecimals;
         IBundle.BundleState state;
         uint256 closedSince;
         uint256 createdAt;
@@ -47,36 +59,42 @@ contract GifStaking is
     }
 
     uint256 public constant MAINNET_ID = 1;
+
+    uint256 public constant TOKEN_MAX_DECIMALS = 18;
+
     address public constant DIP_CONTRACT_ADDRESS = 0xc719d010B63E5bbF2C0551872CD5316ED26AcD83;
     uint256 public constant DIP_DECIMALS = 18;
-    uint256 public constant DIP_TO_TOKEN_PARITY_LEVEL_DECIMALS = 18;
+    uint256 public constant DIP_TO_TOKEN_PARITY_LEVEL_DECIMALS = TOKEN_MAX_DECIMALS;
     uint256 public constant DIP_TO_TOKEN_PARITY_LEVEL = 10**DIP_TO_TOKEN_PARITY_LEVEL_DECIMALS;
 
     uint256 public constant REWARD_100_PERCENTAGE = 10**6;
     uint256 public constant REWARD_MAX_PERCENTAGE = REWARD_100_PERCENTAGE / 3;
     uint256 public constant ONE_YEAR_DURATION = 365 * 24 * 3600; 
 
-    IERC20Metadata private _dip;
-    uint256 private _rewardPercentage;
-
-    bytes32 [] private _instanceIds;
-    BundleKey [] private _bundleKeys;
-
-    address private _stakingWallet;
-    
     // dip to token staking rate
     mapping(uint256 /* chainId */ => mapping(address /* tokenAddress */ => uint256 /* rate */ )) private _dipStakingRate;
-    mapping(uint256 /* chainId */ => mapping(address /* tokenAddress */ => uint256 /* decimals */ )) private _tokenDecimals;
-    
+
     // instance and bundle state
     mapping(bytes32 /* instanceId */ => InstanceInfo) private _instanceInfo;
     mapping(bytes32 /* instanceId */ => mapping(uint256 /* bundleId */ => BundleInfo)) private _bundleInfo;
+
+    // token 
+    mapping(address /* token address */ => mapping(uint256 /* chainId */ => TokenInfo)) private _tokenInfo;
 
     // staking state
     mapping(bytes32 /* instanceId */ => mapping(uint256 /* bundleId */ => mapping(address /* stake owner */ => StakeInfo))) private _stakeInfo;
     mapping(bytes32 /* instanceId */ => mapping(uint256 /* bundleId */ => uint256 /* amount staked */)) private _stakedAmount;
     mapping(bytes32 /* instanceId */ => uint256 /* amount staked */) private _instanceStakedAmount;
+
+    IERC20Metadata private _dip;
+    uint256 private _rewardPercentage;
+
+    bytes32 [] private _instanceIds;
+    TokenKey [] private _tokenKeys;
+    BundleKey [] private _bundleKeys;
+
     uint256 private _overallStakedAmount;
+    address private _stakingWallet;
 
 
     modifier instanceOnSameChain(bytes32 instanceId) {
@@ -89,6 +107,12 @@ contract GifStaking is
     modifier instanceOnDifferentChain(bytes32 instanceId) {
         require(_instanceInfo[instanceId].createdAt > 0, "ERROR:STK-003:INSTANCE_NOT_REGISTERED");
         require(_instanceInfo[instanceId].chainId != block.chainid, "ERROR:STK-004:INSTANCE_ON_THIS_CHAIN");
+        _;
+    }
+
+
+    modifier differentChain(uint256 chainId) {
+        require(chainId != block.chainid, "ERROR:STK-005:TOKEN_ON_THIS_CHAIN");
         _;
     }
 
@@ -113,27 +137,16 @@ contract GifStaking is
 
     // dip staking rate: value of 1 dip in amount of provided token 
     function setDipStakingRate(
-        uint256 chainId, 
         address tokenAddress, 
-        uint256 tokenDecimals, 
+        uint256 chainId, 
         uint256 stakingRate
     ) 
         external
         onlyOwner()
     {
-        require(chainId > 0, "ERROR:STK-012:CHAIN_ID_ZERO");
-        require(tokenAddress != address(0), "ERROR:STK-013:TOKEN_ADDRESS_ZERO");
-        require(tokenDecimals > 0, "ERROR:STK-014:TOKEN_DECIMALS_ZERO");
+        require(_tokenInfo[tokenAddress][chainId].createdAt > 0, "ERROR:STK-012:TOKEN_NOT_REGISTERED");
         require(stakingRate > 0, "ERROR:STK-015:STAKING_RATE_ZERO");
-
         _dipStakingRate[chainId][tokenAddress] = stakingRate;
-        _tokenDecimals[chainId][tokenAddress] = tokenDecimals;
-
-        // special case for on chain token
-        if(chainId == block.chainid) {
-            IERC20Metadata token = IERC20Metadata(tokenAddress);
-            _tokenDecimals[chainId][tokenAddress] = token.decimals();
-        }
     }
 
     function setRewardPercentage(uint256 rewardPercentage)
@@ -167,6 +180,41 @@ contract GifStaking is
         instance.createdAt = block.timestamp;
 
         _instanceIds.push(instanceId);
+    }
+
+
+    function registerToken(
+        address tokenAddress
+    )
+        external
+        onlyOwner()
+    {
+        IERC20Metadata token = IERC20Metadata(tokenAddress);
+        _registerToken(
+            tokenAddress,
+            block.chainid,
+            token.decimals(),
+            token.symbol()
+        );
+    }
+
+
+    function registerToken(
+        address tokenAddress,
+        uint256 chainId,
+        uint8 decimals,
+        string memory symbol
+    )
+        external
+        onlyOwner()
+        differentChain(chainId)
+    {
+        _registerToken(
+            tokenAddress,
+            chainId,
+            decimals,
+            symbol
+        );
     }
 
 
@@ -308,7 +356,7 @@ contract GifStaking is
     {
         uint256 stakingRate = getDipStakingRate(chainId, targetTokenAddress);
         uint256 stakingAmountBase = targetAmount * DIP_TO_TOKEN_PARITY_LEVEL / stakingRate;
-        stakingAmount = stakingAmountBase * 10**DIP_DECIMALS / 10**_tokenDecimals[chainId][targetTokenAddress];
+        stakingAmount = stakingAmountBase * 10**DIP_DECIMALS / 10**_tokenInfo[targetTokenAddress][chainId].decimals;
     }
 
 
@@ -352,7 +400,7 @@ contract GifStaking is
         returns(uint256 tokenAmount)
     {
         uint256 stakingRate = getDipStakingRate(chainId, tokenAddress);
-        uint256 tokenDecimals = _tokenDecimals[chainId][tokenAddress];
+        uint256 tokenDecimals = _tokenInfo[tokenAddress][chainId].decimals;
         uint256 numerator = 1;
         uint256 denominator = 1;
 
@@ -405,6 +453,7 @@ contract GifStaking is
         require(idx < _bundleKeys.length, "ERROR:STK-063:BUNDLE_INDEX_TOO_LARGE");
         return _bundleKeys[idx];
     }
+
 
     function getBundleInfo(
         bytes32 instanceId,
@@ -513,6 +562,36 @@ contract GifStaking is
         rewardAmount = amount * rewardDuration / REWARD_100_PERCENTAGE;
     }
 
+    function tokens() external view returns(uint256 numberOfTokens) {
+        return _tokenKeys.length;
+    }
+
+    function getTokenKey(uint256 idx) external view returns(TokenKey memory tokenKey) {
+        require(idx < _tokenKeys.length, "ERROR:STK-090:TOKEN_IDX_TOO_LARGE");
+        return _tokenKeys[idx];
+    }
+
+    function getTokenInfo(address tokenAddress)
+        external
+        view
+        returns(TokenInfo memory tokenInfo)
+    {
+        return getTokenInfo(tokenAddress, block.chainid);
+    }
+
+
+    function getTokenInfo(
+        address tokenAddress,
+        uint256 chainId
+    )
+        public
+        view
+        returns(TokenInfo memory tokenInfo)
+    {
+        require(_tokenInfo[tokenAddress][chainId].createdAt > 0, "ERROR:STK-091:TOKEN_NOT_REGISTERED");
+        return _tokenInfo[tokenAddress][chainId];
+    }
+
 
     function _validateInstance(
         bytes32 instanceId,
@@ -539,6 +618,31 @@ contract GifStaking is
     }
 
 
+    function _registerToken(
+        address tokenAddress,
+        uint256 chainId,
+        uint8 decimals,
+        string memory symbol
+    )
+        internal
+        onlyOwner()
+    {
+        require(_tokenInfo[tokenAddress][chainId].createdAt == 0, "ERROR:STK-100:TOKEN_ALREADY_REGISTERED");
+        require(tokenAddress != address(0), "ERROR:STK-101:TOKEN_ADDRESS_ZERO");
+        require(chainId > 0, "ERROR:STK-102:CHAIN_ID_ZERO");
+        require(decimals > 0, "ERROR:STK-103:DECIMALS_ZERO");
+        require(decimals <= TOKEN_MAX_DECIMALS, "ERROR:STK-104:DECIMALS_TOO_LARGE");
+
+        TokenInfo storage info = _tokenInfo[tokenAddress][chainId];
+        info.key = TokenKey(tokenAddress, chainId);
+        info.symbol = symbol;
+        info.decimals = decimals;
+        info.createdAt = block.timestamp;
+
+        _tokenKeys.push(info.key);
+    }
+
+
     function _updateBundleState(
         bytes32 instanceId,
         uint256 bundleId,
@@ -547,15 +651,19 @@ contract GifStaking is
     )
         internal
     {
-        require(_instanceInfo[instanceId].createdAt > 0, "ERROR:STK-090:INSTANCE_NOT_REGISTERED");
+        require(_instanceInfo[instanceId].createdAt > 0, "ERROR:STK-110:INSTANCE_NOT_REGISTERED");
+
+        uint256 chainId = _instanceInfo[instanceId].chainId;
+        require(_tokenInfo[token][chainId].createdAt > 0, "ERROR:STK-111:TOKEN_NOT_REGISTERED");
 
         BundleInfo storage info = _bundleInfo[instanceId][bundleId];
         
         // handle new bundle
         if(info.createdAt == 0) {
             info.key = BundleKey(instanceId, bundleId);
-            info.chainId = _instanceInfo[instanceId].chainId;
-            info.token = token;
+            info.tokenKey = TokenKey(token, chainId);
+            info.tokenSymbol = _tokenInfo[token][chainId].symbol;
+            info.tokenDecimals = _tokenInfo[token][chainId].decimals;
             info.createdAt = block.timestamp;
 
             _bundleKeys.push(info.key);
@@ -592,7 +700,7 @@ contract GifStaking is
     )
         internal
     {
-        require(amount <= stakeInfo.balance, "ERROR:STK-100:WITHDRAWAL_AMOUNT_EXCEEDS_STAKING_BALANCE");
+        require(amount <= stakeInfo.balance, "ERROR:STK-120:WITHDRAWAL_AMOUNT_EXCEEDS_STAKING_BALANCE");
         _stakedAmount[stakeInfo.key.instanceId][stakeInfo.key.bundleId] -= amount;
         _instanceStakedAmount[stakeInfo.key.instanceId] -= amount;
         _overallStakedAmount -= amount;
@@ -629,7 +737,7 @@ contract GifStaking is
         view
         returns(IInstanceService instanceService)
     {
-        require(_instanceInfo[instanceId].createdAt > 0, "ERROR:STK-110:INSTANCE_NOT_REGISTERED");
+        require(_instanceInfo[instanceId].createdAt > 0, "ERROR:STK-130:INSTANCE_NOT_REGISTERED");
         return _getInstanceServiceFromRegistry(_instanceInfo[instanceId].registry);
     }
     

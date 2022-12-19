@@ -29,6 +29,7 @@ def test_staking_with_rewards(
 ):
     instanceId = instanceService.getInstanceId()
     bundleId = create_bundle(instance, instanceOperator, investor, riskpool)
+    gifStaking.registerToken(riskpool.getErc20Token())
     gifStaking.updateBundleState(instanceId, bundleId)
 
     reward100Percent = gifStaking.getReward100PercentLevel()

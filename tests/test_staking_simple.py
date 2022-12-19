@@ -28,6 +28,8 @@ def test_staking_happy_path(
 ):
     instanceId = instanceService.getInstanceId()
     bundleId = create_bundle(instance, instanceOperator, investor, riskpool)
+    token = instanceService.getComponentToken(riskpool.getId())
+    gifStaking.registerToken(token)
 
     assert gifStaking.bundles() == 0
 
