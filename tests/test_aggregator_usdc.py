@@ -206,7 +206,7 @@ def test_feed_manipulation_disabled_on_mainnet(
             1671427679,
             1671427679,
             36893488147419104007,
-            {'from':instanceOperator}
+            {'from':productOwner}
         )
 
     # check AggregatorDataProvider.setRoundData 
@@ -217,22 +217,22 @@ def test_feed_manipulation_disabled_on_mainnet(
             1671427679,
             1671427679,
             36893488147419104007,
-            {'from':productOwner}
+            {'from':instanceOperator}
         )
 
     # check IPriceDataProvider.forceDepegForNextPriceInfo
     with brownie.reverts("ERROR:ADP-001:NOT_TEST_CHAIN"):
-        usdc_feeder.forceDepegForNextPriceInfo({'from':instanceOperator})
+        usdc_feeder.forceDepegForNextPriceInfo({'from':productOwner})
 
     with brownie.reverts("Ownable: caller is not the owner"):
-        usdc_feeder.forceDepegForNextPriceInfo({'from':productOwner})
+        usdc_feeder.forceDepegForNextPriceInfo({'from':instanceOperator})
 
     # check IPriceDataProvider.resetDepeg
     with brownie.reverts("ERROR:ADP-001:NOT_TEST_CHAIN"):
-        usdc_feeder.resetDepeg({'from':instanceOperator})
+        usdc_feeder.resetDepeg({'from':productOwner})
 
     with brownie.reverts("Ownable: caller is not the owner"):
-        usdc_feeder.resetDepeg({'from':productOwner})
+        usdc_feeder.resetDepeg({'from':instanceOperator})
 
 
 def test_force_and_reset_depeg(
