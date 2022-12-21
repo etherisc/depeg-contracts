@@ -119,14 +119,29 @@ def test_register_token_happy_path(
 
 def test_registration_failure_modes(
     instanceRegistry: InstanceRegistry,
+    productOwner,
     usd1: USD1,
     usd3: USD3,
     dip: DIP
 ):
     assert instanceRegistry.tokens() == 0
 
+    # attempt to register token as non-owner
+    with brownie.reverts("Ownable: caller is not the owner"):
+        instanceRegistry.registerToken(
+            usd1.address,
+            {'from':productOwner})
+
+    with brownie.reverts("Ownable: caller is not the owner"):
+        instanceRegistry.registerToken(
+            usd1.address,
+            web3.chain_id + 1,
+            usd1.decimals(),
+            usd1.symbol(),
+            {'from':productOwner})
+
     # on same chain only registerToken(tokenAddress) may be used
-    with brownie.reverts("ERROR:IRG-005:CALL_INVALID_FOR_SAME_CHAIN"):
+    with brownie.reverts("ERROR:IRG-001:CALL_INVALID_FOR_SAME_CHAIN"):
         instanceRegistry.registerToken(
             usd1.address,
             web3.chain_id,
@@ -136,7 +151,7 @@ def test_registration_failure_modes(
 
     assert instanceRegistry.tokens() == 0
 
-    with brownie.reverts("ERROR:STK-101:TOKEN_ADDRESS_ZERO"):
+    with brownie.reverts("ERROR:IRG-100:TOKEN_ADDRESS_ZERO"):
         instanceRegistry.registerToken(
             ZERO_ADDRESS,
             web3.chain_id + 1,
@@ -146,7 +161,7 @@ def test_registration_failure_modes(
 
     assert instanceRegistry.tokens() == 0
 
-    with brownie.reverts("ERROR:STK-102:CHAIN_ID_ZERO"):
+    with brownie.reverts("ERROR:IRG-101:CHAIN_ID_ZERO"):
         instanceRegistry.registerToken(
             usd1.address,
             0,
@@ -156,7 +171,7 @@ def test_registration_failure_modes(
 
     assert instanceRegistry.tokens() == 0
 
-    with brownie.reverts("ERROR:STK-103:DECIMALS_ZERO"):
+    with brownie.reverts("ERROR:IRG-102:DECIMALS_ZERO"):
         instanceRegistry.registerToken(
             usd1.address,
             web3.chain_id + 1,
@@ -166,7 +181,7 @@ def test_registration_failure_modes(
 
     assert instanceRegistry.tokens() == 0
 
-    with brownie.reverts("ERROR:STK-104:DECIMALS_TOO_LARGE"):
+    with brownie.reverts("ERROR:IRG-103:DECIMALS_TOO_LARGE"):
         instanceRegistry.registerToken(
             usd1.address,
             web3.chain_id + 1,
@@ -193,11 +208,11 @@ def test_update_token_happy_path(
         state_suspended
     )
 
-    assert 'LogInstanceRegistryTokenUpdated' in tx.events
-    assert tx.events['LogInstanceRegistryTokenUpdated']['token'] == usd1.address
-    assert tx.events['LogInstanceRegistryTokenUpdated']['chainId'] == chain_id
-    assert tx.events['LogInstanceRegistryTokenUpdated']['oldState'] == state_approved
-    assert tx.events['LogInstanceRegistryTokenUpdated']['newState'] == state_suspended
+    assert 'LogInstanceRegistryTokenStateUpdated' in tx.events
+    assert tx.events['LogInstanceRegistryTokenStateUpdated']['token'] == usd1.address
+    assert tx.events['LogInstanceRegistryTokenStateUpdated']['chainId'] == chain_id
+    assert tx.events['LogInstanceRegistryTokenStateUpdated']['oldState'] == state_approved
+    assert tx.events['LogInstanceRegistryTokenStateUpdated']['newState'] == state_suspended
 
 
 def test_update_token_failure_modes(
@@ -211,7 +226,7 @@ def test_update_token_failure_modes(
     state_approved = 1
     state_undefined = 0
 
-    with brownie.reverts('ERROR:IRG-010:TOKEN_STATE_INVALID'):
+    with brownie.reverts('ERROR:IRG-011:TOKEN_STATE_INVALID'):
         instanceRegistry.updateToken(
             usd1.address,
             chain_id,

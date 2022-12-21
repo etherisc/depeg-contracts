@@ -28,7 +28,7 @@ contract InstanceRegistry is
     TokenKey [] private _tokenKeys;
 
     modifier onlyDifferentChain(uint256 chainId) {
-        require(chainId != block.chainid, "ERROR:IRG-005:CALL_INVALID_FOR_SAME_CHAIN");
+        require(chainId != block.chainid, "ERROR:IRG-001:CALL_INVALID_FOR_SAME_CHAIN");
         _;
     }
 
@@ -75,12 +75,13 @@ contract InstanceRegistry is
         external override
     {
         require(_tokenInfo[token][chainId].createdAt > 0, "ERROR:IRG-010:TOKEN_NOT_REGISTERED");
-        require(newState != TokenState.Undefined, "ERROR:IRG-010:TOKEN_STATE_INVALID");
+        require(newState != TokenState.Undefined, "ERROR:IRG-011:TOKEN_STATE_INVALID");
         
         TokenState oldState =  _tokenInfo[token][chainId].state;
         _tokenInfo[token][chainId].state = newState;
+        _tokenInfo[token][chainId].updatedAt = block.timestamp;
         
-        emit LogInstanceRegistryTokenUpdated(token, chainId, oldState, newState);
+        emit LogInstanceRegistryTokenStateUpdated(token, chainId, oldState, newState);
     }
 
     function registerInstance(
@@ -118,20 +119,34 @@ contract InstanceRegistry is
 
     function updateInstance(
         bytes32 instanceId, 
-        InstanceState state 
+        InstanceState newState 
     ) 
         external override
     {
+        require(_instanceInfo[instanceId].createdAt > 0, "ERROR:IRG-020:INSTANCE_NOT_REGISTERED");
+        require(newState != InstanceState.Undefined, "ERROR:IRG-021:INSTANCE_STATE_INVALID");
+        
+        InstanceState oldState =  _instanceInfo[instanceId].state;
+        _instanceInfo[instanceId].state = newState;
+        _instanceInfo[instanceId].updatedAt = block.timestamp;
 
+        emit LogInstanceRegistryInstanceStateUpdated(instanceId, oldState, newState);
     }
 
 
     function updateInstance(
         bytes32 instanceId, 
-        string memory displayName
+        string memory newDisplayName
     ) 
         external override
     {
+        require(_instanceInfo[instanceId].createdAt > 0, "ERROR:IRG-022:INSTANCE_NOT_REGISTERED");
+        
+        string memory oldDisplayName =  _instanceInfo[instanceId].displayName;
+        _instanceInfo[instanceId].displayName = newDisplayName;
+        _instanceInfo[instanceId].updatedAt = block.timestamp;
+        
+        emit LogInstanceRegistryInstanceDisplayNameUpdated(instanceId, oldDisplayName, newDisplayName);
 
     }
 
@@ -167,11 +182,11 @@ contract InstanceRegistry is
     )
         internal
     {
-        require(chainId > 0, "ERROR:STK-021:CHAIN_ID_ZERO");
-        require(registry != address(0), "ERROR:STK-022:REGISTRY_CONTRACT_ADDRESS_ZERO");
+        require(chainId > 0, "ERROR:IRG-030:CHAIN_ID_ZERO");
+        require(registry != address(0), "ERROR:IRG-031:REGISTRY_ADDRESS_ZERO");
 
         bool isValid = _validateInstance(instanceId, chainId, registry);
-        require(isValid, "ERROR:STK-023:INSTANCE_ID_INVALID");
+        require(isValid, "ERROR:IRG-032:INSTANCE_ID_INVALID");
 
         InstanceInfo storage info = _instanceInfo[instanceId];
         bool isNewInstance = info.createdAt == 0;
@@ -202,7 +217,7 @@ contract InstanceRegistry is
     }
 
     function getInstanceId(uint256 idx) external override view returns(bytes32 instanceId) {
-        require(idx < _instanceIds.length, "ERROR:STK-061:INSTANCE_INDEX_TOO_LARGE");
+        require(idx < _instanceIds.length, "ERROR:IRG-040:INSTANCE_INDEX_TOO_LARGE");
         return _instanceIds[idx];
     }
 
@@ -213,7 +228,7 @@ contract InstanceRegistry is
         view
         returns(InstanceInfo memory info)
     {
-        require(_instanceInfo[instanceId].createdAt > 0, "ERROR:STK-062:INSTANCE_NOT_REGISTERED");
+        require(_instanceInfo[instanceId].createdAt > 0, "ERROR:IRG-041:INSTANCE_NOT_REGISTERED");
         info = _instanceInfo[instanceId];
     }
 
@@ -222,7 +237,7 @@ contract InstanceRegistry is
     }
 
     function getTokenId(uint256 idx) external override view returns(address token, uint256 chainId) {
-        require(idx < _tokenKeys.length, "ERROR:STK-090:TOKEN_IDX_TOO_LARGE");
+        require(idx < _tokenKeys.length, "ERROR:IRG-050:TOKEN_IDX_TOO_LARGE");
         return (_tokenKeys[idx].token, _tokenKeys[idx].chainId);
     }
 
@@ -243,7 +258,7 @@ contract InstanceRegistry is
         view
         returns(TokenInfo memory tokenInfo)
     {
-        require(_tokenInfo[tokenAddress][chainId].createdAt > 0, "ERROR:STK-091:TOKEN_NOT_REGISTERED");
+        require(_tokenInfo[tokenAddress][chainId].createdAt > 0, "ERROR:IRG-051:TOKEN_NOT_REGISTERED");
         return _tokenInfo[tokenAddress][chainId];
     }
 
@@ -281,10 +296,10 @@ contract InstanceRegistry is
     )
         internal
     {
-        require(token != address(0), "ERROR:STK-101:TOKEN_ADDRESS_ZERO");
-        require(chainId > 0, "ERROR:STK-102:CHAIN_ID_ZERO");
-        require(decimals > 0, "ERROR:STK-103:DECIMALS_ZERO");
-        require(decimals <= TOKEN_MAX_DECIMALS, "ERROR:STK-104:DECIMALS_TOO_LARGE");
+        require(token != address(0), "ERROR:IRG-100:TOKEN_ADDRESS_ZERO");
+        require(chainId > 0, "ERROR:IRG-101:CHAIN_ID_ZERO");
+        require(decimals > 0, "ERROR:IRG-102:DECIMALS_ZERO");
+        require(decimals <= TOKEN_MAX_DECIMALS, "ERROR:IRG-103:DECIMALS_TOO_LARGE");
 
         TokenInfo storage info = _tokenInfo[token][chainId];
         bool isNewToken = info.createdAt == 0;
@@ -316,7 +331,7 @@ contract InstanceRegistry is
         view
         returns(IInstanceService instanceService)
     {
-        require(_instanceInfo[instanceId].createdAt > 0, "ERROR:STK-130:INSTANCE_NOT_REGISTERED");
+        require(_instanceInfo[instanceId].createdAt > 0, "ERROR:IRG-110:INSTANCE_NOT_REGISTERED");
         return _getInstanceServiceFromRegistry(_instanceInfo[instanceId].registry);
     }
     
@@ -328,7 +343,24 @@ contract InstanceRegistry is
         view
         returns(IInstanceService instanceService)
     {
+        require(_getContractSize(registryAddress) > 0, "ERROR:IRG-120:REGISTRY_NOT_CONTRACT");
+
         IRegistry registry = IRegistry(registryAddress);
-        instanceService = IInstanceService(registry.getContract("InstanceService"));
+        
+        try registry.getContract("InstanceService") returns(address instanceServiceAddress) {
+            instanceService = IInstanceService(instanceServiceAddress);
+        } catch {
+            revert("ERROR:IRG-121:NOT_REGISTRY_CONTRACT");
+        }
+    }
+
+    function _getContractSize(address contractAddress)
+        internal
+        view
+        returns(uint256 size)
+    {
+        assembly {
+            size := extcodesize(contractAddress)
+        }
     }
 }

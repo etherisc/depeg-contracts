@@ -11,6 +11,7 @@ from brownie import (
     DepegProduct,
     DepegRiskpool,
     GifStaking,
+    InstanceRegistry,
     DIP
 )
 
@@ -212,3 +213,7 @@ def gifStaking(
 
     return staking
 
+
+@pytest.fixture(scope="module")
+def instanceRegistry(instanceOperator) -> InstanceRegistry: 
+    return InstanceRegistry.deploy({'from': instanceOperator})

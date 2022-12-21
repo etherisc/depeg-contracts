@@ -7,11 +7,11 @@ interface IInstanceRegistry is
     IInstanceDataProvider 
 {
     event LogInstanceRegistryTokenRegistered(address token, uint256 chainId, TokenState state, bool isNewToken);
-    event LogInstanceRegistryTokenUpdated(address token, uint256 chainId, TokenState oldState, TokenState newState);
+    event LogInstanceRegistryTokenStateUpdated(address token, uint256 chainId, TokenState oldState, TokenState newState);
 
     event LogInstanceRegistryInstanceRegistered(bytes32 instanceId, InstanceState state, bool isNewInstance);
-    event LogInstanceRegistryInstanceUpdated(bytes32 instanceId, InstanceState oldState, InstanceState newState);
-    event LogInstanceRegistryInstanceUpdated(bytes32 instanceId, string oldDisplayName, string newDisplayName);
+    event LogInstanceRegistryInstanceStateUpdated(bytes32 instanceId, InstanceState oldState, InstanceState newState);
+    event LogInstanceRegistryInstanceDisplayNameUpdated(bytes32 instanceId, string oldDisplayName, string newDisplayName);
 
     function registerToken(address token) external;
     function registerToken(address token, uint256 chainId, uint8 decimals, string memory symbol) external;
