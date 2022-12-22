@@ -639,8 +639,9 @@ def all_in_1(
     max_sum_insured = 20000
     chain_id = instance_service.getChainId()
     instance_id = instance_service.getInstanceId()
-    bundle_id1 = new_bundle(deployment, initial_funding * mult, 8000 * mult, max_sum_insured * mult, 60, 90, 1.7)
-    bundle_id2 = new_bundle(deployment, initial_funding * mult, 4000 * mult, max_sum_insured * mult, 30, 80, 2.1)
+    bundleLifetimeDays = 90
+    bundle_id1 = new_bundle(deployment, 'bundle-1', bundleLifetimeDays, initial_funding * mult, 8000 * mult, max_sum_insured * mult, 60, 90, 1.7)
+    bundle_id2 = new_bundle(deployment, 'bundle-2', bundleLifetimeDays, initial_funding * mult, 4000 * mult, max_sum_insured * mult, 30, 80, 2.1)
 
     # approval necessary for payouts or pulling out funds by investor
     usd2.approve(
@@ -723,6 +724,8 @@ def get_address(name):
 
 def new_bundle(
     d,
+    bundleName,
+    bundleLifetimeDays,
     funding,
     minSumInsured,
     maxSumInsured,
@@ -736,6 +739,8 @@ def new_bundle(
         d[INVESTOR],
         d[RISKPOOL],
         funding,
+        bundleName,
+        bundleLifetimeDays,
         minSumInsured,
         maxSumInsured,
         minDurationDays,
@@ -906,6 +911,8 @@ def get_bundle_data(
         bundle = instanceService.getBundle(bundleId)
         applicationFilter = bundle[4]
         (
+            name,
+            lifetime,
             minSumInsured,
             maxSumInsured,
             minDuration,
@@ -925,6 +932,8 @@ def get_bundle_data(
             'riskpoolId':riskpoolId,
             'bundleId':bundleId,
             'apr':apr,
+            'name':name,
+            'lifetime':lifetime/(24*3600),
             'minSumInsured':minSumInsured,
             'maxSumInsured':maxSumInsured,
             'minDuration':minDuration/(24*3600),
@@ -949,21 +958,26 @@ def inspect_bundles(d):
     bundleData = get_bundle_data(instanceService, riskpool)
 
     # print header row
-    print('i riskpool bundle apr token1 minsuminsured maxsuminsured minduration maxduration token2 capital locked capacity staking policies')
+    print('i riskpool bundle name apr token1 minsuminsured maxsuminsured lifetime minduration maxduration token2 capital locked capacity staking policies')
 
     # print individual rows
     for idx in range(len(bundleData)):
         b = bundleData[idx]
         bi = riskpool.getBundleInfo(b['bundleId']).dict()
 
-        print('{} {} {} {:.3f} {} {:.1f} {:.1f} {} {} {} {:.1f} {:.1f} {:.1f} {:.1f} {}'.format(
+        if b['name'] == '':
+            b['name'] = None
+
+        print('{} {} {} {} {:.3f} {} {:.1f} {:.1f} {} {} {} {} {:.1f} {:.1f} {:.1f} {:.1f} {}'.format(
             b['idx'],
             b['riskpoolId'],
             b['bundleId'],
+            b['name'],
             b['apr'],
             usd1.symbol(),
             b['minSumInsured']/mul_usd1,
             b['maxSumInsured']/mul_usd1,
+            b['lifetime'],
             b['minDuration'],
             b['maxDuration'],
             usd2.symbol(),
@@ -979,9 +993,11 @@ def inspect_bundle(d, bundleId):
     instanceService = d[INSTANCE_SERVICE]
     riskpool = d[RISKPOOL]
 
-    bundle = instanceService.getBundle(bundleId)
-    filter = bundle[4]
+    bundle = instanceService.getBundle(bundleId).dict()
+    filter = bundle['filter']
     (
+        name,
+        lifetime,
         minSumInsured,
         maxSumInsured,
         minDuration,
@@ -990,19 +1006,24 @@ def inspect_bundle(d, bundleId):
 
     ) = riskpool.decodeBundleParamsFromFilter(filter)
 
+    if name == '':
+        name = None
+    
     sPerD = 24 * 3600
-    print('bundle {} riskpool {}'.format(bundleId, bundle[1]))
-    print('- nft {}'.format(bundle[2]))
-    print('- state {}'.format(bundle[3]))
+    print('bundle {} riskpool {}'.format(bundleId, bundle['riskpoolId']))
+    print('- nft {}'.format(bundle['tokenId']))
+    print('- state {}'.format(bundle['state']))
     print('- filter')
+    print('  + name {}'.format(name))
+    print('  + lifetime {} [days]'.format(lifetime/sPerD))
     print('  + sum insured {}-{} [USD2]'.format(minSumInsured, maxSumInsured))
     print('  + coverage duration {}-{} [days]'.format(minDuration/sPerD, maxDuration/sPerD))
     print('  + apr {} [%]'.format(100 * annualPercentageReturn/riskpool.getApr100PercentLevel()))
     print('- financials')
-    print('  + capital {}'.format(bundle[5]))
-    print('  + locked {}'.format(bundle[6]))
-    print('  + capacity {}'.format(bundle[5]-bundle[6]))
-    print('  + balance {}'.format(bundle[7]))
+    print('  + capital {}'.format(bundle['capital']))
+    print('  + locked {}'.format(bundle['lockedCapital']))
+    print('  + capacity {}'.format(bundle['capital']-bundle['lockedCapital']))
+    print('  + balance {}'.format(bundle['balance']))
 
 
 def from_component(

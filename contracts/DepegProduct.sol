@@ -260,6 +260,8 @@ contract DepegProduct is
     function calculateNetPremium(uint256 sumInsured, uint256 duration, uint256 bundleId) public view returns(uint256 netPremium) {
         IBundle.Bundle memory bundle = _instanceService.getBundle(bundleId);
         (
+            string memory name,
+            uint256 lifetime,
             uint256 minSumInsured,
             uint256 maxSumInsured,
             uint256 minDuration,

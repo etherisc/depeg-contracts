@@ -17,9 +17,11 @@ contract DepegRiskpool is
 {
     struct BundleInfo {
         uint256 bundleId;
+        string name;
         IBundle.BundleState state;
         uint256 tokenId;
         address owner;
+        uint256 lifetime;
         uint256 minSumInsured;
         uint256 maxSumInsured;
         uint256 minDuration;
@@ -36,12 +38,17 @@ contract DepegRiskpool is
 
     uint256 public constant USD_CAPITAL_CAP = 1 * 10**6;
 
+    bytes32 public constant EMPTY_STRING_HASH = keccak256(abi.encodePacked(''));
+
+    uint256 public constant MIN_BUNDLE_LIFETIME = 14 * 24 * 3600;
     uint256 public constant MAX_BUNDLE_LIFETIME = 180 * 24 * 3600;
     uint256 public constant MAX_POLICY_DURATION = 180 * 24 * 3600;
     uint256 public constant ONE_YEAR_DURATION = 365 * 24 * 3600; 
 
     uint256 public constant APR_100_PERCENTAGE = 10**6;
     uint256 public constant MAX_APR = APR_100_PERCENTAGE / 5;
+
+    mapping(string /* bundle name */ => uint256 /* bundle id */) _bundleIdForBundleName;
 
     IStakingDataProvider private _stakingDataProvider;
     uint256 private _poolCapitalCap;
@@ -89,6 +96,8 @@ contract DepegRiskpool is
 
 
     function createBundle(
+        string memory name,
+        uint256 lifetime,
         uint256 policyMinSumInsured,
         uint256 policyMaxSumInsured,
         uint256 policyMinDuration,
@@ -99,20 +108,41 @@ contract DepegRiskpool is
         public
         returns(uint256 bundleId)
     {
-        require(policyMaxSumInsured <= _bundleCapitalCap, "ERROR:DRP-020:MAX_SUM_INSURED_TOO_LARGE");
-        require(policyMaxSumInsured > 0, "ERROR:DRP-021:MAX_SUM_INSURED_ZERO");
-        require(policyMinSumInsured <= policyMaxSumInsured, "ERROR:DRP-022:MIN_SUM_INSURED_TOO_LARGE");
-
-        require(policyMaxDuration <= MAX_POLICY_DURATION, "ERROR:DRP-023:POLICY_MAX_DURATION_TOO_LARGE");
-        require(policyMaxDuration > 0, "ERROR:DRP-024:POLICY_MAX_DURATION_ZERO");
-        require(policyMinDuration <= policyMaxDuration, "ERROR:DRP-025:POLICY_MIN_DURATION_TOO_LARGE");
-
-        require(annualPercentageReturn <= MAX_APR, "ERROR:DRP-026:APR_TOO_LARGE");
-        require(annualPercentageReturn > 0, "ERROR:DRP-027:APR_ZERO");
-
-        require(initialAmount <= _bundleCapitalCap, "ERROR:DRP-028:RISK_CAPITAL_TOO_LARGE");
+        require(
+             _bundleIdForBundleName[name] == 0,
+            "ERROR:DRP-020:NAME_NOT_UNIQUE");
+        require(
+            lifetime >= MIN_BUNDLE_LIFETIME
+            && lifetime <= MAX_BUNDLE_LIFETIME, 
+            "ERROR:DRP-021:LIFETIME_INVALID");
+        require(
+            policyMaxSumInsured > 0 
+            && policyMaxSumInsured <= _bundleCapitalCap, 
+            "ERROR:DRP-022:MAX_SUM_INSURED_INVALID");
+        require(
+            policyMinSumInsured > 0 
+            && policyMinSumInsured <= policyMaxSumInsured, 
+            "ERROR:DRP-023:MIN_SUM_INSURED_INVALID");
+        require(
+            policyMaxDuration > 0
+            && policyMaxDuration <= MAX_POLICY_DURATION, 
+            "ERROR:DRP-024:MAX_DURATION_INVALID");
+        require(
+            policyMinDuration > 0
+            && policyMinDuration <= policyMaxDuration, 
+            "ERROR:DRP-025:MIN_DURATION_INVALID");
+        require(
+            annualPercentageReturn > 0
+            && annualPercentageReturn <= MAX_APR, 
+            "ERROR:DRP-026:APR_INVALID");
+        require(
+            initialAmount > 0
+            && initialAmount <= _bundleCapitalCap, 
+            "ERROR:DRP-027:RISK_CAPITAL_INVALID");
 
         bytes memory filter = encodeBundleParamsAsFilter(
+            name,
+            lifetime,
             policyMinSumInsured,
             policyMaxSumInsured,
             policyMinDuration,
@@ -121,6 +151,10 @@ contract DepegRiskpool is
         );
 
         bundleId = super.createBundle(filter, initialAmount);
+
+        if(keccak256(abi.encodePacked(name)) != EMPTY_STRING_HASH) {
+            _bundleIdForBundleName[name] = bundleId;
+        }
     }
 
     function getBundleInfo(uint256 bundleId)
@@ -132,6 +166,8 @@ contract DepegRiskpool is
         IBundleToken token = _instanceService.getBundleToken();
 
         (
+            string memory name,
+            uint256 lifetime,
             uint256 minSumInsured,
             uint256 maxSumInsured,
             uint256 minDuration,
@@ -143,9 +179,11 @@ contract DepegRiskpool is
 
         info = BundleInfo(
             bundleId,
+            name,
             bundle.state,
             bundle.tokenId,
             token.ownerOf(bundle.tokenId),
+            lifetime,
             minSumInsured,
             maxSumInsured,
             minDuration,
@@ -165,6 +203,8 @@ contract DepegRiskpool is
     }
 
     function encodeBundleParamsAsFilter(
+        string memory name,
+        uint256 lifetime,
         uint256 minSumInsured,
         uint256 maxSumInsured,
         uint256 minDuration,
@@ -175,6 +215,8 @@ contract DepegRiskpool is
         returns (bytes memory filter)
     {
         filter = abi.encode(
+            name,
+            lifetime,
             minSumInsured,
             maxSumInsured,
             minDuration,
@@ -188,6 +230,8 @@ contract DepegRiskpool is
     )
         public pure
         returns (
+            string memory name,
+            uint256 lifetime,
             uint256 minSumInsured,
             uint256 maxSumInsured,
             uint256 minDuration,
@@ -196,12 +240,14 @@ contract DepegRiskpool is
         )
     {
         (
+            name,
+            lifetime,
             minSumInsured,
             maxSumInsured,
             minDuration,
             maxDuration,
             annualPercentageReturn
-        ) = abi.decode(filter, (uint256, uint256, uint256, uint256, uint256));
+        ) = abi.decode(filter, (string, uint256, uint256, uint256, uint256, uint256, uint256));
     }
 
 
@@ -253,6 +299,8 @@ contract DepegRiskpool is
     function _getBundleApr(uint256 bundleId) internal view returns (uint256 apr) {
         bytes memory filter = getBundleFilter(bundleId);
         (
+            string memory name,
+            uint256 lifetime,
             uint256 minSumInsured,
             uint256 maxSumInsured,
             uint256 minDuration,
@@ -279,47 +327,46 @@ contract DepegRiskpool is
         public override
         returns(bool isMatching) 
     {
-        // enforce max bundle lifetime
-        if(block.timestamp > bundle.createdAt + MAX_BUNDLE_LIFETIME) {
-            return false;
-        }
-
-        uint256 bundleId = bundle.id;
-
         (
+            , // name not needed
+            uint256 lifetime,
             uint256 minSumInsured,
             uint256 maxSumInsured,
             uint256 minDuration,
             uint256 maxDuration,
             uint256 annualPercentageReturn
         ) = decodeBundleParamsFromFilter(bundle.filter);
-        
+
+        // enforce max bundle lifetime
+        if(block.timestamp > bundle.createdAt + lifetime) {
+            return false;
+        }
+
         (
             uint256 duration,
             uint256 maxPremium
         ) = decodeApplicationParameterFromData(application.data);
 
-        uint256 sumInsured = application.sumInsuredAmount;
         bool sumInsuredOk = true;
         bool durationOk = true;
         bool premiumOk = true;
 
-        if(sumInsured < minSumInsured) { sumInsuredOk = false; }
-        if(sumInsured > maxSumInsured) { sumInsuredOk = false; }
+        if(application.sumInsuredAmount < minSumInsured) { sumInsuredOk = false; }
+        if(application.sumInsuredAmount > maxSumInsured) { sumInsuredOk = false; }
 
-        if(getSupportedCapitalAmount(bundleId) < bundle.lockedCapital + sumInsured) {
+        if(getSupportedCapitalAmount(bundle.id) < bundle.lockedCapital + application.sumInsuredAmount) {
             sumInsuredOk = false;
         }
 
         if(duration < minDuration) { durationOk = false; }
         if(duration > maxDuration) { durationOk = false; }
         
-        uint256 premium = calculatePremium(sumInsured, duration, annualPercentageReturn);
+        uint256 premium = calculatePremium(application.sumInsuredAmount, duration, annualPercentageReturn);
         if(premium > maxPremium) { premiumOk = false; }
 
         isMatching = (sumInsuredOk && durationOk && premiumOk);
 
-        emit LogBundleMatchesApplication(bundleId, sumInsuredOk, durationOk, premiumOk);
+        emit LogBundleMatchesApplication(bundle.id, sumInsuredOk, durationOk, premiumOk);
     }
 
 
@@ -327,10 +374,17 @@ contract DepegRiskpool is
         public view
         returns(uint256 capitalCap)
     {
+        // if not staking data provider is available anything goes
         if(address(_stakingDataProvider) == address(0)) {
             return _bundleCapitalCap;
         }
 
+        // if staking data provider exists but bundle is not registered, nothing goes
+        if(!_stakingDataProvider.isRegisteredBundle(_instanceService.getInstanceId(), bundleId)) {
+            return 0;
+        }
+
+        // otherwise: get amount supported by staking
         return _stakingDataProvider.getSupportedCapitalAmount(
             _instanceService.getInstanceId(), 
             bundleId, 
@@ -343,7 +397,7 @@ contract DepegRiskpool is
         uint256 duration,
         uint256 annualPercentageReturn
     ) 
-        public view
+        public pure
         returns(uint256 premiumAmount) 
     {
         uint256 policyDurationReturn = annualPercentageReturn * duration / ONE_YEAR_DURATION;

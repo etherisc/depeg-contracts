@@ -39,6 +39,8 @@ def create_bundle(
     investor: Account,
     riskpool: DepegRiskpool,
     funding: int = DEFAULT_BUNDLE_FUNDING,
+    bundleName: str = '',
+    bundleLifetimeDays: int = 90,
     minSumInsured: int = DEFAULT_MIN_SUM_INSURED,
     maxSumInsured: int = DEFAULT_MAX_SUM_INSURED,
     minDurationDays: int = DEFAULT_MIN_DURATION_DAYS,
@@ -54,9 +56,11 @@ def create_bundle(
 
     apr100level = riskpool.getApr100PercentLevel();
     apr = apr100level * aprPercentage / 100
+    spd = 24 * 3600
 
-    spd = 24*3600
     tx = riskpool.createBundle(
+        bundleName,
+        bundleLifetimeDays * spd,
         minSumInsured,
         maxSumInsured,
         minDurationDays * spd,

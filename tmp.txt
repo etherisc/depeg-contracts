@@ -1,22 +1,24 @@
 depeg
 
 === priorization ===
-- token registration
+- stop rewards once bundle lifetime is exceeded
 
 === backlog ===
 staking
 - split into registry and staking
-- stop rewards once bundle lifetime is exceeded
+  + replace gif staking stuff with link to new registry
+- add inspect_registry to deploy_depeg (shows registered tokens + instances)
+- add inspect_staking to deploy_depeg (shows registered bundles, stakes, stakers)
 
-investing
-- add bundle lifetime attribute
-- add bundle name attribute
+investing/riskpool
 
 mumbay
 - price generator script
   + stable: rand .9955 - 1.02
   + trigger: 1x at 0.995, then rand 0.98 ,- .998
   + depeg: 1x .97, 1x.93, backdate triggered at, 1x.88
+- fastapi server
+- dockerfile
 
 product
 - add wallet address attribute
@@ -28,11 +30,19 @@ product
   + token balance at block timestamp
   + withdrawPayout
 
+=== done 21.12.22 ===
+- instance name attribute
+- split into registry and staking
+  + factor out instance registry
 
 === done 20.12.22 ===
+- bundle lifetime attribute
+- bundle name attribute
 
 === done 18/19.12.22 ===
 - store depeg price
 - testnet functions
   + subtract24hFromTriggeredAt
   + reactivate
+- token registration
+
