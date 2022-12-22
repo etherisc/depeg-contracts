@@ -188,21 +188,20 @@ contract InstanceRegistry is
         bool isValid = _validateInstance(instanceId, chainId, registry);
         require(isValid, "ERROR:IRG-032:INSTANCE_ID_INVALID");
 
-        InstanceInfo storage info = _instanceInfo[instanceId];
-        bool isNewInstance = info.createdAt == 0;
-
         InstanceInfo storage instance = _instanceInfo[instanceId];
-        instance.id = instanceId;
+        bool isNewInstance = instance.createdAt == 0;
+
+        if(isNewInstance) {
+            instance.id = instanceId;
+            instance.createdAt = block.timestamp;
+            _instanceIds.push(instanceId);
+        }
+
         instance.state = IInstanceDataProvider.InstanceState.Approved;
         instance.displayName = "";
         instance.chainId = chainId;
         instance.registry = registry;
         instance.updatedAt = block.timestamp;
-
-        if(isNewInstance) {
-            info.createdAt = block.timestamp;
-            _instanceIds.push(instanceId);
-        }
 
         emit LogInstanceRegistryInstanceRegistered(
             instance.id,
@@ -304,16 +303,17 @@ contract InstanceRegistry is
         TokenInfo storage info = _tokenInfo[token][chainId];
         bool isNewToken = info.createdAt == 0;
 
-        info.key = TokenKey(token, chainId);
+        if(isNewToken) {
+            info.key = TokenKey(token, chainId);
+            info.createdAt = block.timestamp;
+            
+            _tokenKeys.push(info.key);
+        }
+
         info.state = IInstanceDataProvider.TokenState.Approved;
         info.symbol = symbol;
         info.decimals = decimals;
         info.updatedAt = block.timestamp;
-
-        if(isNewToken) {
-            info.createdAt = block.timestamp;
-            _tokenKeys.push(info.key);
-        }
 
         emit LogInstanceRegistryTokenRegistered(
             token,
