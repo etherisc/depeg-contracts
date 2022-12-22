@@ -28,7 +28,7 @@ contract InstanceRegistry is
     TokenKey [] private _tokenKeys;
 
     modifier onlyDifferentChain(uint256 chainId) {
-        require(chainId != block.chainid, "ERROR:IRG-001:CALL_INVALID_FOR_SAME_CHAIN");
+        require(chainId != block.chainid, "ERROR:IRG-002:CALL_INVALID_FOR_SAME_CHAIN");
         _;
     }
 

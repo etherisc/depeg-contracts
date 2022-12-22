@@ -69,7 +69,7 @@ def test_staking_full_setup(
 
     print('--- attempt to buy a policy with insufficient staking ---')
     assert gifStaking.getBundleStakes(instanceId, bundleId) == 0
-    assert gifStaking.getSupportedCapitalAmount(instanceId, bundleId, usd2) == 0
+    assert gifStaking.getBundleCapitalSupport(instanceId, bundleId) == 0
 
     bundleInfo = riskpool.getBundleInfo(bundleId)
     print('bundleInfo {}'.format(bundleInfo))
@@ -83,7 +83,7 @@ def test_staking_full_setup(
     durationDays = 60
     maxPremium = 750 * 10**usd2.decimals()
 
-    assert sumInsured > gifStaking.getSupportedCapitalAmount(instanceId, bundleId, usd2)
+    assert sumInsured > gifStaking.getBundleCapitalSupport(instanceId, bundleId)
 
     processId1 = apply_for_policy(
         instance, 
@@ -110,7 +110,7 @@ def test_staking_full_setup(
     gifStaking.stake(instanceId, bundleId, stakingAmount, {'from': staker})
 
     # check conditions to allow for underwriting
-    assert sumInsured <= gifStaking.getSupportedCapitalAmount(instanceId, bundleId, usd2)
+    assert sumInsured <= gifStaking.getBundleCapitalSupport(instanceId, bundleId)
     assert sumInsured <= bundle['capital']-bundle['lockedCapital']
 
     processId2 = apply_for_policy(
@@ -136,6 +136,6 @@ def test_staking_full_setup(
     print('bundleInfo2 {}'.format(bundleInfo2))
 
     assert bundleInfo2['bundleId'] == bundleId
-    assert bundleInfo2['capitalSupportedByStaking'] == gifStaking.getSupportedCapitalAmount(instanceId, bundleId, usd2)
+    assert bundleInfo2['capitalSupportedByStaking'] == gifStaking.getBundleCapitalSupport(instanceId, bundleId)
     assert bundleInfo2['capital'] == bundleInfo['capital']
     assert bundleInfo2['lockedCapital'] == sumInsured

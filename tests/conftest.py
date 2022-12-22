@@ -12,6 +12,7 @@ from brownie import (
     DepegRiskpool,
     GifStaking,
     InstanceRegistry,
+    ComponentRegistry,
     DIP
 )
 
@@ -88,6 +89,18 @@ def customer(accounts) -> Account:
 @pytest.fixture(scope="module")
 def customer2(accounts) -> Account:
     return get_filled_account(accounts, 10, "1 ether")
+
+@pytest.fixture(scope="module")
+def staker(accounts) -> Account:
+    return get_filled_account(accounts, 11, "1 ether")
+
+@pytest.fixture(scope="module")
+def staker2(accounts) -> Account:
+    return get_filled_account(accounts, 12, "1 ether")
+
+@pytest.fixture(scope="module")
+def registryOwner(accounts) -> Account:
+    return get_filled_account(accounts, 13, "1 ether")
 
 @pytest.fixture(scope="module")
 def theOutsider(accounts) -> Account:
@@ -215,5 +228,10 @@ def gifStaking(
 
 
 @pytest.fixture(scope="module")
-def instanceRegistry(instanceOperator) -> InstanceRegistry: 
-    return InstanceRegistry.deploy({'from': instanceOperator})
+def instanceRegistry(registryOwner) -> InstanceRegistry: 
+    return InstanceRegistry.deploy({'from': registryOwner})
+
+
+@pytest.fixture(scope="module")
+def componentRegistry(registryOwner) -> ComponentRegistry: 
+    return ComponentRegistry.deploy({'from': registryOwner})

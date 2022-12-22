@@ -8,64 +8,66 @@ import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import "@etherisc/gif-interface/contracts/modules/IRegistry.sol";
 import "@etherisc/gif-interface/contracts/services/IInstanceService.sol";
 
+import "../registry/IBundleDataProvider.sol";
 import "./IStakingDataProvider.sol";
 
 // TODO check/compare for function naming https://github.com/ethereum/EIPs/issues/900
 contract GifStaking is
+    IBundleDataProvider,
     IStakingDataProvider,
     Ownable
 {
 
-    enum InstanceState {
-        Undefined,
-        Active,
-        Suspended,
-        Archived
-    }
+    // enum InstanceState {
+    //     Undefined,
+    //     Active,
+    //     Suspended,
+    //     Archived
+    // }
 
-    struct InstanceInfo {
-        bytes32 id;
-        InstanceState state;
-        string displayName;
-        uint256 chainId;
-        address registry;
-        uint256 createdAt;
-        uint256 updatedAt;
-    }
+    // struct InstanceInfo {
+    //     bytes32 id;
+    //     InstanceState state;
+    //     string displayName;
+    //     uint256 chainId;
+    //     address registry;
+    //     uint256 createdAt;
+    //     uint256 updatedAt;
+    // }
 
-    struct TokenKey {
-        address token;
-        uint256 chainId;
-    }
+    // struct TokenKey {
+    //     address token;
+    //     uint256 chainId;
+    // }
 
-    enum TokenState {
-        Undefined,
-        Approved,
-        Suspended
-    }
-    struct TokenInfo {
-        TokenKey key;
-        TokenState state;
-        string symbol;
-        uint8 decimals;
-        uint256 createdAt;
-    }
+    // enum TokenState {
+    //     Undefined,
+    //     Approved,
+    //     Suspended
+    // }
+    // struct TokenInfo {
+    //     TokenKey key;
+    //     TokenState state;
+    //     string symbol;
+    //     uint8 decimals;
+    //     uint256 createdAt;
+    // }
 
-    struct BundleKey {
-        bytes32 instanceId;
-        uint256 bundleId;
-    }
+    // struct BundleKey {
+    //     bytes32 instanceId;
+    //     uint256 bundleId;
+    // }
 
-    struct BundleInfo {
-        BundleKey key;
-        TokenKey tokenKey;
-        string tokenSymbol;
-        uint8 tokenDecimals;
-        IBundle.BundleState state;
-        uint256 closedSince;
-        uint256 createdAt;
-        uint256 updatedAt;
-    }
+    // struct BundleInfo {
+    //     BundleKey key;
+    //     TokenKey tokenKey;
+    //     string tokenSymbol;
+    //     uint8 tokenDecimals;
+    //     IBundle.BundleState state;
+    //     uint256 closedSince;
+    //     uint256 createdAt;
+    //     uint256 updatedAt;
+    // }
 
     struct StakeInfo {
         address staker;
@@ -140,6 +142,28 @@ contract GifStaking is
         _dip = IERC20Metadata(DIP_CONTRACT_ADDRESS);
         _stakingWallet = address(this);
     }
+
+    // temporary hack until GifStaking is replaced by rewritten contract
+
+    // instance data provider
+    function getTokenId(uint256 idx) external override view returns(address tokenAddress, uint256 chainId) {}
+    function isRegisteredToken(address tokenAddress) external override view returns(bool isRegistered) {}
+    function isRegisteredToken(address tokenAddress, uint256 chainId) external override view returns(bool isRegistered) {}
+
+    function isRegisteredInstance(bytes32 instanceId) external override view returns(bool isRegistered) {}
+
+    // component data provider
+    function components(bytes32 instanceId) external override view returns(uint256 numberOfComponents) {}
+    function getComponentId(bytes32 instanceId, uint256 idx) external override view returns(uint256 componentId) {}
+
+    function isRegisteredComponent(bytes32 instanceId, uint256 componentId) external override view returns(bool isRegistered) {}
+    function getComponentInfo(bytes32 instanceId, uint256 componentId) external override view returns(ComponentInfo memory info) {}
+
+    // bundle data provider
+    function bundles(bytes32 instanceId) external override view returns(uint256 numberOfBundles) {}
+    function bundles(bytes32 instanceId, uint256 riskpoolId) external override view returns(uint256 numberOfBundles) {}
+    function getBundleId(bytes32 instanceId, uint256 idx) external override view returns(uint256 bundleId) {}
+    function getBundleId(bytes32 instanceId, uint256 riskpoolId, uint256 idx) external override view returns(uint256 bundleId) {}
 
 
     function setDipContract(address dipTokenAddress) 
@@ -390,20 +414,27 @@ contract GifStaking is
     }
 
 
-    function getSupportedCapitalAmount(
+    function getBundleCapitalSupport(
         bytes32 instanceId,
-        uint256 bundleId,
-        address tokenAddress
+        uint256 bundleId
     )
         external override
         view
         returns(uint256 captialCap)
     {
-        InstanceInfo memory info = getInstanceInfo(instanceId);
+        BundleInfo memory bundle = getBundleInfo(instanceId, bundleId);
         uint256 dipStakes = stakes(instanceId, bundleId);
-        return calculateTokenAmountFromStaking(dipStakes, info.chainId, tokenAddress);
+        return calculateTokenAmountFromStaking(dipStakes, bundle.token.chainId, bundle.token.token);
     }
 
+    function getBundleToken(bytes32 instanceId, uint256 bundleId) 
+        external override 
+        view 
+        returns(address token)
+    {
+        BundleInfo memory bundle = getBundleInfo(instanceId, bundleId);
+        return bundle.token.token;
+    }
 
     function getDip() external view returns(IERC20Metadata dip) {
         return _dip;
@@ -454,11 +485,11 @@ contract GifStaking is
     }
 
 
-    function instances() external view returns(uint256 numberOfInstances) {
+    function instances() external override view returns(uint256 numberOfInstances) {
         return _instanceIds.length;
     }
 
-    function getInstanceId(uint256 idx) external view returns(bytes32 instanceId) {
+    function getInstanceId(uint256 idx) external override view returns(bytes32 instanceId) {
         require(idx < _instanceIds.length, "ERROR:STK-061:INSTANCE_INDEX_TOO_LARGE");
         return _instanceIds[idx];
     }
@@ -466,7 +497,7 @@ contract GifStaking is
     function getInstanceInfo(
         bytes32 instanceId
     )
-        public
+        public override
         view
         returns(InstanceInfo memory info)
     {
@@ -489,7 +520,7 @@ contract GifStaking is
         bytes32 instanceId,
         uint256 bundleId
     )
-        public
+        public override
         view
         returns(BundleInfo memory info)
     {
@@ -592,7 +623,7 @@ contract GifStaking is
         rewardAmount = amount * rewardDuration / REWARD_100_PERCENTAGE;
     }
 
-    function tokens() external view returns(uint256 numberOfTokens) {
+    function tokens() external override view returns(uint256 numberOfTokens) {
         return _tokenKeys.length;
     }
 
@@ -602,7 +633,7 @@ contract GifStaking is
     }
 
     function getTokenInfo(address tokenAddress)
-        external
+        external override
         view
         returns(TokenInfo memory tokenInfo)
     {
@@ -614,7 +645,7 @@ contract GifStaking is
         address tokenAddress,
         uint256 chainId
     )
-        public
+        public override
         view
         returns(TokenInfo memory tokenInfo)
     {
@@ -691,7 +722,7 @@ contract GifStaking is
         // handle new bundle
         if(info.createdAt == 0) {
             info.key = BundleKey(instanceId, bundleId);
-            info.tokenKey = TokenKey(token, chainId);
+            info.token = TokenKey(token, chainId);
             info.tokenSymbol = _tokenInfo[token][chainId].symbol;
             info.tokenDecimals = _tokenInfo[token][chainId].decimals;
             info.createdAt = block.timestamp;
@@ -700,8 +731,8 @@ contract GifStaking is
         }
 
         // handling of first state change to closed state
-        if(state == IBundle.BundleState.Closed && info.closedSince == 0) {
-            info.closedSince = block.timestamp;
+        if(state == IBundle.BundleState.Closed && info.closedAt == 0) {
+            info.closedAt = block.timestamp;
         }
 
         info.state = state;

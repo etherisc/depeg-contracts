@@ -9,6 +9,7 @@ import "@etherisc/gif-interface/contracts/modules/IPolicy.sol";
 import "@etherisc/gif-interface/contracts/tokens/IBundleToken.sol";
 
 import "./gif/BasicRiskpool2.sol";
+import "./registry/IBundleDataProvider.sol";
 import "./staking/IStakingDataProvider.sol";
 
 
@@ -50,7 +51,9 @@ contract DepegRiskpool is
 
     mapping(string /* bundle name */ => uint256 /* bundle id */) _bundleIdForBundleName;
 
+    IBundleDataProvider private _bundleDataProvider;
     IStakingDataProvider private _stakingDataProvider;
+
     uint256 private _poolCapitalCap;
     uint256 private _bundleCapitalCap;
 
@@ -74,6 +77,7 @@ contract DepegRiskpool is
         require(sumOfSumInsuredCap <= _poolCapitalCap, "ERROR:DRP-010:SUM_OF_SUM_INSURED_CAP_TOO_LARGE");
         require(sumOfSumInsuredCap > 0, "ERROR:DRP-011:SUM_OF_SUM_INSURED_CAP_ZERO");
 
+        _bundleDataProvider = IBundleDataProvider(address(0));
         _stakingDataProvider = IStakingDataProvider(address(0));
     }
 
@@ -82,6 +86,7 @@ contract DepegRiskpool is
         external
         onlyOwner
     {
+        _bundleDataProvider = IBundleDataProvider(dataProviderAddress);
         _stakingDataProvider = IStakingDataProvider(dataProviderAddress);
     }
 
@@ -339,6 +344,13 @@ contract DepegRiskpool is
 
         // enforce max bundle lifetime
         if(block.timestamp > bundle.createdAt + lifetime) {
+            // TODO this expired bundle bundle should be removed from active bundles
+            // ideally this is done in the core, at least should be done
+            // in basicriskpool template
+            // may not be done here:
+            // - lockBundle does not work as riskpool is not owner of bundle
+            // - remove from active list would modify list that is iterateed over right now...
+
             return false;
         }
 
@@ -375,20 +387,21 @@ contract DepegRiskpool is
         returns(uint256 capitalCap)
     {
         // if not staking data provider is available anything goes
-        if(address(_stakingDataProvider) == address(0)) {
+        if(address(_stakingDataProvider) == address(0) 
+            || address(_stakingDataProvider) == address(0)) 
+        {
             return _bundleCapitalCap;
         }
 
         // if staking data provider exists but bundle is not registered, nothing goes
-        if(!_stakingDataProvider.isRegisteredBundle(_instanceService.getInstanceId(), bundleId)) {
+        if(!_bundleDataProvider.isRegisteredBundle(_instanceService.getInstanceId(), bundleId)) {
             return 0;
         }
 
         // otherwise: get amount supported by staking
-        return _stakingDataProvider.getSupportedCapitalAmount(
+        return _stakingDataProvider.getBundleCapitalSupport(
             _instanceService.getInstanceId(), 
-            bundleId, 
-            getErc20Token());
+            bundleId);
     }
 
 

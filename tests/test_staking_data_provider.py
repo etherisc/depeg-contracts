@@ -6,7 +6,7 @@ from brownie import (
     chain,
     GifStaking,
     DIP,
-    USD1
+    USD2
 )
 
 from scripts.setup import create_bundle
@@ -26,7 +26,7 @@ def test_staking_data_provider_minimal(
     gifStaking: GifStaking,
     staker,
     staker2,
-    usd1: USD1,
+    usd2: USD2,
     dip: DIP,
 ):
     print('--- link gif staking to gif instance ---')
@@ -39,12 +39,11 @@ def test_staking_data_provider_minimal(
     print('--- setup token exchange rate ---')
     chainId = instanceService.getChainId()
     leverageFactor = 0.1
-    stakingRate = leverageFactor * gifStaking.getDipToTokenParityLevel() # 1 dip unlocks 10 cents (usd1)
+    stakingRate = leverageFactor * gifStaking.getDipToTokenParityLevel() # 1 dip unlocks 10 cents (usd2)
 
     gifStaking.setDipContract(dip.address, {'from': instanceOperator})
-    gifStaking.registerToken(usd1.address, {'from': instanceOperator})
     gifStaking.setDipStakingRate(
-        usd1.address, 
+        usd2.address, 
         chainId, 
         stakingRate,
         {'from': instanceOperator})
@@ -56,7 +55,8 @@ def test_staking_data_provider_minimal(
     gifStaking.stake(instanceId, bundleId, stakingAmount, {'from': staker2})
 
     print('--- check result via IStakingDataProvider api ---')
-    expectedSupportedCapitalAmount = 2 * amountInUnits * 10**usd1.decimals() * leverageFactor
+    expectedSupportedCapitalAmount = 2 * amountInUnits * 10**usd2.decimals() * leverageFactor
 
     assert gifStaking.getBundleStakes(instanceId, bundleId) == 2 * stakingAmount
-    assert gifStaking.getSupportedCapitalAmount(instanceId, bundleId, usd1) == expectedSupportedCapitalAmount
+    assert gifStaking.getBundleCapitalSupport(instanceId, bundleId) == expectedSupportedCapitalAmount
+    assert gifStaking.getBundleToken(instanceId, bundleId) == usd2

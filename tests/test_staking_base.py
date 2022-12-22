@@ -58,12 +58,12 @@ def test_update_bundle(
 
     assert bundleInfo['key'][0] == instanceService.getInstanceId()
     assert bundleInfo['key'][1] == bundleId 
-    assert bundleInfo['tokenKey'][0] == token # riskpool token for riskpool associated with bundle
-    assert bundleInfo['tokenKey'][1] == instanceService.getChainId()
+    assert bundleInfo['token'][0] == token # riskpool token for riskpool associated with bundle
+    assert bundleInfo['token'][1] == instanceService.getChainId()
     assert bundleInfo['tokenSymbol'] == 'USDT'
     assert bundleInfo['tokenDecimals'] == 6
     assert bundleInfo['state'] == bundle['state'] # enum BundleState { Active, Locked, Closed, Burned }
-    assert bundleInfo['closedSince'] == 0
+    assert bundleInfo['closedAt'] == 0
     assert bundleInfo['createdAt'] >= bundle['createdAt']
     assert bundleInfo['updatedAt'] == bundleInfo['createdAt']
 
