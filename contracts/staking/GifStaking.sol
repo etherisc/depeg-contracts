@@ -16,19 +16,36 @@ contract GifStaking is
     Ownable
 {
 
+    enum InstanceState {
+        Undefined,
+        Active,
+        Suspended,
+        Archived
+    }
+
     struct InstanceInfo {
         bytes32 id;
+        InstanceState state;
+        string displayName;
         uint256 chainId;
         address registry;
         uint256 createdAt;
+        uint256 updatedAt;
     }
 
     struct TokenKey {
         address token;
         uint256 chainId;
     }
+
+    enum TokenState {
+        Undefined,
+        Approved,
+        Suspended
+    }
     struct TokenInfo {
         TokenKey key;
+        TokenState state;
         string symbol;
         uint8 decimals;
         uint256 createdAt;
@@ -342,6 +359,19 @@ contract GifStaking is
         returns(uint256 stakedDipAmount)
     {
         return stakes(instanceId, bundleId);
+    }
+
+
+
+    function isRegisteredBundle(
+        bytes32 instanceId, 
+        uint256 bundleId
+    ) 
+        external override
+        view 
+        returns(bool isRegistered)
+    {
+        return _bundleInfo[instanceId][bundleId].createdAt > 0;
     }
 
 
