@@ -13,6 +13,7 @@ from brownie import (
     GifStaking,
     InstanceRegistry,
     ComponentRegistry,
+    BundleRegistry,
     DIP
 )
 
@@ -235,3 +236,8 @@ def instanceRegistry(registryOwner) -> InstanceRegistry:
 @pytest.fixture(scope="module")
 def componentRegistry(registryOwner) -> ComponentRegistry: 
     return ComponentRegistry.deploy({'from': registryOwner})
+
+
+@pytest.fixture(scope="module")
+def bundleRegistry(registryOwner) -> BundleRegistry: 
+    return BundleRegistry.deploy({'from': registryOwner})

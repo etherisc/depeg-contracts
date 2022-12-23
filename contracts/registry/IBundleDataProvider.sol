@@ -28,11 +28,8 @@ interface IBundleDataProvider is
         uint256 updatedAt;
     }
 
-    function bundles(bytes32 instanceId) external view returns(uint256 numberOfBundles);
     function bundles(bytes32 instanceId, uint256 riskpoolId) external view returns(uint256 numberOfBundles);
-    function getBundleId(bytes32 instanceId, uint256 idx) external view returns(uint256 bundleId);
     function getBundleId(bytes32 instanceId, uint256 riskpoolId, uint256 idx) external view returns(uint256 bundleId);
-
-    function isRegisteredBundle(bytes32 instanceId, uint256 bundleId) external view returns(bool isRegistered);
     function getBundleInfo(bytes32 instanceId, uint256 bundleId) external view returns(BundleInfo memory info);
+    function isRegisteredBundle(bytes32 instanceId, uint256 bundleId) external view returns(bool isRegistered);
 }

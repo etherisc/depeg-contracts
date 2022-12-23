@@ -160,9 +160,7 @@ contract GifStaking is
     function getComponentInfo(bytes32 instanceId, uint256 componentId) external override view returns(ComponentInfo memory info) {}
 
     // bundle data provider
-    function bundles(bytes32 instanceId) external override view returns(uint256 numberOfBundles) {}
     function bundles(bytes32 instanceId, uint256 riskpoolId) external override view returns(uint256 numberOfBundles) {}
-    function getBundleId(bytes32 instanceId, uint256 idx) external override view returns(uint256 bundleId) {}
     function getBundleId(bytes32 instanceId, uint256 riskpoolId, uint256 idx) external override view returns(uint256 bundleId) {}
 
 
