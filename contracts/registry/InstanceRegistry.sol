@@ -27,8 +27,14 @@ contract InstanceRegistry is
     bytes32 [] private _instanceIds;
     TokenKey [] private _tokenKeys;
 
+
     modifier onlyDifferentChain(uint256 chainId) {
-        require(chainId != block.chainid, "ERROR:IRG-002:CALL_INVALID_FOR_SAME_CHAIN");
+        require(chainId != block.chainid, "ERROR:IRG-001:CALL_INVALID_FOR_SAME_CHAIN");
+        _;
+    }
+
+    modifier onlyRegisteredToken(address token, uint256 chainId) {
+        require(_tokenInfo[token][chainId].createdAt > 0, "ERROR:IRG-002:TOKEN_NOT_REGISTERED");
         _;
     }
 
@@ -253,11 +259,11 @@ contract InstanceRegistry is
         address tokenAddress,
         uint256 chainId
     )
+        onlyRegisteredToken(tokenAddress, chainId)
         public override
         view
         returns(TokenInfo memory tokenInfo)
     {
-        require(_tokenInfo[tokenAddress][chainId].createdAt > 0, "ERROR:IRG-051:TOKEN_NOT_REGISTERED");
         return _tokenInfo[tokenAddress][chainId];
     }
 
@@ -306,7 +312,7 @@ contract InstanceRegistry is
         if(isNewToken) {
             info.key = TokenKey(token, chainId);
             info.createdAt = block.timestamp;
-            
+
             _tokenKeys.push(info.key);
         }
 

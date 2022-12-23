@@ -1,7 +1,10 @@
 depeg
 
 === priorization ===
-- stop rewards once bundle lifetime is exceeded
+- add bundleRegistry
+- add getToken to (I)IntanceRegistry returning IERC20Metadata (onlySameChain)
+- add wallet address attribute
+- api
 
 === backlog ===
 staking
@@ -9,8 +12,10 @@ staking
   + replace gif staking stuff with link to new registry
 - add inspect_registry to deploy_depeg (shows registered tokens + instances)
 - add inspect_staking to deploy_depeg (shows registered bundles, stakes, stakers)
+- stop rewards once bundle lifetime is exceeded
 
 investing/riskpool
+- ok for now
 
 mumbay
 - price generator script
@@ -21,7 +26,6 @@ mumbay
 - dockerfile
 
 product
-- add wallet address attribute
 - figure out how to assess blance for account at depeg time (after the fact)
 - claim payout
   + withdrawal period
@@ -29,6 +33,9 @@ product
   + policy holder to actively withraw payout per/from protected wallet
   + token balance at block timestamp
   + withdrawPayout
+
+=== done 22.23.22 ===
+- add bundle name/lifetime to staking
 
 === done 21.12.22 ===
 - instance name attribute
@@ -46,3 +53,4 @@ product
   + reactivate
 - token registration
 
+-- to fix

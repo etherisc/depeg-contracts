@@ -2,7 +2,6 @@
 pragma solidity 0.8.2;
 
 import "@etherisc/gif-interface/contracts/components/IComponent.sol";
-
 import "./IInstanceDataProvider.sol";
 
 interface IComponentDataProvider is 

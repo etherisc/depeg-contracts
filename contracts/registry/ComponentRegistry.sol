@@ -3,7 +3,6 @@ pragma solidity 0.8.2;
 
 import "./IComponentDataProvider.sol";
 import "./IComponentRegistry.sol";
-
 import "./InstanceRegistry.sol";
 
 contract ComponentRegistry is
@@ -11,11 +10,9 @@ contract ComponentRegistry is
     IComponentRegistry,
     InstanceRegistry
 {
-    // components 
+    // components and keys
     mapping(bytes32 /* instanceId */ => mapping(uint256 /* componentId */ => ComponentInfo)) private _componentInfo;
-
     mapping(bytes32 /* instanceId */ => ComponentKey []) private _componentKeys;
-    // ComponentKey [] private _componentKeys;
 
     modifier onlyRegisteredInstance(bytes32 instanceId) {
         require(this.isRegisteredInstance(instanceId), "ERROR:CRG-001:INSTANCE_NOT_REGISTERED");
@@ -94,6 +91,7 @@ contract ComponentRegistry is
     function getComponentInfo(bytes32 instanceId, uint256 componentId) 
         external override 
         view 
+        onlyRegisteredComponent(instanceId, componentId)        
         returns(ComponentInfo memory info)
     {
         return _componentInfo[instanceId][componentId];

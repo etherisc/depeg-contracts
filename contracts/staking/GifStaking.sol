@@ -420,19 +420,35 @@ contract GifStaking is
         view
         returns(uint256 captialCap)
     {
+        InstanceInfo memory instance = getInstanceInfo(instanceId);
         BundleInfo memory bundle = getBundleInfo(instanceId, bundleId);
         uint256 dipStakes = stakes(instanceId, bundleId);
-        return calculateTokenAmountFromStaking(dipStakes, bundle.token.chainId, bundle.token.token);
+
+        return calculateTokenAmountFromStaking(dipStakes, instance.chainId, bundle.token);
     }
 
     function getBundleToken(bytes32 instanceId, uint256 bundleId) 
-        external override 
+        external override
         view 
-        returns(address token)
+        returns(IERC20Metadata token)
     {
+        InstanceInfo memory instance = getInstanceInfo(instanceId);
+        require(instance.chainId == block.chainid, "ERROR:STK-XXX:DIFFERENT_CHAIN_NOT_SUPPORTET");
+
         BundleInfo memory bundle = getBundleInfo(instanceId, bundleId);
-        return bundle.token.token;
+        return IERC20Metadata(bundle.token);
     }
+
+    function getBundleTokenInfo(bytes32 instanceId, uint256 bundleId) 
+        external override
+        view 
+        returns(TokenInfo memory token)
+    {
+        InstanceInfo memory instance = getInstanceInfo(instanceId);
+        BundleInfo memory bundle = getBundleInfo(instanceId, bundleId);
+
+    }
+
 
     function getDip() external view returns(IERC20Metadata dip) {
         return _dip;
@@ -720,9 +736,7 @@ contract GifStaking is
         // handle new bundle
         if(info.createdAt == 0) {
             info.key = BundleKey(instanceId, bundleId);
-            info.token = TokenKey(token, chainId);
-            info.tokenSymbol = _tokenInfo[token][chainId].symbol;
-            info.tokenDecimals = _tokenInfo[token][chainId].decimals;
+            info.token = token;
             info.createdAt = block.timestamp;
 
             _bundleKeys.push(info.key);
