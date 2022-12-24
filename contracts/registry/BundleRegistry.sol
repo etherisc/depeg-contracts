@@ -157,7 +157,7 @@ contract BundleRegistry is
         address token,
         IBundle.BundleState state,
         string memory name,
-        uint256 expiryAt
+        uint256 expiryAt // TODO once lifetime is in the gif this parameter needs to be removed
     )
         internal
     {
@@ -200,7 +200,7 @@ contract BundleRegistry is
         internal
     {
         BundleInfo storage bundle = _bundleInfo[instanceId][bundleId];
-        IBundle.BundleState oldState;
+        IBundle.BundleState oldState = bundle.state;
 
         bundle.state = newState;
         bundle.updatedAt = block.timestamp;

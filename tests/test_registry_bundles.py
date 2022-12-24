@@ -180,33 +180,104 @@ def test_register_happy_path(
 
 def test_register_failure_modes(
     instance,
+    instanceOperator: Account,
     instanceService: interface.IInstanceService,
     riskpool: DepegRiskpool,
+    investor: Account,
     bundleRegistry: BundleRegistry,
     registryOwner: Account,
     theOutsider: Account,
 ):
+    # attempt to register non-existent bundle
+    fake_riskpool_id = 1
+    fake_bundle_id = 13
+    bundle_name = 'bundle-x'
+    expiry_at = 1777078811
+
+    with brownie.reverts("ERROR:CRG-002:COMPONENT_NOT_REGISTERED"):
+        bundleRegistry.registerBundle(
+            DUMMY_INSTANCE_ID, 
+            fake_riskpool_id,
+            fake_bundle_id,
+            bundle_name,
+            expiry_at)
+
+    # attempt to register bundle on different chain
+    bundleRegistry.registerInstance(
+        DUMMY_INSTANCE_ID,
+        DUMMY_CHAIN_ID,
+        DUMMY_REGISTRY)
+
+    # registering components on different chains not yet supported
+    # should be added here once available
+    with brownie.reverts("ERROR:CRG-002:COMPONENT_NOT_REGISTERED"):
+        bundleRegistry.registerBundle(
+            DUMMY_INSTANCE_ID, 
+            fake_riskpool_id,
+            fake_bundle_id,
+            bundle_name,
+            expiry_at)
+
+    # create real bundle and retry other failure modes
     instance_id = instanceService.getInstanceId()
     riskpool_id = riskpool.getId()
     state_active = 3
     state_suspended = 5
 
-    chain_id = web3.chain_id
     registry = instance.getRegistry()
     from_owner = {'from':registryOwner}
 
-    # start with registered instance
+    bundle_name = 'bundle-1'
+    bundle_id = new_bundle(
+        instance,
+        instanceOperator,
+        investor,
+        riskpool,
+        bundle_name)
+
+    # attempt to register bundle with non-registered instance
+    bundle = riskpool.getBundleInfo(bundle_id).dict()
+    expiry_at = bundle['createdAt'] + bundle['lifetime']
+
+    with brownie.reverts("ERROR:CRG-002:COMPONENT_NOT_REGISTERED"):
+        bundleRegistry.registerBundle(
+            instance_id, 
+            riskpool_id,
+            bundle_id,
+            bundle_name,
+            expiry_at)
+
+    # attempt to register bundle with non-registered riskpool
+    # register instance
     bundleRegistry.registerInstance(registry, from_owner)
 
-    # register riskpool
-    bundleRegistry.registerComponent(instance_id, riskpool_id, from_owner)
+    with brownie.reverts("ERROR:CRG-002:COMPONENT_NOT_REGISTERED"):
+        bundleRegistry.registerBundle(
+            instance_id, 
+            riskpool_id,
+            bundle_id,
+            bundle_name,
+            expiry_at)
 
-    # register instance on different chain
-    bundleRegistry.registerInstance(
-        DUMMY_INSTANCE_ID,
-        DUMMY_CHAIN_ID,
-        DUMMY_REGISTRY
-    )
+    # also register riskpool and register bundle
+    bundleRegistry.registerComponent(instance_id, riskpool_id, from_owner)
+    bundleRegistry.registerBundle(
+        instance_id, 
+        riskpool_id,
+        bundle_id,
+        bundle_name,
+        expiry_at,
+        {'from': theOutsider})
+
+
+    # attempt to re-register bundle
+    with brownie.reverts("ERROR:BRG-002:BUNDLE_ALREADY_REGISTERED"):
+        bundleRegistry.registerBundle(
+            instance_id, 
+            riskpool_id,
+            bundle_id,
+            bundle_name,
+            expiry_at)
 
 
 def test_update_happy_path(
@@ -285,43 +356,81 @@ def test_update_happy_path(
     assert bundle_info['key'][0] == instance_id
     assert bundle_info['key'][1] == bundle_id
     assert bundle_info['state'] == state_locked
+    assert bundle_info['closedAt'] == 0
     assert bundle_info['updatedAt'] > bundle_info['createdAt']
+
+    sleep_days(14)
+
+    # close bundle
+    riskpool.closeBundle(bundle_id, {'from': investor})
+
+    state_closed = 2
+    bundle_closed = instanceService.getBundle(bundle_id).dict()
+    assert bundle_closed['state'] == state_closed
+
+    # update bundle data
+    tx = bundleRegistry.updateBundle(instance_id, bundle_id)
+
+    assert 'LogInstanceRegistryBundleUpdated' in tx.events
+    assert tx.events['LogInstanceRegistryBundleUpdated']['instanceId'] == instance_id
+    assert tx.events['LogInstanceRegistryBundleUpdated']['bundleId'] == bundle_id
+    assert tx.events['LogInstanceRegistryBundleUpdated']['oldState'] == state_locked
+    assert tx.events['LogInstanceRegistryBundleUpdated']['newState'] == state_closed
+
+    bundle_closed = bundleRegistry.getBundleInfo(instance_id, bundle_id).dict()
+    print('bundle_closed {}'.format(bundle_closed))
+
+    active_state = 0
+    assert bundle_closed['key'][0] == instance_id
+    assert bundle_closed['key'][1] == bundle_id
+    assert bundle_closed['state'] == state_closed
+    assert bundle_closed['updatedAt'] > bundle_info['updatedAt']
+    assert bundle_closed['closedAt'] == bundle_closed['updatedAt']
+
+
+def test_update_failure_modes(
+    instance,
+    instanceOperator: Account,
+    instanceService: interface.IInstanceService,
+    riskpool: DepegRiskpool,
+    investor: Account,
+    bundleRegistry: BundleRegistry,
+    registryOwner: Account,
+    theOutsider: Account,
+):
+    # attempt to update on non-registered bundle on same chain
+    # nothing registered at all
+    fake_bundle_id = 13
+
+    with brownie.reverts("ERROR:BRG-001:BUNDLE_NOT_REGISTERED"):
+        bundleRegistry.updateBundle(DUMMY_INSTANCE_ID, fake_bundle_id)
+
+    # attempt to update on non-registered bundle on same chain
+    # registered all except bundle and try again
+    # register instance and riskpool
+    instance_id = instanceService.getInstanceId()
+    riskpool_id = riskpool.getId()
+    registry = instance.getRegistry()
+    from_owner = {'from':registryOwner}
+
+    bundleRegistry.registerInstance(registry, from_owner)
+    bundleRegistry.registerComponent(instance_id, riskpool_id, from_owner)
+
+    # create bundle
+    bundle_id = new_bundle(
+        instance,
+        instanceOperator,
+        investor,
+        riskpool,
+        'bundle-1')
+
+    with brownie.reverts("ERROR:BRG-001:BUNDLE_NOT_REGISTERED"):
+        bundleRegistry.updateBundle(instance_id, bundle_id)
 
 
 def sleep_days(days):
     chain.sleep(days * 24 * 3600)
     chain.mine(1)
-
-
-def test_update_failure_modes(
-    instance,
-    instanceService: interface.IInstanceService,
-    riskpool: DepegRiskpool,
-    bundleRegistry: BundleRegistry,
-    registryOwner: Account,
-    theOutsider: Account,
-):
-    instance_id = instanceService.getInstanceId()
-    riskpool_id = riskpool.getId()
-    state_active = 3
-    state_suspended = 5
-
-    chain_id = web3.chain_id
-    registry = instance.getRegistry()
-    from_owner = {'from':registryOwner}
-
-    # start with registered instance
-    bundleRegistry.registerInstance(registry, from_owner)
-
-    # register riskpool
-    bundleRegistry.registerComponent(instance_id, riskpool_id, from_owner)
-
-    # register instance on different chain
-    bundleRegistry.registerInstance(
-        DUMMY_INSTANCE_ID,
-        DUMMY_CHAIN_ID,
-        DUMMY_REGISTRY
-    )
 
 
 def new_bundle(
