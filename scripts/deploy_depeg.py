@@ -624,7 +624,7 @@ def all_in_1(
         usd2.address,
         {'from': a[INSTANCE_OPERATOR]})
 
-    staking.setDipStakingRate(
+    staking.setStakingRate(
         usd2.address,
         instance_service.getChainId(),
         staking_rate,

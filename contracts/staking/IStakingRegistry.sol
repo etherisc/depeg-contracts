@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.2;
 
-import "./IStakingDataProvider.sol";
+import "../registry/IStakingDataProvider.sol";
 interface IStakingRegistry is
     IStakingDataProvider
 {

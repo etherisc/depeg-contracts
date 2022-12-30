@@ -24,8 +24,8 @@ def test_staking_data_provider_minimal(
     riskpool,
     instanceService,
     gifStaking: GifStaking,
-    staker,
-    staker2,
+    stakerWithDips,
+    staker2WithDips,
     usd2: USD2,
     dip: DIP,
 ):
@@ -42,7 +42,7 @@ def test_staking_data_provider_minimal(
     stakingRate = leverageFactor * gifStaking.getDipToTokenParityLevel() # 1 dip unlocks 10 cents (usd2)
 
     gifStaking.setDipContract(dip.address, {'from': instanceOperator})
-    gifStaking.setDipStakingRate(
+    gifStaking.setStakingRate(
         usd2.address, 
         chainId, 
         stakingRate,
@@ -51,8 +51,8 @@ def test_staking_data_provider_minimal(
     print('--- add bundle stakes ---')
     amountInUnits = 10**5
     stakingAmount = amountInUnits * 10**dip.decimals()
-    gifStaking.stake(instanceId, bundleId, stakingAmount, {'from': staker})
-    gifStaking.stake(instanceId, bundleId, stakingAmount, {'from': staker2})
+    gifStaking.stake(instanceId, bundleId, stakingAmount, {'from': stakerWithDips})
+    gifStaking.stake(instanceId, bundleId, stakingAmount, {'from': staker2WithDips})
 
     print('--- check result via IStakingDataProvider api ---')
     expectedSupportedCapitalAmount = 2 * amountInUnits * 10**usd2.decimals() * leverageFactor

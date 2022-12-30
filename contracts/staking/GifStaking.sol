@@ -9,7 +9,7 @@ import "@etherisc/gif-interface/contracts/modules/IRegistry.sol";
 import "@etherisc/gif-interface/contracts/services/IInstanceService.sol";
 
 import "../registry/IBundleDataProvider.sol";
-import "./IStakingDataProvider.sol";
+import "../registry/IStakingDataProvider.sol";
 
 // TODO check/compare for function naming https://github.com/ethereum/EIPs/issues/900
 contract GifStaking is
@@ -163,6 +163,34 @@ contract GifStaking is
     function bundles(bytes32 instanceId, uint256 riskpoolId) external override view returns(uint256 numberOfBundles) {}
     function getBundleId(bytes32 instanceId, uint256 riskpoolId, uint256 idx) external override view returns(uint256 bundleId) {}
 
+    // staking data provider
+    function hasBundleStakeInfo(bytes32 instanceId, uint256 bundleId, address user) external override view returns(bool hasInfo) {}
+    function getBundleStakeInfo(bytes32 instanceId, uint256 bundleId, address user) external override view returns(BundleStakeInfo memory info) {}
+
+    function getBundleStakes(bytes32 instanceId, uint256 bundleId, address user) external override view returns(uint256 dipAmount) {}
+
+    function getTotalStakes(bytes32 instanceId) external override view returns(uint256 dipAmount) {}
+    function getTotalStakes() external override view returns(uint256 dipAmount) {}
+
+    function calculateRewardsIncrement(IStakingDataProvider.BundleStakeInfo memory stakeInfo) external override view returns(uint256 incrementAmount) {}
+
+    function getRewardRate() external override view returns(uint256 rate) {}
+    function getStakingRate(address token, uint256 chainId) external override view returns(uint256 rate) {}
+    function hasDefinedStakingRate(address token, uint256 chainId) external override view returns(bool hasRate) {}
+
+    function oneYear() external override pure returns(uint256 yearInSeconds) {}
+
+    function getStakingRewardRate() 
+        external
+        view
+        returns(uint256 rate)
+    {}
+
+    function calculateRequiredStaking(address token, uint256 chainId, uint256 tokenAmount) external override view returns(uint dipAmount) {}
+    function calculateCapitalSupport(address token, uint256 chainId, uint256 dipAmount) external override view returns(uint tokenAmount) {}
+
+    function toRate(uint256 value, int8 exp) external override view returns(uint256 rate) {}
+    function fromRate(uint256 rate) external override view returns(uint256 value, uint256 divisor) {}
 
     function setDipContract(address dipTokenAddress) 
         external
@@ -175,7 +203,7 @@ contract GifStaking is
     }
 
     // dip staking rate: value of 1 dip in amount of provided token 
-    function setDipStakingRate(
+    function setStakingRate(
         address tokenAddress, 
         uint256 chainId, 
         uint256 stakingRate
@@ -192,7 +220,7 @@ contract GifStaking is
         external
         onlyOwner
     {
-        require(rewardPercentage <= REWARD_MAX_PERCENTAGE, "ERROR:STK-016:REWARD_EXEEDS_MAX_VALUE");
+        require(rewardPercentage <= REWARD_MAX_PERCENTAGE, "ERROR:STK-016:REWARD_EXCEEDS_MAX_VALUE");
         _rewardPercentage = rewardPercentage;
     }
 
@@ -316,7 +344,7 @@ contract GifStaking is
             stakeInfo.createdAt = block.timestamp;
         }
 
-        uint256 amountIncludingRewards = amount + calculateRewardsIncrement(stakeInfo);
+        uint256 amountIncludingRewards = amount + calculateRewardsIncrement(stakeInfo, true);
         _increaseBundleStakes(stakeInfo, amountIncludingRewards);
         _collectStakes(staker, amount);
     }
@@ -346,7 +374,7 @@ contract GifStaking is
         StakeInfo storage stakeInfo = _stakeInfo[instanceId][bundleId][staker];
         require(stakeInfo.updatedAt > 0, "ERROR:STK-051:ACCOUNT_WITHOUT_STAKING_RECORD");
 
-        stakeInfo.balance += calculateRewardsIncrement(stakeInfo);
+        stakeInfo.balance += calculateRewardsIncrement(stakeInfo, true);
 
         if(amount == type(uint256).max) {
             amount = stakeInfo.balance;
@@ -491,7 +519,7 @@ contract GifStaking is
 
 
     function getStakingWallet()
-        public
+        public override
         view
         returns(address instanceWallet)
     {
@@ -612,7 +640,7 @@ contract GifStaking is
     }
 
 
-    function calculateRewardsIncrement(StakeInfo memory stakeInfo)
+    function calculateRewardsIncrement(StakeInfo memory stakeInfo, bool dummy)
         public
         view
         returns(uint256 rewardsAmount)
@@ -630,7 +658,8 @@ contract GifStaking is
         uint256 amount,
         uint256 duration
     ) 
-        public view
+        public override
+        view
         returns(uint256 rewardAmount) 
     {
         uint256 rewardDuration = _rewardPercentage * duration / ONE_YEAR_DURATION;

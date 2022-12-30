@@ -23,7 +23,7 @@ def test_staking_happy_path(
     riskpool,
     instanceService,
     gifStaking: GifStaking,
-    staker,
+    stakerWithDips,
     dip: DIP,
 ):
     instanceId = instanceService.getInstanceId()
@@ -45,23 +45,23 @@ def test_staking_happy_path(
         gifStaking.getBundleKey(1)
 
     print('--- test setup before any staking ---')
-    assert gifStaking.stakes(instanceId, bundleId, staker) == 0
+    assert gifStaking.stakes(instanceId, bundleId, stakerWithDips) == 0
     assert dip.balanceOf(gifStaking) == 0
 
     with brownie.reverts("ERROR:STK-080:ACCOUNT_WITHOUT_STAKING_RECORD"):
-        gifStaking.getStakeInfo(instanceId, bundleId, staker)
+        gifStaking.getStakeInfo(instanceId, bundleId, stakerWithDips)
 
     print('--- test setup after first staking ---')
     stakingAmount = 10**5 * 10**dip.decimals()
-    gifStaking.stake(instanceId, bundleId, stakingAmount, {'from': staker})
+    gifStaking.stake(instanceId, bundleId, stakingAmount, {'from': stakerWithDips})
 
-    assert gifStaking.stakes(instanceId, bundleId, staker) == stakingAmount
+    assert gifStaking.stakes(instanceId, bundleId, stakerWithDips) == stakingAmount
     assert dip.balanceOf(gifStaking) == stakingAmount
 
-    stakeInfo = gifStaking.getStakeInfo(instanceId, bundleId, staker).dict()
+    stakeInfo = gifStaking.getStakeInfo(instanceId, bundleId, stakerWithDips).dict()
     print('stakeInfo {}'.format(stakeInfo))
 
-    assert stakeInfo['staker'] == staker
+    assert stakeInfo['staker'] == stakerWithDips
     assert stakeInfo['key'][0] == instanceId
     assert stakeInfo['key'][1] == bundleId
     assert stakeInfo['balance'] == stakingAmount
@@ -71,12 +71,12 @@ def test_staking_happy_path(
     print('--- test setup after second increased staking ---')
     chain.sleep(1) # force updatedAt > createdAt
     increaseAmount = 5 * 10**4 * 10**dip.decimals()
-    gifStaking.stake(instanceId, bundleId, increaseAmount, {'from': staker})
+    gifStaking.stake(instanceId, bundleId, increaseAmount, {'from': stakerWithDips})
 
-    assert gifStaking.stakes(instanceId, bundleId, staker) == stakingAmount + increaseAmount
+    assert gifStaking.stakes(instanceId, bundleId, stakerWithDips) == stakingAmount + increaseAmount
     assert dip.balanceOf(gifStaking) == stakingAmount + increaseAmount
 
-    stakeInfo2 = gifStaking.getStakeInfo(instanceId, bundleId, staker).dict()
+    stakeInfo2 = gifStaking.getStakeInfo(instanceId, bundleId, stakerWithDips).dict()
     print('stakeInfo2 {}'.format(stakeInfo2))
 
     assert stakeInfo2['balance'] == stakingAmount + increaseAmount
@@ -87,12 +87,12 @@ def test_staking_happy_path(
     chain.sleep(1)
 
     withdrawalAmount = 7 * 10**4 * 10**dip.decimals()
-    gifStaking.withdraw(instanceId, bundleId, withdrawalAmount, {'from': staker})
+    gifStaking.withdraw(instanceId, bundleId, withdrawalAmount, {'from': stakerWithDips})
 
-    assert gifStaking.stakes(instanceId, bundleId, staker) == stakingAmount + increaseAmount - withdrawalAmount
+    assert gifStaking.stakes(instanceId, bundleId, stakerWithDips) == stakingAmount + increaseAmount - withdrawalAmount
     assert dip.balanceOf(gifStaking) == stakingAmount + increaseAmount - withdrawalAmount
 
-    stakeInfo3 = gifStaking.getStakeInfo(instanceId, bundleId, staker).dict()
+    stakeInfo3 = gifStaking.getStakeInfo(instanceId, bundleId, stakerWithDips).dict()
     print('stakeInfo3 {}'.format(stakeInfo3))
 
     assert stakeInfo3['balance'] == stakingAmount + increaseAmount - withdrawalAmount
@@ -101,12 +101,12 @@ def test_staking_happy_path(
 
     print('--- test setup after withdrawal of remaining staking ---')
     chain.sleep(1)
-    gifStaking.withdraw(instanceId, bundleId, {'from': staker})
+    gifStaking.withdraw(instanceId, bundleId, {'from': stakerWithDips})
 
-    assert gifStaking.stakes(instanceId, bundleId, staker) == 0
+    assert gifStaking.stakes(instanceId, bundleId, stakerWithDips) == 0
     assert dip.balanceOf(gifStaking) == 0
 
-    stakeInfo4 = gifStaking.getStakeInfo(instanceId, bundleId, staker).dict()
+    stakeInfo4 = gifStaking.getStakeInfo(instanceId, bundleId, stakerWithDips).dict()
     print('stakeInfo4 {}'.format(stakeInfo4))
 
     assert stakeInfo4['balance'] == 0

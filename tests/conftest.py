@@ -14,6 +14,7 @@ from brownie import (
     InstanceRegistry,
     ComponentRegistry,
     BundleRegistry,
+    Staking,
     DIP
 )
 
@@ -181,21 +182,19 @@ def riskpool(gifDepegProduct) -> DepegRiskpool: return gifDepegProduct.getRiskpo
 #=== staking fixtures ====================================================#
 
 @pytest.fixture(scope="module")
-def staker(accounts, dip, instanceOperator, gifStaking) -> Account:
-    account = get_filled_account(accounts, 17, "1 ether")
+def stakerWithDips(staker, dip, instanceOperator, gifStaking) -> Account:
     dips = 10**6 * 10**dip.decimals()
-    dip.transfer(account, dips, {'from':instanceOperator})
-    dip.approve(gifStaking.getStakingWallet(), dips, {'from': account})
-    return account
+    dip.transfer(staker, dips, {'from':instanceOperator})
+    dip.approve(gifStaking.getStakingWallet(), dips, {'from': staker})
+    return staker
 
 
 @pytest.fixture(scope="module")
-def staker2(accounts, dip, instanceOperator, gifStaking) -> Account:
-    account = get_filled_account(accounts, 18, "1 ether")
+def staker2WithDips(staker2, dip, instanceOperator, gifStaking) -> Account:
     dips = 10**6 * 10**dip.decimals()
-    dip.transfer(account, dips, {'from':instanceOperator})
-    dip.approve(gifStaking.getStakingWallet(), dips, {'from': account})
-    return account
+    dip.transfer(staker2, dips, {'from':instanceOperator})
+    dip.approve(gifStaking.getStakingWallet(), dips, {'from': staker2})
+    return staker2
 
 
 @pytest.fixture(scope="module")
@@ -241,3 +240,8 @@ def componentRegistry(registryOwner) -> ComponentRegistry:
 @pytest.fixture(scope="module")
 def bundleRegistry(registryOwner) -> BundleRegistry: 
     return BundleRegistry.deploy({'from': registryOwner})
+
+
+@pytest.fixture(scope="module")
+def staking(registryOwner) -> BundleRegistry: 
+    return Staking.deploy({'from': registryOwner})

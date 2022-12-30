@@ -29,7 +29,7 @@ def test_staking_full_setup(
     riskpool,
     instanceService,
     gifStaking: GifStaking,
-    staker,
+    stakerWithDips,
     usd2: USD2,
     dip: DIP,
 ):
@@ -61,7 +61,7 @@ def test_staking_full_setup(
     usd2Decimals = 1 # just dummy value, real value will be picked up on-chain
     
     gifStaking.setDipContract(dip.address, {'from': instanceOperator})
-    gifStaking.setDipStakingRate(
+    gifStaking.setStakingRate(
         usd2.address, 
         chainId, 
         stakingRate,
@@ -107,7 +107,7 @@ def test_staking_full_setup(
     print('--- add bundle stakes and retry to buy a policy---')
     amountInUnits = 10**5
     stakingAmount = amountInUnits * 10**dip.decimals()
-    gifStaking.stake(instanceId, bundleId, stakingAmount, {'from': staker})
+    gifStaking.stake(instanceId, bundleId, stakingAmount, {'from': stakerWithDips})
 
     # check conditions to allow for underwriting
     assert sumInsured <= gifStaking.getBundleCapitalSupport(instanceId, bundleId)

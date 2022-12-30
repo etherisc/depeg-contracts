@@ -53,4 +53,18 @@ product
   + reactivate
 - token registration
 
--- to fix
+-- to adapt
+
+[Docker] ❯ find . | grep '.py$' | xargs grep -n gifStaking | cut -d':' -f1 | sort | uniq -c
+done/to be cleaned up
+[+]  6 ./tests/conftest.py
+done/to be removed
+[+] 44 ./tests/test_staking_multiple_stakers.py
+[+] 13 ./tests/test_staking_full_setup.py
+[+] 11 ./tests/test_staking_data_provider.py
+[+] 27 ./tests/test_staking_register_token.py
+[+] 17 ./tests/test_staking_base.py
+[+] 23 ./tests/test_staking_rate.py
+[+]  8 ./tests/test_staking_rewards_calculation.py
+[+] 26 ./tests/test_staking_simple.py
+[+] 23 ./tests/test_staking_with_rewards.py

@@ -11,7 +11,7 @@ from brownie import (
     USD2
 )
 
-from scripts.setup import create_bundle
+from scripts.setup import new_bundle
 from scripts.util import contract_from_address
 
 # enforce function isolation for tests below
@@ -22,13 +22,6 @@ def isolation(fn_isolation):
 DUMMY_INSTANCE_ID = '0x1cd783510e740524e4a1e0070b8c8cd37220ceaf1166960dd1fc0b7858c1de64'
 DUMMY_REGISTRY = '0x55F8a0123Fe17710FB0c3393eB916fb8176d87b9'
 DUMMY_CHAIN_ID = 1
-
-USD2_DECIMALS = 6
-FUNDING = 10000 * 10**USD2_DECIMALS
-BUNDLE_LIFETIME_DAYS = 60
-MAX_SUM_INSURED = FUNDING
-MAX_DURATION_DAYS = BUNDLE_LIFETIME_DAYS
-ARP_PERCENTAGE = 3.1415
 
 
 def test_register_happy_path(
@@ -431,25 +424,3 @@ def test_update_failure_modes(
 def sleep_days(days):
     chain.sleep(days * 24 * 3600)
     chain.mine(1)
-
-
-def new_bundle(
-    instance,
-    instanceOperator,
-    investor,
-    riskpool,
-    bundleName
-):
-    return create_bundle(
-        instance,
-        instanceOperator,
-        investor,
-        riskpool,
-        FUNDING,
-        bundleName,
-        BUNDLE_LIFETIME_DAYS,
-        1,
-        MAX_SUM_INSURED,
-        1,
-        MAX_DURATION_DAYS,
-        ARP_PERCENTAGE)

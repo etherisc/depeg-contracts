@@ -32,7 +32,7 @@ def test_happy_case(
     
     # set staking rate for usd1
     gifStaking.registerToken(usd1.address, {'from': instanceOperator})
-    gifStaking.setDipStakingRate(
+    gifStaking.setStakingRate(
         usd1.address, 
         web3.chain_id, 
         stakingRate,
@@ -40,7 +40,7 @@ def test_happy_case(
     
     # set staking rate for usd3
     gifStaking.registerToken(usd3.address, {'from': instanceOperator})
-    gifStaking.setDipStakingRate(
+    gifStaking.setStakingRate(
         usd3.address, 
         web3.chain_id, 
         stakingRate,
@@ -72,7 +72,7 @@ def test_conversion_calculation_usd1(
     
     # set staking rate for usd1
     gifStaking.registerToken(usd1.address, {'from': instanceOperator})
-    gifStaking.setDipStakingRate(
+    gifStaking.setStakingRate(
         usd1.address, 
         web3.chain_id, 
         staking_rate,
@@ -114,7 +114,7 @@ def test_conversion_calculation_usd3(
     
     # set staking rate for usd1
     gifStaking.registerToken(usd3.address, {'from': instanceOperator})
-    gifStaking.setDipStakingRate(
+    gifStaking.setStakingRate(
         usd3.address, 
         web3.chain_id, 
         staking_rate,

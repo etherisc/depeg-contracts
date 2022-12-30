@@ -22,6 +22,14 @@ DEFAULT_SUM_INSURED = 10000
 DEFAULT_DURATION_DAYS =  60
 DEFAULT_MAX_PREMIUM =    75
 
+USD2_DECIMALS = 6
+FUNDING = 10000 * 10**USD2_DECIMALS
+BUNDLE_LIFETIME_DAYS = 60
+MAX_SUM_INSURED = FUNDING
+MAX_DURATION_DAYS = BUNDLE_LIFETIME_DAYS
+ARP_PERCENTAGE = 3.1415
+
+
 def fund_account(
     instance: GifInstance, 
     owner: Account,
@@ -31,6 +39,28 @@ def fund_account(
 ):
     token.transfer(account, amount, {'from': owner})
     token.approve(instance.getTreasury(), amount, {'from': account})
+
+
+def new_bundle(
+    instance,
+    instanceOperator,
+    investor,
+    riskpool,
+    bundleName
+):
+    return create_bundle(
+        instance,
+        instanceOperator,
+        investor,
+        riskpool,
+        FUNDING,
+        bundleName,
+        BUNDLE_LIFETIME_DAYS,
+        1,
+        MAX_SUM_INSURED,
+        1,
+        MAX_DURATION_DAYS,
+        ARP_PERCENTAGE)
 
 
 def create_bundle(
