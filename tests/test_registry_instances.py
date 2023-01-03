@@ -23,23 +23,25 @@ def test_register_instance_happy_path(
     instance,
     instanceService,
     instanceRegistry: InstanceRegistry,
+    registryOwner: Account
 ):
     instance_id = instanceService.getInstanceId()
     chain_id = web3.chain_id
     registry = instance.getRegistry()
+    from_owner = {'from': registryOwner }
 
     assert instanceRegistry.instances() == 0
-    assert instanceRegistry.isRegisteredInstance(instance_id) == False
+    assert instanceRegistry.isRegisteredInstance(instance_id) is False
 
-    tx = instanceRegistry.registerInstance(registry)
+    tx = instanceRegistry.registerInstance(registry, from_owner)
 
     assert 'LogInstanceRegistryInstanceRegistered' in tx.events
     assert tx.events['LogInstanceRegistryInstanceRegistered']['instanceId'] == instance_id
     assert tx.events['LogInstanceRegistryInstanceRegistered']['state'] == 1 # Approved
-    assert tx.events['LogInstanceRegistryInstanceRegistered']['isNewInstance'] == True
+    assert tx.events['LogInstanceRegistryInstanceRegistered']['isNewInstance'] is True
 
     assert instanceRegistry.instances() == 1
-    assert instanceRegistry.isRegisteredInstance(instance_id) == True
+    assert instanceRegistry.isRegisteredInstance(instance_id) is True
     assert instanceRegistry.getInstanceId(0) == instance_id
 
     info = instanceRegistry.getInstanceInfo(instance_id)
@@ -55,33 +57,34 @@ def test_register_instance_happy_path(
     chain.mine(1)
 
     # re-register instance on same chain
-    tx = instanceRegistry.registerInstance(registry)
+    tx = instanceRegistry.registerInstance(registry, from_owner)
     assert 'LogInstanceRegistryInstanceRegistered' in tx.events
-    assert tx.events['LogInstanceRegistryInstanceRegistered']['isNewInstance'] == False
+    assert tx.events['LogInstanceRegistryInstanceRegistered']['isNewInstance'] is False
 
     info = instanceRegistry.getInstanceInfo(instance_id)
     assert info['updatedAt'] > info['createdAt']
 
     assert instanceRegistry.instances() == 1
-    assert instanceRegistry.isRegisteredInstance(instance_id) == True
+    assert instanceRegistry.isRegisteredInstance(instance_id) is True
 
     # register dummy instance on mainnet
     assert instanceRegistry.instances() == 1
-    assert instanceRegistry.isRegisteredInstance(instance_id) == True
-    assert instanceRegistry.isRegisteredInstance(DUMMY_INSTANCE_ID) == False
+    assert instanceRegistry.isRegisteredInstance(instance_id) is True
+    assert instanceRegistry.isRegisteredInstance(DUMMY_INSTANCE_ID) is False
 
     tx = instanceRegistry.registerInstance(
         DUMMY_INSTANCE_ID,
         DUMMY_CHAIN_ID,
-        DUMMY_REGISTRY)
+        DUMMY_REGISTRY,
+        from_owner)
 
     assert 'LogInstanceRegistryInstanceRegistered' in tx.events
     assert tx.events['LogInstanceRegistryInstanceRegistered']['instanceId'] == DUMMY_INSTANCE_ID
     assert tx.events['LogInstanceRegistryInstanceRegistered']['state'] == 1 # Approved
-    assert tx.events['LogInstanceRegistryInstanceRegistered']['isNewInstance'] == True
+    assert tx.events['LogInstanceRegistryInstanceRegistered']['isNewInstance'] is True
 
     assert instanceRegistry.instances() == 2
-    assert instanceRegistry.isRegisteredInstance(DUMMY_INSTANCE_ID) == True
+    assert instanceRegistry.isRegisteredInstance(DUMMY_INSTANCE_ID) is True
     assert instanceRegistry.getInstanceId(1) == DUMMY_INSTANCE_ID
 
     info = instanceRegistry.getInstanceInfo(DUMMY_INSTANCE_ID)
@@ -89,26 +92,25 @@ def test_register_instance_happy_path(
     assert info['state'] == 1 # Approved
     assert info['chainId'] == DUMMY_CHAIN_ID
     assert info['registry'] == DUMMY_REGISTRY
-    assert info['displayName'] == ''
+    assert len(info['displayName']) == 0
     assert info['createdAt'] > 0 
     assert info['updatedAt'] == info['createdAt']
 
 
 def test_register_instance_failure_modes(
     instance,
-    instanceService,
     instanceRegistry: InstanceRegistry,
-    productOwner,
+    registryOwner: Account,
+    productOwner: Account,
     usd1
 ):
-    instance_id = instanceService.getInstanceId()
-    chain_id = web3.chain_id
     registry = instance.getRegistry()
+    from_owner = {'from': registryOwner }
 
     # attempt to register as non-owner
     with brownie.reverts("Ownable: caller is not the owner"):
         instanceRegistry.registerInstance(
-            registry, 
+            registry,
             {'from':productOwner})
 
     with brownie.reverts("Ownable: caller is not the owner"):
@@ -120,44 +122,49 @@ def test_register_instance_failure_modes(
 
     # attempt to register non existing instance on same chain
     with brownie.reverts("ERROR:IRG-120:REGISTRY_NOT_CONTRACT"):
-        instanceRegistry.registerInstance(DUMMY_REGISTRY)
+        instanceRegistry.registerInstance(DUMMY_REGISTRY, from_owner)
 
     # attempt to register via some arbitrary contract
     with brownie.reverts("ERROR:IRG-121:NOT_REGISTRY_CONTRACT"):
-        instanceRegistry.registerInstance(usd1)
+        instanceRegistry.registerInstance(usd1, from_owner)
 
     # chain id zero
     with brownie.reverts("ERROR:IRG-030:CHAIN_ID_ZERO"):
         instanceRegistry.registerInstance(
             DUMMY_INSTANCE_ID,
             0,
-            DUMMY_REGISTRY)
+            DUMMY_REGISTRY,
+            from_owner)
 
     # registry addresss zero
     with brownie.reverts("ERROR:IRG-031:REGISTRY_ADDRESS_ZERO"):
         instanceRegistry.registerInstance(
             DUMMY_INSTANCE_ID,
             DUMMY_CHAIN_ID,
-            ZERO_ADDRESS)
+            ZERO_ADDRESS,
+            from_owner)
 
     # invalid instance id        
     with brownie.reverts("ERROR:IRG-032:INSTANCE_ID_INVALID"):
         instanceRegistry.registerInstance(
             DUMMY_INSTANCE_ID,
             DUMMY_CHAIN_ID + 1,
-            DUMMY_REGISTRY)
+            DUMMY_REGISTRY,
+            from_owner)
 
 
 def test_update_instance_happy_path(
     instance,
     instanceService,
     instanceRegistry: InstanceRegistry,
+    registryOwner: Account
 ):
     instance_id = instanceService.getInstanceId()
     chain_id = web3.chain_id
     registry = instance.getRegistry()
+    from_owner = {'from': registryOwner }
 
-    instanceRegistry.registerInstance(registry)
+    instanceRegistry.registerInstance(registry, from_owner)
 
     assert instanceRegistry.instances() == 1
     assert instanceRegistry.isRegisteredInstance(instance_id) == True
@@ -169,7 +176,7 @@ def test_update_instance_happy_path(
     state_approved = 1
     state_suspended = 2
 
-    tx = instanceRegistry.updateInstance['bytes32,uint8'](instance_id, state_suspended)
+    tx = instanceRegistry.updateInstance['bytes32,uint8'](instance_id, state_suspended, from_owner)
 
     assert 'LogInstanceRegistryInstanceStateUpdated' in tx.events
     assert tx.events['LogInstanceRegistryInstanceStateUpdated']['instanceId'] == instance_id
@@ -192,7 +199,7 @@ def test_update_instance_happy_path(
     display_name_old = info['displayName']
     display_name_new = 'instance-42'
 
-    tx = instanceRegistry.updateInstance['bytes32,string'](instance_id, display_name_new)
+    tx = instanceRegistry.updateInstance['bytes32,string'](instance_id, display_name_new, from_owner)
 
     assert 'LogInstanceRegistryInstanceDisplayNameUpdated' in tx.events
     assert tx.events['LogInstanceRegistryInstanceDisplayNameUpdated']['instanceId'] == instance_id
@@ -208,22 +215,31 @@ def test_update_instance_failure_modes(
     instance,
     instanceService,
     instanceRegistry: InstanceRegistry,
+    registryOwner: Account,
+    productOwner: Account
 ):
     instance_id = instanceService.getInstanceId()
     chain_id = web3.chain_id
     registry = instance.getRegistry()
+    from_owner = {'from': registryOwner }
 
     state_undefined = 0
     state_suspended = 2
     display_name = 'instance-42'
 
-    with brownie.reverts("ERROR:IRG-020:INSTANCE_NOT_REGISTERED"):
-        instanceRegistry.updateInstance['bytes32,uint8'](instance_id, state_suspended)
+    with brownie.reverts("ERROR:IRG-002:INSTANCE_NOT_REGISTERED"):
+        instanceRegistry.updateInstance['bytes32,uint8'](instance_id, state_suspended, from_owner)
 
-    with brownie.reverts("ERROR:IRG-022:INSTANCE_NOT_REGISTERED"):
-        instanceRegistry.updateInstance['bytes32,string'](instance_id, display_name)
+    with brownie.reverts("ERROR:IRG-002:INSTANCE_NOT_REGISTERED"):
+        instanceRegistry.updateInstance['bytes32,string'](instance_id, display_name, from_owner)
 
-    instanceRegistry.registerInstance(registry)
+    instanceRegistry.registerInstance(registry, from_owner)
+
+    with brownie.reverts("Ownable: caller is not the owner"):
+        instanceRegistry.updateInstance['bytes32,string'](instance_id, display_name, {'from': productOwner })
+
+    with brownie.reverts("Ownable: caller is not the owner"):
+        instanceRegistry.updateInstance['bytes32,uint8'](instance_id, state_suspended, {'from': productOwner })
 
     with brownie.reverts("ERROR:IRG-021:INSTANCE_STATE_INVALID"):
-        instanceRegistry.updateInstance['bytes32,uint8'](instance_id, state_undefined)
+        instanceRegistry.updateInstance['bytes32,uint8'](instance_id, state_undefined, from_owner)

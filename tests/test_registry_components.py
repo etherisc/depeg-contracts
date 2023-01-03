@@ -103,7 +103,7 @@ def test_register_failure_modes(
     assert componentRegistry.components(instance_id) == 0
 
     # try to register component for non registered instance
-    with brownie.reverts("ERROR:CRG-001:INSTANCE_NOT_REGISTERED"):
+    with brownie.reverts("ERROR:IRG-002:INSTANCE_NOT_REGISTERED"):
         componentRegistry.registerComponent(DUMMY_INSTANCE_ID, component_id, from_owner)
 
     assert componentRegistry.instances() == 1
@@ -214,7 +214,7 @@ def test_update_failure_modes(
     from_owner = {'from':registryOwner}
 
     # try to update component on non-registered instance
-    with brownie.reverts("ERROR:IRG-041:INSTANCE_NOT_REGISTERED"):
+    with brownie.reverts("ERROR:IRG-002:INSTANCE_NOT_REGISTERED"):
         componentRegistry.updateComponent(instance_id, component_id, from_owner)
 
     assert componentRegistry.instances() == 0

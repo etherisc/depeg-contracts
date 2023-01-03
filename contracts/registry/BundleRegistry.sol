@@ -35,6 +35,7 @@ contract BundleRegistry is
     )
         external override
         onlyRegisteredComponent(instanceId, riskpoolId)
+        // TODO add onlyRegisteredRiskpool + tests
         onlyUnregisteredBundle(instanceId, bundleId)
         onlySameChain(instanceId)
     {
@@ -44,7 +45,7 @@ contract BundleRegistry is
         // local scope to get around stack too deep
         {
             InstanceInfo memory instance = getInstanceInfo(instanceId);
-            IInstanceService instanceService = _getInstanceServiceFromRegistry(instance.registry);
+            IInstanceService instanceService = _getInstanceService(instance.registry);
             bundle = instanceService.getBundle(bundleId);
             token = address(instanceService.getComponentToken(riskpoolId));
         }
@@ -69,7 +70,7 @@ contract BundleRegistry is
         onlySameChain(instanceId)
     {
         InstanceInfo memory instance = getInstanceInfo(instanceId);
-        IInstanceService instanceService = _getInstanceServiceFromRegistry(instance.registry);
+        IInstanceService instanceService = _getInstanceService(instance.registry);
         IBundle.Bundle memory bundle = instanceService.getBundle(bundleId);
 
         _updateBundle(

@@ -10,6 +10,7 @@ import "@etherisc/gif-interface/contracts/services/IInstanceService.sol";
 import "./IInstanceDataProvider.sol";
 import "./IInstanceRegistry.sol";
 
+// TODO discuss upgradability for instance registry
 contract InstanceRegistry is
     IInstanceDataProvider,
     IInstanceRegistry,
@@ -28,13 +29,27 @@ contract InstanceRegistry is
     TokenKey [] private _tokenKeys;
 
 
-    modifier onlyDifferentChain(uint256 chainId) {
-        require(chainId != block.chainid, "ERROR:IRG-001:CALL_INVALID_FOR_SAME_CHAIN");
+    modifier onlyRegisteredToken(address token, uint256 chainId) {
+        require(this.isRegisteredToken(token, chainId), "ERROR:IRG-001:TOKEN_NOT_REGISTERED");
         _;
     }
 
-    modifier onlyRegisteredToken(address token, uint256 chainId) {
-        require(_tokenInfo[token][chainId].createdAt > 0, "ERROR:IRG-002:TOKEN_NOT_REGISTERED");
+
+    modifier onlyRegisteredInstance(bytes32 instanceId) {
+        require(this.isRegisteredInstance(instanceId), "ERROR:IRG-002:INSTANCE_NOT_REGISTERED");
+        _;
+    }
+
+
+    modifier onlySameChain(bytes32 instanceId) {
+        InstanceInfo memory info = getInstanceInfo(instanceId);
+        require(block.chainid == info.chainId, "ERROR:CRG-003:DIFFERENT_CHAIN_NOT_SUPPORTET");
+        _;
+    }
+
+
+    modifier onlyDifferentChain(uint256 chainId) {
+        require(chainId != block.chainid, "ERROR:IRG-004:CALL_INVALID_FOR_SAME_CHAIN");
         _;
     }
 
@@ -73,14 +88,16 @@ contract InstanceRegistry is
         );
     }
 
+
     function updateToken(
         address token, 
         uint256 chainId, 
         TokenState newState
     ) 
         external override
+        onlyRegisteredToken(token, chainId)
+        onlyOwner()
     {
-        require(_tokenInfo[token][chainId].createdAt > 0, "ERROR:IRG-010:TOKEN_NOT_REGISTERED");
         require(newState != TokenState.Undefined, "ERROR:IRG-011:TOKEN_STATE_INVALID");
         
         TokenState oldState =  _tokenInfo[token][chainId].state;
@@ -96,7 +113,7 @@ contract InstanceRegistry is
         external override
         onlyOwner()
     {
-        IInstanceService instanceService = _getInstanceServiceFromRegistry(registry);
+        IInstanceService instanceService = _getInstanceService(registry);
 
         _registerInstance(
             instanceService.getInstanceId(),
@@ -112,8 +129,8 @@ contract InstanceRegistry is
         address registry
     )
         external override
-        onlyOwner()
         onlyDifferentChain(chainId)
+        onlyOwner()
     {
         _registerInstance(
             instanceId,
@@ -128,8 +145,9 @@ contract InstanceRegistry is
         InstanceState newState 
     ) 
         external override
+        onlyRegisteredInstance(instanceId)
+        onlyOwner()
     {
-        require(_instanceInfo[instanceId].createdAt > 0, "ERROR:IRG-020:INSTANCE_NOT_REGISTERED");
         require(newState != InstanceState.Undefined, "ERROR:IRG-021:INSTANCE_STATE_INVALID");
         
         InstanceState oldState =  _instanceInfo[instanceId].state;
@@ -145,9 +163,9 @@ contract InstanceRegistry is
         string memory newDisplayName
     ) 
         external override
-    {
-        require(_instanceInfo[instanceId].createdAt > 0, "ERROR:IRG-022:INSTANCE_NOT_REGISTERED");
-        
+        onlyRegisteredInstance(instanceId)
+        onlyOwner()
+    {        
         string memory oldDisplayName =  _instanceInfo[instanceId].displayName;
         _instanceInfo[instanceId].displayName = newDisplayName;
         _instanceInfo[instanceId].updatedAt = block.timestamp;
@@ -231,11 +249,45 @@ contract InstanceRegistry is
     )
         public override
         view
+        onlyRegisteredInstance(instanceId)
         returns(InstanceInfo memory info)
     {
-        require(_instanceInfo[instanceId].createdAt > 0, "ERROR:IRG-041:INSTANCE_NOT_REGISTERED");
         info = _instanceInfo[instanceId];
     }
+
+
+    function probeInstance(
+        address registryAddress
+    )
+        external override
+        view 
+        returns(
+            bool isContract, 
+            uint256 contractSize, 
+            bool isValidId,
+            bytes32 instanceId,
+            IInstanceService instanceService
+        )
+    {
+        contractSize = _getContractSize(registryAddress);
+        isContract = (contractSize > 0);
+
+        isValidId = false;
+        instanceId = bytes32(0);
+        instanceService = IInstanceService(address(0));
+
+        if(isContract) {
+            IRegistry registry = IRegistry(registryAddress);
+
+            try registry.getContract("InstanceService") returns(address instanceServiceAddress) {
+                instanceService = IInstanceService(instanceServiceAddress);
+                instanceId = instanceService.getInstanceId();
+                isValidId = (instanceId == keccak256(abi.encodePacked(block.chainid, registry)));
+            }
+            catch { } // no-empty-blocks is ok here (see default return values above)
+        } 
+    }
+
 
     function tokens() external override view returns(uint256 numberOfTokens) {
         return _tokenKeys.length;
@@ -279,8 +331,19 @@ contract InstanceRegistry is
     {
         // validate via call if on same chain
         if(chainId == block.chainid) {
-            IInstanceService instanceService = _getInstanceServiceFromRegistry(registry);
-            if(instanceService.getInstanceId() != instanceId) {
+            (
+                bool isContract,
+                , // don't care about contract size
+                bool hasValidId,
+                bytes32 actualInstanceId,
+                // don't care about instanceservice
+            ) = this.probeInstance(registry);
+
+            if(!isContract || !hasValidId) { 
+                return false; 
+            }
+            
+            if(actualInstanceId != instanceId) {
                 return false;
             }
         }
@@ -328,21 +391,10 @@ contract InstanceRegistry is
             isNewToken
         );
     }
+        
     
-
+    // TODO remove and replace with probeInstance
     function _getInstanceService(
-        bytes32 instanceId
-    )
-        internal
-        view
-        returns(IInstanceService instanceService)
-    {
-        require(_instanceInfo[instanceId].createdAt > 0, "ERROR:IRG-110:INSTANCE_NOT_REGISTERED");
-        return _getInstanceServiceFromRegistry(_instanceInfo[instanceId].registry);
-    }
-    
-    
-    function _getInstanceServiceFromRegistry(
         address registryAddress
     )
         internal

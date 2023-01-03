@@ -1,8 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.2;
 
+import "@etherisc/gif-interface/contracts/services/IInstanceService.sol";
+
 interface IInstanceDataProvider {
 
+    // TODO discuss to insert reserved states
     enum InstanceState {
         Undefined,
         Approved,
@@ -10,10 +13,11 @@ interface IInstanceDataProvider {
         Archived
     }
 
+    // TODO storage best practices for chainid, timestamp, ...
     struct InstanceInfo {
         bytes32 id;
         InstanceState state;
-        string displayName;
+        string displayName; // TODO check gas usage if string is at end of struct
         uint256 chainId;
         address registry;
         uint256 createdAt;
@@ -51,4 +55,14 @@ interface IInstanceDataProvider {
     function getInstanceId(uint256 idx) external view returns(bytes32 instanceId);
     function getInstanceInfo(bytes32 instanceId) external view returns(InstanceInfo memory info);
     function isRegisteredInstance(bytes32 instanceId) external view returns(bool isRegistered);
+
+    function probeInstance(address registry)
+        external 
+        view 
+        returns(
+            bool isContract, 
+            uint256 contractSize, 
+            bool isValidId, 
+            bytes32 istanceId, 
+            IInstanceService instanceService);
 }

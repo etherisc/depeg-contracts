@@ -152,6 +152,7 @@ contract GifStaking is
 
     function isRegisteredInstance(bytes32 instanceId) external override view returns(bool isRegistered) {}
 
+    function probeInstance(address registry) external override view returns(bool isContract, uint256 contractSize, bool isValidId, bytes32 istanceId, IInstanceService instanceService) {}
     // component data provider
     function components(bytes32 instanceId) external override view returns(uint256 numberOfComponents) {}
     function getComponentId(bytes32 instanceId, uint256 idx) external override view returns(uint256 componentId) {}

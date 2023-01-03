@@ -14,19 +14,8 @@ contract ComponentRegistry is
     mapping(bytes32 /* instanceId */ => mapping(uint256 /* componentId */ => ComponentInfo)) private _componentInfo;
     mapping(bytes32 /* instanceId */ => ComponentKey []) private _componentKeys;
 
-    modifier onlyRegisteredInstance(bytes32 instanceId) {
-        require(this.isRegisteredInstance(instanceId), "ERROR:CRG-001:INSTANCE_NOT_REGISTERED");
-        _;
-    }
-
     modifier onlyRegisteredComponent(bytes32 instanceId, uint256 componentId) {
         require(this.isRegisteredComponent(instanceId, componentId), "ERROR:CRG-002:COMPONENT_NOT_REGISTERED");
-        _;
-    }
-
-    modifier onlySameChain(bytes32 instanceId) {
-        InstanceInfo memory info = getInstanceInfo(instanceId);
-        require(block.chainid == info.chainId, "ERROR:CRG-003:DIFFERENT_CHAIN_NOT_SUPPORTET");
         _;
     }
 
@@ -37,7 +26,7 @@ contract ComponentRegistry is
         onlyOwner()
     {
         InstanceInfo memory instance = getInstanceInfo(instanceId);
-        IInstanceService instanceService = _getInstanceServiceFromRegistry(instance.registry);
+        IInstanceService instanceService = _getInstanceService(instance.registry);
 
         _registerComponent(
             instanceId,
@@ -54,7 +43,7 @@ contract ComponentRegistry is
         // no restriction who can call this: function obtains new state via instnance service
     {
         InstanceInfo memory instance = getInstanceInfo(instanceId);
-        IInstanceService instanceService = _getInstanceServiceFromRegistry(instance.registry);
+        IInstanceService instanceService = _getInstanceService(instance.registry);
 
         _updateComponent(
             instanceId,

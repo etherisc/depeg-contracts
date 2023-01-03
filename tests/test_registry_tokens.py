@@ -141,7 +141,7 @@ def test_registration_failure_modes(
             {'from':productOwner})
 
     # on same chain only registerToken(tokenAddress) may be used
-    with brownie.reverts("ERROR:IRG-001:CALL_INVALID_FOR_SAME_CHAIN"):
+    with brownie.reverts("ERROR:IRG-004:CALL_INVALID_FOR_SAME_CHAIN"):
         instanceRegistry.registerToken(
             usd1.address,
             web3.chain_id,
@@ -235,7 +235,7 @@ def test_update_token_failure_modes(
 
     state_suspended = 2
 
-    with brownie.reverts('ERROR:IRG-010:TOKEN_NOT_REGISTERED'):
+    with brownie.reverts('ERROR:IRG-001:TOKEN_NOT_REGISTERED'):
         instanceRegistry.updateToken(
             usd3.address,
             chain_id,
