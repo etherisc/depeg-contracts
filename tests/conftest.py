@@ -243,5 +243,5 @@ def bundleRegistry(registryOwner) -> BundleRegistry:
 
 
 @pytest.fixture(scope="module")
-def staking(registryOwner) -> BundleRegistry: 
-    return Staking.deploy({'from': registryOwner})
+def staking(registryOwner, bundleRegistry) -> BundleRegistry: 
+    return Staking.deploy(bundleRegistry, {'from': registryOwner})

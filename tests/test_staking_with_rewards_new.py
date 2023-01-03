@@ -4,6 +4,7 @@ import pytest
 from brownie.network.account import Account
 from brownie import (
     chain,
+    BundleRegistry,
     Staking,
     DIP,
     USD2
@@ -22,6 +23,7 @@ def test_staking_with_rewards(
     investor: Account,
     riskpool,
     instanceService,
+    bundleRegistry: BundleRegistry,
     staking: Staking,
     staker: Account,
     dip: DIP,
@@ -42,14 +44,14 @@ def test_staking_with_rewards(
 
     # register token, instance, component and bundle
     bundle_expiry_at = bundle['createdAt'] + bundle['lifetime']
-    staking.setDipContract(dip)
-    staking.registerToken(riskpool.getErc20Token())
-    staking.registerInstance(instance.getRegistry())
-    staking.registerComponent(instance_id, riskpool_id)
-    staking.registerBundle(instance_id, riskpool_id, bundle_id, bundle_name, bundle_expiry_at)
+    bundleRegistry.registerToken(riskpool.getErc20Token())
+    bundleRegistry.registerInstance(instance.getRegistry())
+    bundleRegistry.registerComponent(instance_id, riskpool_id)
+    bundleRegistry.registerBundle(instance_id, riskpool_id, bundle_id, bundle_name, bundle_expiry_at)
 
     reward_rate = staking.toRate(2, -1) # 20% apr for staking
     staking.setRewardRate(reward_rate)
+    staking.setDipContract(dip)
 
     assert dip.balanceOf(staking.getStakingWallet()) == 0
     assert dip.balanceOf(staker) == 0

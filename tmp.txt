@@ -1,15 +1,12 @@
 depeg
 
 === priorization ===
-- add bundleRegistry
 - add getToken to (I)IntanceRegistry returning IERC20Metadata (onlySameChain)
 - add wallet address attribute
 - api
 
 === backlog ===
 staking
-- split into registry and staking
-  + replace gif staking stuff with link to new registry
 - add inspect_registry to deploy_depeg (shows registered tokens + instances)
 - add inspect_staking to deploy_depeg (shows registered bundles, stakes, stakers)
 - stop rewards once bundle lifetime is exceeded
@@ -26,7 +23,7 @@ mumbay
 - dockerfile
 
 product
-- figure out how to assess blance for account at depeg time (after the fact)
+- figure out how to assess balance for account at depeg time (after the fact)
 - claim payout
   + withdrawal period
   + policy considered expired after withdrawal  period
@@ -34,7 +31,12 @@ product
   + token balance at block timestamp
   + withdrawPayout
 
-=== done 22.23.22 ===
+=== done 30.12.22
+- split into registry and staking
+  + replace gif staking stuff with link to new registry
+- add bundleRegistry
+
+=== done 22/23.12.22 ===
 - add bundle name/lifetime to staking
 
 === done 21.12.22 ===
@@ -53,7 +55,21 @@ product
   + reactivate
 - token registration
 
--- to adapt
+-- to do
+
+add onlyowner for updateinstance/updateToken
+
+
+to switch from gifStaking to Staking
+[] scripts/test_deployment.py
+
+cleanup contract folder staking
+- remove GifStaking/IStakingRegistry
+- move (I)Staking* and FixedMath to folder staking
+
+cleanup tests
+- delete test_staking_* (*: see below)
+- rename test_staking_*_new to test_staking
 
 [Docker] ❯ find . | grep '.py$' | xargs grep -n gifStaking | cut -d':' -f1 | sort | uniq -c
 done/to be cleaned up
@@ -68,3 +84,11 @@ done/to be removed
 [+]  8 ./tests/test_staking_rewards_calculation.py
 [+] 26 ./tests/test_staking_simple.py
 [+] 23 ./tests/test_staking_with_rewards.py
+
+--
+FAILED tests/test_staking_full_setup_new.py::test_staking_full_setup - brownie.exceptions.VirtualMachineError: revert
+FAILED tests/test_staking_simple_new.py::test_staking_failure_modes - AssertionError: Unexpected revert string 'ERROR:STK-040:BUNDLE_NOT_REGISTERED'
+FAILED tests/test_staking_multiple_stakers_new.py::test_staking_happy_path - brownie.exceptions.VirtualMachineError: revert
+FAILED tests/test_staking_with_rewards_new.py::test_staking_with_rewards - assert 198086272353231437890 == 198085944830174496931
+FAILED tests/test_staking_rate_new.py::test_reward_rate_failure_modes - AssertionError: Unexpected revert string 'ERROR:STK-060:REWARD_EXCEEDS_MA...
+FAILED tests/test_staking_rate_new.py::test_staking_rate_failure_modes - AssertionError: Unexpected revert string 'ERROR:STK-100:TOKEN_NOT_REGIST...

@@ -4,6 +4,7 @@ import pytest
 from brownie.network.account import Account
 from brownie import (
     chain,
+    BundleRegistry,
     Staking,
     DIP,
 )
@@ -22,6 +23,7 @@ def test_staking_happy_path(
     investor: Account,
     riskpool,
     instanceService,
+    bundleRegistry: BundleRegistry,
     staking: Staking,
     stakerWithDips: Account,
     dip: DIP,
@@ -37,7 +39,7 @@ def test_staking_happy_path(
         bundle_name)
 
     token = instanceService.getComponentToken(riskpool_id)
-    staking.registerToken(token)
+    bundleRegistry.registerToken(token)
     staking.setDipContract(dip)
 
     bundle = riskpool.getBundleInfo(bundle_id).dict()
@@ -45,13 +47,13 @@ def test_staking_happy_path(
 
     # register token, instance, component and bundle
     bundle_expiry_at = bundle['createdAt'] + bundle['lifetime']
-    staking.registerInstance(instance.getRegistry())
-    staking.registerComponent(instance_id, riskpool_id)
+    bundleRegistry.registerInstance(instance.getRegistry())
+    bundleRegistry.registerComponent(instance_id, riskpool_id)
 
-    assert staking.bundles(instance_id, riskpool_id) == 0
+    assert bundleRegistry.bundles(instance_id, riskpool_id) == 0
 
-    staking.registerBundle(instance_id, riskpool_id, bundle_id, bundle_name, bundle_expiry_at)
-    assert staking.bundles(instance_id, riskpool_id) == 1
+    bundleRegistry.registerBundle(instance_id, riskpool_id, bundle_id, bundle_name, bundle_expiry_at)
+    assert bundleRegistry.bundles(instance_id, riskpool_id) == 1
 
     print('--- test setup before any staking ---')
     assert staking.hasBundleStakeInfo(instance_id, bundle_id, stakerWithDips) is False
@@ -132,6 +134,7 @@ def test_staking_failure_modes(
     investor: Account,
     riskpool,
     instanceService,
+    bundleRegistry: BundleRegistry,
     staking: Staking,
     stakerWithDips: Account,
     dip: DIP,
@@ -148,12 +151,12 @@ def test_staking_failure_modes(
 
     # register token, instance, component (not bundle, yet)
     token = instanceService.getComponentToken(riskpool_id)
-    staking.registerToken(token)
+    bundleRegistry.registerToken(token)
     staking.setDipContract(dip)
     bundle = riskpool.getBundleInfo(bundle_id).dict()
     bundle_expiry_at = bundle['createdAt'] + bundle['lifetime']
-    staking.registerInstance(instance.getRegistry())
-    staking.registerComponent(instance_id, riskpool_id)
+    bundleRegistry.registerInstance(instance.getRegistry())
+    bundleRegistry.registerComponent(instance_id, riskpool_id)
 
     # 1st attempt to get bundle stake info
     with brownie.reverts("ERROR:STK-002:USER_WITHOUT_BUNDLE_STAKE_INFO"):
@@ -161,7 +164,7 @@ def test_staking_failure_modes(
 
     # 1st attempt to stake to bundle
     staking_amount = 10**5 * 10**dip.decimals()
-    with brownie.reverts("ERROR:BRG-001:BUNDLE_NOT_REGISTERED"):
+    with brownie.reverts("ERROR:STK-040:BUNDLE_NOT_REGISTERED"):
         staking.stakeForBundle(instance_id, bundle_id, staking_amount, {'from': stakerWithDips})
 
     # 1st attempt to unstake from bundle
@@ -169,7 +172,7 @@ def test_staking_failure_modes(
         staking.unstakeFromBundle(instance_id, bundle_id, staking_amount, {'from': stakerWithDips})
 
     # now register bundle
-    staking.registerBundle(instance_id, riskpool_id, bundle_id, bundle_name, bundle_expiry_at)
+    bundleRegistry.registerBundle(instance_id, riskpool_id, bundle_id, bundle_name, bundle_expiry_at)
 
     # 2nd attempt to get bundle stake info
     with brownie.reverts("ERROR:STK-002:USER_WITHOUT_BUNDLE_STAKE_INFO"):
@@ -183,7 +186,7 @@ def test_staking_failure_modes(
     with brownie.reverts("ERROR:STK-002:USER_WITHOUT_BUNDLE_STAKE_INFO"):
         staking.getBundleStakeInfo(instance_id, bundle_id, stakerWithDips)
 
-    with brownie.reverts("ERROR:STK-040:STAKING_AMOUNT_ZERO"):
+    with brownie.reverts("ERROR:STK-041:STAKING_AMOUNT_ZERO"):
         staking.stakeForBundle(instance_id, bundle_id, 0, {'from': stakerWithDips})
 
     # create approval and try again

@@ -1,17 +1,20 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.2;
 
-import "./FixedMath.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 
+import "./IInstanceDataProvider.sol";
+import "./IBundleDataProvider.sol";
+import "./BundleRegistry.sol";
+
+import "./FixedMath.sol";
 import "./IStakingDataProvider.sol";
 import "./IStaking.sol";
-
-import "./BundleRegistry.sol";
 
 contract Staking is
     IStakingDataProvider,
     IStaking,
-    BundleRegistry
+    Ownable
 {
 
     uint256 public constant MAINNET_ID = 1;
@@ -30,6 +33,7 @@ contract Staking is
     mapping(bytes32 /* instanceId */ => mapping(uint256 /* bundleId */ => uint256 /* amount staked */)) private _bundleStakedAmount;
     mapping(bytes32 /* instanceId */ => uint256 /* amount staked */) private _instanceStakedAmount;
 
+    BundleRegistry private _bundleRegistry;
     IERC20Metadata private _dip;
     FixedMath private _math;
 
@@ -50,9 +54,15 @@ contract Staking is
         _;
     }
 
-    constructor() 
-        BundleRegistry()
+    constructor(
+        address bundleRegistryAddress
+    ) 
+        Ownable()
     {
+        require(bundleRegistryAddress != address(0), "ERROR:STK-005:BUNDLE_REGISTRY_ADDRESS_ZERO");
+
+        _bundleRegistry = BundleRegistry(bundleRegistryAddress);
+
         _dip = IERC20Metadata(DIP_CONTRACT_ADDRESS);
         _math = new FixedMath();
         _rewardRateMax = _math.itof(REWARD_MAX_PERCENTAGE, -2);
@@ -79,12 +89,12 @@ contract Staking is
         uint256 newStakingRate
     ) 
         external override
-        onlyRegisteredToken(token, chainId)
         onlyOwner()
     {
-        require(newStakingRate > 0, "ERROR:STK-030:STAKING_RATE_ZERO");
-        uint256 oldStakingRate = _stakingRate[token][chainId];
+        require(_bundleRegistry.isRegisteredToken(token, chainId), "ERROR:STK-030:TOKEN_NOT_REGISTERED");
+        require(newStakingRate > 0, "ERROR:STK-031:STAKING_RATE_ZERO");
 
+        uint256 oldStakingRate = _stakingRate[token][chainId];
         _stakingRate[token][chainId] = newStakingRate;
 
         emit LogStakingStakingRateSet(token, chainId, oldStakingRate, newStakingRate);
@@ -96,15 +106,15 @@ contract Staking is
         uint256 amount
     )
         external override
-        onlyRegisteredBundle(instanceId, bundleId)
     {
-        require(amount > 0, "ERROR:STK-040:STAKING_AMOUNT_ZERO");
+        require(_bundleRegistry.isRegisteredBundle(instanceId, bundleId), "ERROR:STK-040:BUNDLE_NOT_REGISTERED");
+        require(amount > 0, "ERROR:STK-041:STAKING_AMOUNT_ZERO");
 
-        BundleInfo memory info = this.getBundleInfo(instanceId, bundleId);
+        IBundleDataProvider.BundleInfo memory info = _bundleRegistry.getBundleInfo(instanceId, bundleId);
         require(
             info.state == IBundle.BundleState.Active
             || info.state == IBundle.BundleState.Locked, 
-            "ERROR:STK-041:BUNDLE_CLOSED_OR_BURNED"
+            "ERROR:STK-042:BUNDLE_CLOSED_OR_BURNED"
         );
 
         address user = msg.sender;
@@ -113,7 +123,7 @@ contract Staking is
         // handling for new stakes
         if(stakeInfo.createdAt == 0) {
             stakeInfo.user = user;
-            stakeInfo.key = BundleKey(instanceId, bundleId);
+            stakeInfo.key = IBundleDataProvider.BundleKey(instanceId, bundleId);
             stakeInfo.createdAt = block.timestamp;
         }
 
@@ -139,7 +149,8 @@ contract Staking is
         unstakeFromBundle(instanceId, bundleId, type(uint256).max);
     }
 
-
+    // TODO unstake only when bundle lifetime is over
+    // need a locking time for staked dips
     function unstakeFromBundle(
         bytes32 instanceId, 
         uint256 bundleId, 
@@ -183,7 +194,7 @@ contract Staking is
         external override
         onlyOwner
     {
-        require(newRewardRate <= _rewardRateMax, "ERROR:STK-020:REWARD_EXCEEDS_MAX_VALUE");
+        require(newRewardRate <= _rewardRateMax, "ERROR:STK-060:REWARD_EXCEEDS_MAX_VALUE");
         uint256 oldRewardRate = _rewardRate;
 
         _rewardRate = newRewardRate;
@@ -227,7 +238,6 @@ contract Staking is
     )
         external override 
         view 
-        onlyRegisteredBundle(instanceId, bundleId)
         returns(uint256 dipAmount)
     {
         return _bundleStakeInfo[instanceId][bundleId][user].balance;
@@ -240,9 +250,9 @@ contract Staking is
     )
         external override 
         view 
-        onlyRegisteredBundle(instanceId, bundleId)
         returns(uint256 dipAmount)
     {
+        require(_bundleRegistry.isRegisteredBundle(instanceId, bundleId), "ERROR:STK-070:BUNDLE_NOT_REGISTERED");
         return _bundleStakedAmount[instanceId][bundleId];
     }
 
@@ -250,9 +260,9 @@ contract Staking is
     function getTotalStakes(bytes32 instanceId)
         external override 
         view
-        onlyRegisteredInstance(instanceId)
         returns(uint256 dipAmount)
     {
+        require(_bundleRegistry.isRegisteredInstance(instanceId), "ERROR:STK-080:INSTANCE_NOT_REGISTERED");
         return _instanceStakedAmount[instanceId];
     }
 
@@ -268,10 +278,15 @@ contract Staking is
     )
         external override
         view
-        onlyRegisteredBundle(instanceId, bundleId)
         returns(uint256 capitalAmount)
     {
-        TokenInfo memory info = this.getBundleTokenInfo(instanceId, bundleId); 
+        // if bundle is not registered it is not possible that any dips have been staked
+        // as a result capital support is 0 too
+        if(!_bundleRegistry.isRegisteredBundle(instanceId, bundleId)) {
+            return 0;
+        }
+
+        IInstanceDataProvider.TokenInfo memory info = _bundleRegistry.getBundleTokenInfo(instanceId, bundleId); 
         uint256 stakingRate = this.getStakingRate(info.key.token, info.key.chainId);
         uint256 stakedDipAmount = this.getBundleStakes(instanceId, bundleId);
 
@@ -284,9 +299,9 @@ contract Staking is
     )
         external override
         view
-        onlyRegisteredToken(token, chainId)
         returns(uint256 rate)
     {
+        require(_bundleRegistry.isRegisteredToken(token, chainId), "ERROR:STK-100:TOKEN_NOT_REGISTERED");
         return _stakingRate[token][chainId];
     }
 
@@ -312,7 +327,7 @@ contract Staking is
         onlyDefinedStakingRate(token, chainId)        
         returns(uint dipAmount)
     {
-        TokenInfo memory info = getTokenInfo(token, chainId);
+        IInstanceDataProvider.TokenInfo memory info = _bundleRegistry.getTokenInfo(token, chainId);
         uint256 rate = _stakingRate[token][chainId];
         return _math.div(targetAmount, rate) * 10 ** (DIP_DECIMALS - info.decimals);
     }
@@ -327,7 +342,7 @@ contract Staking is
         onlyDefinedStakingRate(token, chainId)        
         returns(uint tokenAmount)
     {
-        TokenInfo memory info = getTokenInfo(token, chainId);
+        IInstanceDataProvider.TokenInfo memory info = _bundleRegistry.getTokenInfo(token, chainId);
         uint256 rate = _stakingRate[token][chainId];
         return (_math.mul(dipAmount, rate) * 10 ** info.decimals) / 10 ** DIP_DECIMALS;
     }

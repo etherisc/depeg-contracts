@@ -1,14 +1,11 @@
 import brownie
 import pytest
-import time
 
 from brownie.network.account import Account
 from brownie import (
     Staking,
     DIP,
 )
-
-from scripts.setup import create_bundle
 
 # enforce function isolation for tests below
 @pytest.fixture(autouse=True)

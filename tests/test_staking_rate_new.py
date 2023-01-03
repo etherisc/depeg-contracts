@@ -5,6 +5,7 @@ from brownie.network.account import Account
 from brownie import (
     exceptions,
     web3,
+    BundleRegistry,
     Staking,
     DIP,
     USD1,
@@ -61,12 +62,13 @@ def test_reward_rate_failure_modes(
     reward_rate_i = reward_rate_f * 10 ** exp
     reward_rate = staking.toRate(reward_rate_i, -exp)
 
-    with brownie.reverts('ERROR:STK-020:REWARD_EXCEEDS_MAX_VALUE'):
+    with brownie.reverts('ERROR:STK-060:REWARD_EXCEEDS_MAX_VALUE'):
         staking.setRewardRate(reward_rate, {'from': registryOwner})
 
 
 def test_staking_rate_happy_case(
-    registryOwner,
+    registryOwner: Account,
+    bundleRegistry: BundleRegistry,
     staking: Staking,
     dip: DIP,
     usd1: USD1,
@@ -81,7 +83,7 @@ def test_staking_rate_happy_case(
     assert rate['value']/rate['divisor'] == staking_rate_f
 
     # register token and get initial rate
-    staking.registerToken(usd1.address, {'from': registryOwner})
+    bundleRegistry.registerToken(usd1.address, {'from': registryOwner})
     staking_rate_initial = staking.getStakingRate(usd1.address, web3.chain_id)
 
     assert staking.hasDefinedStakingRate(usd1.address, web3.chain_id) is False
@@ -108,7 +110,7 @@ def test_staking_rate_happy_case(
     assert tx.events['LogStakingStakingRateSet']['newStakingRate'] == staking_rate_now
 
     # set staking rate for usd3
-    staking.registerToken(usd3.address, {'from': registryOwner})
+    bundleRegistry.registerToken(usd3.address, {'from': registryOwner})
     staking.setStakingRate(
         usd3.address,
         web3.chain_id,
@@ -151,6 +153,7 @@ def test_staking_rate_happy_case(
 
 def test_conversion_calculation_usd1(
     registryOwner,
+    bundleRegistry: BundleRegistry,
     staking: Staking,
     usd1: USD1
 ):
@@ -160,7 +163,7 @@ def test_conversion_calculation_usd1(
     staking_rate = staking.toRate(staking_rate_i, -exp)
 
     # set staking rate for usd1
-    staking.registerToken(usd1.address, {'from': registryOwner})
+    bundleRegistry.registerToken(usd1.address, {'from': registryOwner})
     staking.setStakingRate(
         usd1.address,
         web3.chain_id,
@@ -191,6 +194,7 @@ def test_conversion_calculation_usd1(
 
 
 def test_conversion_calculation_usd3(
+    bundleRegistry: BundleRegistry,
     registryOwner,
     staking: Staking,
     usd3: USD1
@@ -201,7 +205,7 @@ def test_conversion_calculation_usd3(
     staking_rate = staking.toRate(staking_rate_i, -exp)
 
     # set staking rate for usd1
-    staking.registerToken(usd3.address, {'from': registryOwner})
+    bundleRegistry.registerToken(usd3.address, {'from': registryOwner})
     staking.setStakingRate(
         usd3.address,
         web3.chain_id,
@@ -235,11 +239,12 @@ def test_conversion_calculation_usd3(
 def test_staking_rate_failure_modes(
     registryOwner,
     instanceOperator,
+    bundleRegistry: BundleRegistry,
     staking: Staking,
     usd1: USD1
 ):
     # attempt to get staking rate for non-registered token
-    with brownie.reverts('ERROR:IRG-002:TOKEN_NOT_REGISTERED'):
+    with brownie.reverts('ERROR:STK-100:TOKEN_NOT_REGISTERED'):
         staking.getStakingRate(usd1.address, web3.chain_id)
 
     # attempt to set rate for non-registered token
@@ -248,14 +253,14 @@ def test_staking_rate_failure_modes(
     staking_rate_i = staking_rate_f * 10 ** exp
     staking_rate = staking.toRate(staking_rate_i, -exp)
 
-    with brownie.reverts('ERROR:IRG-002:TOKEN_NOT_REGISTERED'):
+    with brownie.reverts('ERROR:STK-030:TOKEN_NOT_REGISTERED'):
         staking.setStakingRate(
             usd1.address,
             web3.chain_id,
             staking_rate,
             {'from': registryOwner})
 
-    staking.registerToken(usd1.address, {'from': registryOwner})
+    bundleRegistry.registerToken(usd1.address, {'from': registryOwner})
 
     # attempt to set rate as non-owner of staking contract
     with brownie.reverts('Ownable: caller is not the owner'):
@@ -268,7 +273,7 @@ def test_staking_rate_failure_modes(
     # attempt to set zero rate
     staking_rate_zero = 0
 
-    with brownie.reverts('ERROR:STK-030:STAKING_RATE_ZERO'):
+    with brownie.reverts('ERROR:STK-031:STAKING_RATE_ZERO'):
         staking.setStakingRate(
             usd1.address,
             web3.chain_id,

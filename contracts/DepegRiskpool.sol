@@ -366,6 +366,8 @@ contract DepegRiskpool is
         if(application.sumInsuredAmount < minSumInsured) { sumInsuredOk = false; }
         if(application.sumInsuredAmount > maxSumInsured) { sumInsuredOk = false; }
 
+        // TODO remove hard link between staked dip and necessary capital support
+        // replace in ui to only show underfunded bundles/riskpools
         if(getSupportedCapitalAmount(bundle.id) < bundle.lockedCapital + application.sumInsuredAmount) {
             sumInsuredOk = false;
         }
@@ -386,16 +388,9 @@ contract DepegRiskpool is
         public view
         returns(uint256 capitalCap)
     {
-        // if not staking data provider is available anything goes
-        if(address(_stakingDataProvider) == address(0) 
-            || address(_stakingDataProvider) == address(0)) 
-        {
+        // if no staking data provider is available anything goes
+        if(address(_stakingDataProvider) == address(0)) {
             return _bundleCapitalCap;
-        }
-
-        // if staking data provider exists but bundle is not registered, nothing goes
-        if(!_bundleDataProvider.isRegisteredBundle(_instanceService.getInstanceId(), bundleId)) {
-            return 0;
         }
 
         // otherwise: get amount supported by staking

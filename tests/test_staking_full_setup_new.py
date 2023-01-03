@@ -4,6 +4,7 @@ import pytest
 from brownie.network.account import Account
 from brownie import (
     chain,
+    BundleRegistry,
     Staking,
     DIP,
     USD2
@@ -30,6 +31,7 @@ def test_staking_full_setup(
     riskpool,
     riskpoolKeeper: Account,
     instanceService,
+    bundleRegistry: BundleRegistry,
     staking: Staking,
     registryOwner: Account,
     stakerWithDips: Account,
@@ -49,8 +51,8 @@ def test_staking_full_setup(
 
     from_owner = {'from': registryOwner}
 
+    bundleRegistry.registerToken(riskpool.getErc20Token(), from_owner)
     staking.setDipContract(dip, from_owner)
-    staking.registerToken(riskpool.getErc20Token(), from_owner)
 
     print('--- setup staking rate ---')
     exp = 1
@@ -64,17 +66,23 @@ def test_staking_full_setup(
         staking_rate,
         from_owner)
 
-    print('--- link riskpool to staking contract ---')
-    riskpool.setStakingDataProvider(staking, {'from': riskpoolKeeper})
-
     print('--- link staking to gif instance/riskpool/bundle ---')
     bundle = riskpool.getBundleInfo(bundle_id).dict()
     bundle_expiry_at = bundle['createdAt'] + bundle['lifetime']
-    staking.registerInstance(instance.getRegistry(), from_owner)
-    staking.registerComponent(instance_id, riskpool_id, from_owner)
-    staking.registerBundle(instance_id, riskpool_id, bundle_id, bundle_name, bundle_expiry_at, from_owner)
+    bundleRegistry.registerInstance(instance.getRegistry(), from_owner)
+    bundleRegistry.registerComponent(instance_id, riskpool_id, from_owner)
+    bundleRegistry.registerBundle(instance_id, riskpool_id, bundle_id, bundle_name, bundle_expiry_at, from_owner)
+
+    assert bundle['bundleId'] == bundle_id
+    assert bundle['capitalSupportedByStaking'] == riskpool.getBundleCapitalCap()
+    assert bundle['capital'] > 0.9 * FUNDING
+    assert bundle['lockedCapital'] == 0
+
+    print('--- link riskpool to staking contract ---')
+    riskpool.setStakingDataProvider(staking, {'from': riskpoolKeeper})
 
     print('--- attempt to buy a policy with insufficient staking ---')
+    bundle = riskpool.getBundleInfo(bundle_id).dict()
     print('bundle {}'.format(bundle))
 
     assert bundle['bundleId'] == bundle_id

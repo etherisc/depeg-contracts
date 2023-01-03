@@ -4,6 +4,9 @@ pragma solidity 0.8.2;
 import "./IBundleDataProvider.sol";
 interface IStakingDataProvider {
 
+    // TODO NFT for staking
+    // unify staking for instances, compnents and bundles
+    // key needs to be able to match an instance, a component or a bundle
     struct BundleStakeInfo {
         address user;
         IBundleDataProvider.BundleKey key;

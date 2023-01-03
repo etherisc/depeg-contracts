@@ -18,4 +18,6 @@ interface IStaking is
     function stakeForBundle(bytes32 instanceId, uint256 bundleId, uint256 amount) external;
     function unstakeFromBundle(bytes32 instanceId, uint256 bundleId, uint256 amount) external;  
     function unstakeFromBundle(bytes32 instanceId, uint256 bundleId) external;
+
+    // TODO add claimRewards, same as staking/unstaking with (un)staking amount=0
 }

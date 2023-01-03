@@ -4,6 +4,7 @@ import pytest
 from brownie.network.account import Account
 from brownie import (
     chain,
+    BundleRegistry,
     Staking,
     DIP,
     USD2
@@ -24,6 +25,7 @@ def test_staking_happy_path(
     riskpool,
     riskpoolKeeper: Account,
     instanceService,
+    bundleRegistry: BundleRegistry,
     staking: Staking,
     registryOwner: Account,
     stakerWithDips: Account,
@@ -46,7 +48,7 @@ def test_staking_happy_path(
     from_owner = {'from': registryOwner}
 
     staking.setDipContract(dip, from_owner)
-    staking.registerToken(riskpool.getErc20Token(), from_owner)
+    bundleRegistry.registerToken(riskpool.getErc20Token(), from_owner)
 
     exp = 1
     staking_rate_f = 0.1
@@ -63,9 +65,9 @@ def test_staking_happy_path(
 
     bundle = riskpool.getBundleInfo(bundle_id).dict()
     bundle_expiry_at = bundle['createdAt'] + bundle['lifetime']
-    staking.registerInstance(instance.getRegistry(), from_owner)
-    staking.registerComponent(instance_id, riskpool_id, from_owner)
-    staking.registerBundle(instance_id, riskpool_id, bundle_id, bundle_name, bundle_expiry_at, from_owner)
+    bundleRegistry.registerInstance(instance.getRegistry(), from_owner)
+    bundleRegistry.registerComponent(instance_id, riskpool_id, from_owner)
+    bundleRegistry.registerBundle(instance_id, riskpool_id, bundle_id, bundle_name, bundle_expiry_at, from_owner)
 
     print('--- everything ready before any staking is done ---')
     initial_dip_balance = 10**6 * 10**dip.decimals()
