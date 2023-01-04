@@ -1,6 +1,9 @@
 depeg
 
 === priorization ===
+- remove hard link between staking and capability to sell policies
+  + if staking is not high enough only webui should block, not contract
+  + staking webui should show delta between capacity and staking support (and visual cue for "understaked" bundles)
 - add getToken to (I)IntanceRegistry returning IERC20Metadata (onlySameChain)
 - add wallet address attribute
 - api
@@ -31,6 +34,11 @@ product
   + token balance at block timestamp
   + withdrawPayout
 
+
+=== done 3.1.23 ====
+- add onlyowner for updateinstance/updateToken
+- split staking into registry and staking
+
 === done 30.12.22
 - split into registry and staking
   + replace gif staking stuff with link to new registry
@@ -57,7 +65,6 @@ product
 
 -- to do
 
-add onlyowner for updateinstance/updateToken
 
 
 to switch from gifStaking to Staking
@@ -86,9 +93,3 @@ done/to be removed
 [+] 23 ./tests/test_staking_with_rewards.py
 
 --
-FAILED tests/test_staking_full_setup_new.py::test_staking_full_setup - brownie.exceptions.VirtualMachineError: revert
-FAILED tests/test_staking_simple_new.py::test_staking_failure_modes - AssertionError: Unexpected revert string 'ERROR:STK-040:BUNDLE_NOT_REGISTERED'
-FAILED tests/test_staking_multiple_stakers_new.py::test_staking_happy_path - brownie.exceptions.VirtualMachineError: revert
-FAILED tests/test_staking_with_rewards_new.py::test_staking_with_rewards - assert 198086272353231437890 == 198085944830174496931
-FAILED tests/test_staking_rate_new.py::test_reward_rate_failure_modes - AssertionError: Unexpected revert string 'ERROR:STK-060:REWARD_EXCEEDS_MA...
-FAILED tests/test_staking_rate_new.py::test_staking_rate_failure_modes - AssertionError: Unexpected revert string 'ERROR:STK-100:TOKEN_NOT_REGIST...

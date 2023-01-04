@@ -77,12 +77,13 @@ def test_staking_full_setup(
     assert bundleInfo['bundleId'] == bundleId
     assert bundleInfo['capitalSupportedByStaking'] == 0
     assert bundleInfo['capital'] > 0.9 * bundleFunding
-    assert bundleInfo['lockedCapital'] == 0
 
-    sumInsured = 10000 * 10**usd2.decimals()
+    sumInsured = 4000 * 10**usd2.decimals()
     durationDays = 60
     maxPremium = 750 * 10**usd2.decimals()
 
+    assert bundleInfo['lockedCapital'] == 0
+    assert sumInsured < bundleInfo['capital']
     assert sumInsured > gifStaking.getBundleCapitalSupport(instanceId, bundleId)
 
     processId1 = apply_for_policy(
@@ -97,8 +98,9 @@ def test_staking_full_setup(
     metadata = instanceService.getMetadata(processId1)
     application = instanceService.getApplication(processId1)
 
-    with brownie.reverts('ERROR:POC-102:POLICY_DOES_NOT_EXIST'):
-        instanceService.getPolicy(processId1)
+    policy1 = instanceService.getPolicy(processId1).dict()
+    assert policy1['premiumPaidAmount'] == policy1['premiumExpectedAmount']
+    assert policy1['premiumPaidAmount'] > 0
 
     print('processId1 {}'.format(processId1))
     print('metadata {}'.format(metadata))
@@ -111,7 +113,7 @@ def test_staking_full_setup(
 
     # check conditions to allow for underwriting
     assert sumInsured <= gifStaking.getBundleCapitalSupport(instanceId, bundleId)
-    assert sumInsured <= bundle['capital']-bundle['lockedCapital']
+    assert sumInsured <= bundle['capital'] - bundle['lockedCapital']
 
     processId2 = apply_for_policy(
         instance, 
@@ -138,4 +140,4 @@ def test_staking_full_setup(
     assert bundleInfo2['bundleId'] == bundleId
     assert bundleInfo2['capitalSupportedByStaking'] == gifStaking.getBundleCapitalSupport(instanceId, bundleId)
     assert bundleInfo2['capital'] == bundleInfo['capital']
-    assert bundleInfo2['lockedCapital'] == sumInsured
+    assert bundleInfo2['lockedCapital'] == 2 * sumInsured

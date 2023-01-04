@@ -16,6 +16,9 @@ from scripts.setup import (
     apply_for_policy
 )
 
+from scripts.deploy_depeg import best_premium
+
+
 # enforce function isolation for tests below
 @pytest.fixture(autouse=True)
 def isolation(fn_isolation):
@@ -95,10 +98,16 @@ def test_staking_full_setup(
 
     # case: insufficient staking
     # attempt to buy a policy where the sum insured cannot be covered by riskpool
-    sum_insured = 10000 * 10**usd2.decimals()
+    sum_insured = 4000 * 10**usd2.decimals()
     duration_days = 60
-    max_premium = 750 * 10**usd2.decimals()
+    premium_info = best_premium(instanceService, riskpool, product, sum_insured, duration_days)
+    print('premium_info {}'.format(premium_info))
 
+    # ensure there is a bundle that matches with the application
+    assert premium_info['comment'] == 'recommended bundle'
+
+    # check that capital support is 0 (as nothing has yet been staked to the bundle)
+    assert staking.getBundleCapitalSupport(instance_id, bundle_id) == 0
     assert sum_insured > staking.getBundleCapitalSupport(instance_id, bundle_id)
 
     process_id1 = apply_for_policy(
@@ -108,17 +117,17 @@ def test_staking_full_setup(
         customer,
         sum_insured,
         duration_days,
-        max_premium)
+        premium_info['premium'])
 
     metadata = instanceService.getMetadata(process_id1)
     application = instanceService.getApplication(process_id1)
 
-    with brownie.reverts('ERROR:POC-102:POLICY_DOES_NOT_EXIST'):
-        instanceService.getPolicy(process_id1)
+    policy = instanceService.getPolicy(process_id1).dict()
 
     print('process_id1 {}'.format(process_id1))
     print('metadata {}'.format(metadata))
     print('application {}'.format(application))
+    print('policy {}'.format(policy))
 
     print('--- add bundle stakes and retry to buy a policy---')
     staking_amount = 100000 * 10**dip.decimals()
@@ -126,7 +135,8 @@ def test_staking_full_setup(
     staking.stakeForBundle(instance_id, bundle_id, staking_amount, {'from': stakerWithDips})
 
     # check conditions to allow for underwriting
-    assert sum_insured <= staking.getBundleCapitalSupport(instance_id, bundle_id)
+    assert staking.getBundleStakes(instance_id, bundle_id) == staking_amount
+    assert staking.getBundleCapitalSupport(instance_id, bundle_id) >= 2 * sum_insured
     assert sum_insured <= bundle['capital'] - bundle['lockedCapital']
 
     process_id2 = apply_for_policy(
@@ -136,7 +146,7 @@ def test_staking_full_setup(
         customer,
         sum_insured,
         duration_days,
-        max_premium)
+        premium_info['premium'])
 
     metadata = instanceService.getMetadata(process_id2)
     application = instanceService.getApplication(process_id2)
@@ -154,4 +164,4 @@ def test_staking_full_setup(
     assert bundle2['bundleId'] == bundle_id
     assert bundle2['capitalSupportedByStaking'] == staking.getBundleCapitalSupport(instance_id, bundle_id)
     assert bundle2['capital'] == bundle['capital']
-    assert bundle2['lockedCapital'] == sum_insured
+    assert bundle2['lockedCapital'] == 2 * sum_insured

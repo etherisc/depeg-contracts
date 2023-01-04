@@ -366,11 +366,11 @@ contract DepegRiskpool is
         if(application.sumInsuredAmount < minSumInsured) { sumInsuredOk = false; }
         if(application.sumInsuredAmount > maxSumInsured) { sumInsuredOk = false; }
 
-        // TODO remove hard link between staked dip and necessary capital support
-        // replace in ui to only show underfunded bundles/riskpools
-        if(getSupportedCapitalAmount(bundle.id) < bundle.lockedCapital + application.sumInsuredAmount) {
-            sumInsuredOk = false;
-        }
+        // TODO add restriction in webui only: replace in ui to only show understaked bundles/riskpools
+        // commented code below to indicate how to enforce hard link to stking in this contract
+        // if(getSupportedCapitalAmount(bundle.id) < bundle.lockedCapital + application.sumInsuredAmount) {
+        //     sumInsuredOk = false;
+        // }
 
         if(duration < minDuration) { durationOk = false; }
         if(duration > maxDuration) { durationOk = false; }

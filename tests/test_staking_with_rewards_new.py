@@ -156,14 +156,14 @@ def test_staking_with_rewards(
     assert bundle_stake_info3.dict()['balance'] == expected_balance
 
     print('--- remaining stake withdrawal ---')
-    ri_final = staking.calculateRewardsIncrement(bundle_stake_info3)
     tx4 = staking.unstakeFromBundle(instance_id, bundle_id, {'from': staker})
+    ri_final = staking.calculateRewardsIncrement(bundle_stake_info3)
 
     assert 'LogStakingUnstakedFromBundle' in tx4.events
     assert tx4.events['LogStakingUnstakedFromBundle']['user'] == staker
     assert tx4.events['LogStakingUnstakedFromBundle']['instanceId'] == instance_id
     assert tx4.events['LogStakingUnstakedFromBundle']['bundleId'] == bundle_id
-    assert tx4.events['LogStakingUnstakedFromBundle']['amount'] == expected_balance
+    assert tx4.events['LogStakingUnstakedFromBundle']['amount'] == expected_balance + ri_final
     assert tx4.events['LogStakingUnstakedFromBundle']['rewards'] == ri_final
     assert tx4.events['LogStakingUnstakedFromBundle']['all'] is True
 

@@ -50,7 +50,8 @@ RISKPOOL = 'riskpool'
 PROCESS_ID1 = 'processId1'
 PROCESS_ID2 = 'processId2'
 
-GAS_PRICE = web3.eth.gas_price
+# GAS_PRICE = web3.eth.gas_price
+GAS_PRICE = 25000000
 GAS_PRICE_SAFETY_FACTOR = 1.25
 
 GAS_S = 2000000
@@ -773,17 +774,26 @@ def inspect_fee(
     }
 
 
-
 def best_quote(
     d,
     sumInsured,
-    durationDays,
-) -> int:
-    instanceService = d[INSTANCE_SERVICE]
-    riskpool = d[RISKPOOL]
-    product = d[PRODUCT]
-    customer = d[CUSTOMER1]
+    durationDays
+):
+    return best_premium(
+        d[INSTANCE_SERVICE],
+        d[RISKPOOL],
+        d[PRODUCT],
+        sumInsured,
+        durationDays)
 
+
+def best_premium(
+    instanceService,
+    riskpool,
+    product,
+    sumInsured,
+    durationDays
+):
     bundleData = get_bundle_data(instanceService, riskpool)
     aprMin = 100.0
     bundleId = None
@@ -808,10 +818,10 @@ def best_quote(
 
         bundleId = bundle['bundleId']
         aprMin = bundle['apr']
-    
+
     if not bundleId:
         return {'bundleId':None, 'apr':None, 'premium':sumInsured, 'netPremium':sumInsured, 'comment':'no matching bundle'}
-    
+
     duration = durationDays * 24 * 3600
     netPremium = product.calculateNetPremium(sumInsured, duration, bundleId)
     premium = product.calculatePremium(netPremium)
