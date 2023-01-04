@@ -1,10 +1,6 @@
 depeg
 
 === priorization ===
-- remove hard link between staking and capability to sell policies
-  + if staking is not high enough only webui should block, not contract
-  + staking webui should show delta between capacity and staking support (and visual cue for "understaked" bundles)
-- add getToken to (I)IntanceRegistry returning IERC20Metadata (onlySameChain)
 - add wallet address attribute
 - api
 
@@ -33,6 +29,11 @@ product
   + policy holder to actively withraw payout per/from protected wallet
   + token balance at block timestamp
   + withdrawPayout
+
+=== done 4.1.23 ===
+- remove hard link between staking and capability to sell policies
+  + if staking is not high enough only webui should block, not contract
+  + staking webui should show delta between capacity and staking support (and visual cue for "understaked" bundles)
 
 
 === done 3.1.23 ====
@@ -93,3 +94,6 @@ done/to be removed
 [+] 23 ./tests/test_staking_with_rewards.py
 
 --
+=========================================================== short test summary info ============================================================
+FAILED tests/test_staking_full_setup.py::test_staking_full_setup - AssertionError: Transaction did not revert
+FAILED tests/test_staking_full_setup_new.py::test_staking_full_setup - AssertionError: Transaction did not revert

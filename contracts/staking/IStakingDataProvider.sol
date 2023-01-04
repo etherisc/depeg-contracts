@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.2;
 
-import "./IBundleDataProvider.sol";
+import "../registry/IBundleDataProvider.sol";
+import "../registry/BundleRegistry.sol";
 interface IStakingDataProvider {
 
     // TODO NFT for staking
@@ -14,6 +15,8 @@ interface IStakingDataProvider {
         uint256 createdAt;
         uint256 updatedAt;
     }
+
+    function getBundleRegistry() external view returns(BundleRegistry bundleRegistry);
 
     function getBundleStakeInfo(bytes32 instanceId, uint256 bundleId, address user) external view returns(BundleStakeInfo memory info);
     function hasBundleStakeInfo(bytes32 instanceId, uint256 bundleId, address user) external view returns(bool hasInfo);

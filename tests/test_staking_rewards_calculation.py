@@ -1,14 +1,11 @@
 import brownie
 import pytest
-import time
 
 from brownie.network.account import Account
 from brownie import (
-    GifStaking,
+    Staking,
     DIP,
 )
-
-from scripts.setup import create_bundle
 
 # enforce function isolation for tests below
 @pytest.fixture(autouse=True)
@@ -17,43 +14,57 @@ def isolation(fn_isolation):
 
 
 def test_rewards_calculation(
-    gifStaking: GifStaking,
+    staking: Staking,
+    registryOwner: Account,
+    dip: DIP
 ):
-    reward100Percent = gifStaking.getReward100PercentLevel()
-    reward20Percent = reward100Percent / 5
-    gifStaking.setRewardPercentage(reward20Percent)
+    exp = 3
+    reward_rate_i = 217  # 21.7% apr for dip staking
+    reward_rate_f = reward_rate_i * 10 ** -exp # 5% apr
 
-    amount = 10**6
-    oneYear = gifStaking.getOneYearDuration()
-    oneYearRewardsAmount = gifStaking.calculateRewards(amount, oneYear)
+    # check rate conversion
+    reward_rate = staking.toRate(reward_rate_i, -exp)
+    reward = staking.fromRate(reward_rate).dict()
 
-    print('oneYearRewardsAmount {} fraction {}'.format(oneYearRewardsAmount, oneYearRewardsAmount/amount))
+    assert reward['value'] / reward['divisor'] == reward_rate_f
 
-    assert reward20Percent/reward100Percent == oneYearRewardsAmount/amount
+    # check reward rate setter and getter
+    staking.setRewardRate(reward_rate, {'from': registryOwner})
+    rate = staking.getRewardRate()
+
+    assert rate == reward_rate
+
+    dip_amount = 10000 * 10**dip.decimals()
+    one_year = staking.oneYear()
+    one_year_rewards_amount = staking.calculateRewards(dip_amount, one_year)
+
+    print('one_year_rewards_amount {} fraction {}'.format(one_year_rewards_amount, one_year_rewards_amount/dip_amount))
+
+    assert one_year_rewards_amount/dip_amount == reward_rate_f
 
     # half amount
-    halfAmount = amount / 2
-    yearRewardsHalfAmount = gifStaking.calculateRewards(halfAmount, oneYear)
+    dip_half_amount = dip_amount / 2
+    year_rewards_half_amount = staking.calculateRewards(dip_half_amount, one_year)
 
-    print('yearRewardsHalfAmount {} fraction {}'.format(yearRewardsHalfAmount, yearRewardsHalfAmount/amount))
+    print('year_rewards_half_amount {} fraction {}'.format(year_rewards_half_amount, year_rewards_half_amount/dip_amount))
 
-    assert yearRewardsHalfAmount == oneYearRewardsAmount / 2
+    assert year_rewards_half_amount == one_year_rewards_amount / 2
 
     # half year
-    halfYear = oneYear / 2
-    halfYearRewardsAmount = gifStaking.calculateRewards(amount, halfYear)
+    half_year = one_year / 2
+    half_year_rewards_amount = staking.calculateRewards(dip_amount, half_year)
 
-    print('halfYear {} fraction {}'.format(halfYear, halfYear/oneYear))
-    print('halfYearRewardsAmount {} fraction {}'.format(halfYearRewardsAmount, halfYearRewardsAmount/amount))
+    print('half_year {} fraction {}'.format(half_year, half_year/one_year))
+    print('half_year_rewards_amount {} fraction {}'.format(half_year_rewards_amount, half_year_rewards_amount/dip_amount))
 
-    assert halfYearRewardsAmount == oneYearRewardsAmount / 2
+    assert half_year_rewards_amount == one_year_rewards_amount / 2
 
     # 14 days
-    twoWeeks = 14 * 24 * 3600
-    twoWeeksRewardsAmount = gifStaking.calculateRewards(amount, twoWeeks)
+    two_weeks = 14 * 24 * 3600
+    two_weeks_rewards_amount = staking.calculateRewards(dip_amount, two_weeks)
 
-    print('twoWeeks {} twoWeeksFraction {}'.format(twoWeeks, twoWeeks/oneYear))
-    print('twoWeeksRewardsAmount {} fraction {}'.format(twoWeeksRewardsAmount, twoWeeksRewardsAmount/amount))
+    print('two_weeks {} fraction {}'.format(two_weeks, two_weeks/one_year))
+    print('two_weeks_rewards_amount {} fraction {}'.format(two_weeks_rewards_amount, two_weeks_rewards_amount/dip_amount))
 
-    expectedTwoWeeksAmount = oneYearRewardsAmount * (2 / 52)
-    assert abs(twoWeeksRewardsAmount - expectedTwoWeeksAmount)/expectedTwoWeeksAmount < 0.003
+    expected_two_weeks_rewards_amount = (one_year_rewards_amount * 14) / 365
+    assert abs(two_weeks_rewards_amount - expected_two_weeks_rewards_amount)/expected_two_weeks_rewards_amount <= 10**-10

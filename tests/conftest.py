@@ -10,7 +10,6 @@ from brownie import (
     UsdcPriceDataProvider,
     DepegProduct,
     DepegRiskpool,
-    GifStaking,
     InstanceRegistry,
     ComponentRegistry,
     BundleRegistry,
@@ -93,6 +92,16 @@ def customer2(accounts) -> Account:
     return get_filled_account(accounts, 10, "1 ether")
 
 @pytest.fixture(scope="module")
+def registryOwner(accounts) -> Account:
+    return get_filled_account(accounts, 13, "1 ether")
+
+@pytest.fixture(scope="module")
+def theOutsider(accounts) -> Account:
+    return get_filled_account(accounts, 19, "1 ether")
+
+
+
+@pytest.fixture(scope="module")
 def staker(accounts) -> Account:
     return get_filled_account(accounts, 11, "1 ether")
 
@@ -101,12 +110,16 @@ def staker2(accounts) -> Account:
     return get_filled_account(accounts, 12, "1 ether")
 
 @pytest.fixture(scope="module")
-def registryOwner(accounts) -> Account:
-    return get_filled_account(accounts, 13, "1 ether")
+def stakerWithDips(staker, instanceOperator, dip) -> Account:
+    dips = 1000000 * 10**dip.decimals()
+    dip.transfer(staker, dips, {'from': instanceOperator})
+    return staker
 
 @pytest.fixture(scope="module")
-def theOutsider(accounts) -> Account:
-    return get_filled_account(accounts, 19, "1 ether")
+def staker2WithDips(staker2, instanceOperator, dip) -> Account:
+    dips = 1000000 * 10**dip.decimals()
+    dip.transfer(staker2, dips, {'from': instanceOperator})
+    return staker2
 
 #=== access to gif-contracts contract classes  =======================#
 
@@ -180,52 +193,6 @@ def riskpool(gifDepegProduct) -> DepegRiskpool: return gifDepegProduct.getRiskpo
 
 
 #=== staking fixtures ====================================================#
-
-@pytest.fixture(scope="module")
-def stakerWithDips(staker, dip, instanceOperator, gifStaking) -> Account:
-    dips = 10**6 * 10**dip.decimals()
-    dip.transfer(staker, dips, {'from':instanceOperator})
-    dip.approve(gifStaking.getStakingWallet(), dips, {'from': staker})
-    return staker
-
-
-@pytest.fixture(scope="module")
-def staker2WithDips(staker2, dip, instanceOperator, gifStaking) -> Account:
-    dips = 10**6 * 10**dip.decimals()
-    dip.transfer(staker2, dips, {'from':instanceOperator})
-    dip.approve(gifStaking.getStakingWallet(), dips, {'from': staker2})
-    return staker2
-
-
-@pytest.fixture(scope="module")
-def gifStakingEmpty(
-    instance,
-    instanceService,
-    instanceOperator,
-    dip
-) -> GifStaking: 
-    staking = GifStaking.deploy({'from': instanceOperator})
-    staking.setDipContract(dip)
-    return staking
-
-
-@pytest.fixture(scope="module")
-def gifStaking(
-    instance,
-    instanceService,
-    instanceOperator,
-    dip
-) -> GifStaking: 
-    staking = GifStaking.deploy({'from': instanceOperator})
-    staking.setDipContract(dip)
-    staking.registerGifInstance(
-        instanceService.getInstanceId(),
-        instanceService.getChainId(),
-        instance.getRegistry()
-    )
-
-    return staking
-
 
 @pytest.fixture(scope="module")
 def instanceRegistry(registryOwner) -> InstanceRegistry: 

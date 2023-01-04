@@ -10,7 +10,7 @@ import "@etherisc/gif-interface/contracts/tokens/IBundleToken.sol";
 
 import "./gif/BasicRiskpool2.sol";
 import "./registry/IBundleDataProvider.sol";
-import "./registry/IStakingDataProvider.sol";
+import "./staking/IStakingDataProvider.sol";
 
 
 contract DepegRiskpool is 

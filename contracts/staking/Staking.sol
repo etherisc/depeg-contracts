@@ -3,9 +3,9 @@ pragma solidity 0.8.2;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 
-import "./IInstanceDataProvider.sol";
-import "./IBundleDataProvider.sol";
-import "./BundleRegistry.sol";
+import "../registry/IInstanceDataProvider.sol";
+import "../registry/IBundleDataProvider.sol";
+import "../registry/BundleRegistry.sol";
 
 import "./FixedMath.sol";
 import "./IStakingDataProvider.sol";
@@ -69,6 +69,12 @@ contract Staking is
 
         _stakingWallet = address(this);
     }
+
+
+    function getBundleRegistry() external override view returns(BundleRegistry bundleRegistry) {
+        return _bundleRegistry;
+    }
+
 
 
     function setDipContract(address dipTokenAddress) 
@@ -287,10 +293,9 @@ contract Staking is
         }
 
         IInstanceDataProvider.TokenInfo memory info = _bundleRegistry.getBundleTokenInfo(instanceId, bundleId); 
-        uint256 stakingRate = this.getStakingRate(info.key.token, info.key.chainId);
         uint256 stakedDipAmount = this.getBundleStakes(instanceId, bundleId);
 
-        return _math.ftoi(stakingRate * stakedDipAmount);
+        return this.calculateCapitalSupport(info.key.token, info.key.chainId, stakedDipAmount);
     }
 
     function getStakingRate(
