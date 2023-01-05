@@ -88,9 +88,90 @@ contract Staking is
     }
 
 
+<<<<<<< HEAD
     function increaseRewardReserves(uint256 amount) 
         external override
     {
+=======
+    function getBundleRegistry() external override view returns(BundleRegistry bundleRegistry) {
+        return _bundleRegistry;
+    }
+
+
+    function isBundleStakingSupported(bytes32 instanceId, uint256 bundleId) 
+        external override
+        view 
+        returns(bool isSupported)
+    {
+        IBundleDataProvider.BundleInfo memory info = _bundleRegistry.getBundleInfo(instanceId, bundleId);
+        isSupported = false;
+
+        if(block.timestamp < info.expiryAt) {
+            if(info.closedAt == 0) {
+                isSupported = true;
+            } else if(block.timestamp < info.closedAt) {
+                isSupported = true;
+            }
+        }
+    }
+
+
+    function isBundleUnstakingSupported(bytes32 instanceId, uint256 bundleId) 
+        external override
+        view 
+        returns(bool isSupported)
+    {
+        IBundleDataProvider.BundleInfo memory info = _bundleRegistry.getBundleInfo(instanceId, bundleId);
+        isSupported = false;
+
+        if(block.timestamp >= info.expiryAt) {
+            isSupported = true;
+        } else if(info.closedAt > 0 && block.timestamp >= info.closedAt) {
+            isSupported = true;
+        }
+    }
+
+    function setDipContract(address dipTokenAddress) 
+        external
+        onlyOwner()
+    {
+        require(block.chainid != MAINNET_ID, "ERROR:STK-010:DIP_ADDRESS_CHANGE_NOT_ALLOWED_ON_MAINNET");
+        require(dipTokenAddress != address(0), "ERROR:STK-011:DIP_CONTRACT_ADDRESS_ZERO");
+
+        _dip = IERC20Metadata(dipTokenAddress);
+    }
+
+
+    // dip staking rate: value of 1 dip in amount of provided token (taking into account dip.decimals and token.decimals)
+    function setStakingRate(
+        address token, 
+        uint256 chainId, 
+        uint256 newStakingRate
+    ) 
+        external override
+        onlyOwner()
+    {
+        require(_bundleRegistry.isRegisteredToken(token, chainId), "ERROR:STK-030:TOKEN_NOT_REGISTERED");
+        require(newStakingRate > 0, "ERROR:STK-031:STAKING_RATE_ZERO");
+
+        uint256 oldStakingRate = _stakingRate[token][chainId];
+        _stakingRate[token][chainId] = newStakingRate;
+
+        emit LogStakingStakingRateSet(token, chainId, oldStakingRate, newStakingRate);
+    }
+
+    function stakeForBundle(
+        bytes32 instanceId, 
+        uint256 bundleId, 
+        uint256 amount
+    )
+        external override
+    {
+        require(_bundleRegistry.isRegisteredBundle(instanceId, bundleId), "ERROR:STK-040:BUNDLE_NOT_REGISTERED");
+        require(this.isBundleStakingSupported(instanceId, bundleId), "ERROR:STK-041:STAKING_TOO_LATE");
+        require(amount > 0, "ERROR:STK-042:STAKING_AMOUNT_ZERO");
+
+>>>>>>> abd0433 (enforce locking of staked dip until bundle expiry/closing)
         address user = msg.sender;
         _rewardReserves += amount;
 
@@ -99,7 +180,58 @@ contract Staking is
         emit LogStakingRewardReservesIncreased(
             user,
             amount,
+<<<<<<< HEAD
             _rewardReserves);
+=======
+            rewards
+        );
+    }
+
+    function unstakeFromBundle(
+        bytes32 instanceId, 
+        uint256 bundleId
+    )
+        external override
+    {
+        unstakeFromBundle(instanceId, bundleId, type(uint256).max);
+    }
+
+    function unstakeFromBundle(
+        bytes32 instanceId, 
+        uint256 bundleId, 
+        uint256 amount
+    ) 
+        public override
+        onlyWithBundleStakeInfo(instanceId, bundleId, msg.sender)        
+    {
+        require(this.isBundleUnstakingSupported(instanceId, bundleId), "ERROR:STK-050:UNSTAKING_TOO_EARLY");
+        require(amount > 0, "ERROR:STK-051:UNSTAKING_AMOUNT_ZERO");
+
+        address user = msg.sender;
+        BundleStakeInfo storage stakeInfo = _bundleStakeInfo[instanceId][bundleId][user];
+
+        uint256 rewards = calculateRewardsIncrement(stakeInfo);
+        if(rewards > 0) {
+            _increaseBundleStakes(stakeInfo, rewards);
+        }
+
+        bool unstakeAll = (amount == type(uint256).max);
+        if(unstakeAll) {
+            amount = stakeInfo.balance;
+        }
+
+        _decreaseBundleStakes(stakeInfo, amount);
+        _payoutStakes(user, amount);
+
+        emit LogStakingUnstakedFromBundle(
+            user,
+            instanceId,
+            bundleId,
+            amount,
+            rewards,
+            unstakeAll
+        );
+>>>>>>> abd0433 (enforce locking of staked dip until bundle expiry/closing)
     }
 
 
@@ -745,8 +877,15 @@ contract Staking is
     )
         internal
     {
+<<<<<<< HEAD
         _targetStakeBalance[info.targetId] += amount;
         _stakeBalance += amount;
+=======
+        require(amount <= stakeInfo.balance, "ERROR:STK-120:UNSTAKING_AMOUNT_EXCEEDS_STAKING_BALANCE");
+        _bundleStakedAmount[stakeInfo.key.instanceId][stakeInfo.key.bundleId] -= amount;
+        _instanceStakedAmount[stakeInfo.key.instanceId] -= amount;
+        _overallStakedAmount -= amount;
+>>>>>>> abd0433 (enforce locking of staked dip until bundle expiry/closing)
 
         info.stakeBalance += amount;
         info.updatedAt = block.timestamp;

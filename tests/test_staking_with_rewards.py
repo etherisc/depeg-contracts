@@ -162,8 +162,13 @@ def test_staking_with_rewards(
     chain.mine(1)
 
     withdrawal_amount = 10000 * 10**dip.decimals() + rewards_increment + 1
+<<<<<<< HEAD
     bsi = staking.getInfo(bundle_target_id, staker)
     tx3 = staking.unstake(bundle_target_id, withdrawal_amount, {'from': staker})
+=======
+    bsi = staking.getBundleStakeInfo(instance_id, bundle_id, staker)
+    tx3 = staking.unstakeFromBundle(instance_id, bundle_id, withdrawal_amount, {'from': staker})
+>>>>>>> abd0433 (enforce locking of staked dip until bundle expiry/closing)
     ri_unstake = staking.calculateRewardsIncrement(bsi)
 
     assert 'LogStakingUnstaked' in tx3.events

@@ -149,6 +149,11 @@ def test_staking_happy_path(
     print('--- test setup after withdrawal of remaining staking ---')
     chain.sleep(20)
     chain.mine(1)
+<<<<<<< HEAD
+=======
+
+    staking.unstakeFromBundle(instance_id, bundle_id, {'from': stakerWithDips})
+>>>>>>> abd0433 (enforce locking of staked dip until bundle expiry/closing)
 
     staking.unstakeAndClaimRewards(bundle_target_id, {'from': stakerWithDips})
 
