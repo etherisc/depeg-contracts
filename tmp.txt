@@ -69,12 +69,3 @@ product
   + subtract24hFromTriggeredAt
   + reactivate
 - token registration
-
---
-<<<<<<< HEAD
-FAILED tests/test_product_lifecycle.py::test_product_lifecycle_trigger - AssertionError: Unexpected revert string 'ERROR:DP-011:PRODUCT_NOT_AC...
-FAILED tests/test_product_lifecycle.py::test_product_lifecycle_trigger_and_recover - AssertionError: Unexpected revert string 'ERROR:DP-011:PR...
-FAILED tests/test_product_lifecycle.py::test_product_lifecycle_depeg - AssertionError: Unexpected revert string 'ERROR:DP-011:PRODUCT_NOT_ACTIVE'
-FAILED tests/test_staking_with_rewards.py::test_staking_with_rewards - assert 198086273569499442857 == 198085946046440490876
-=======
->>>>>>> 3b60849 (enforce locking of staked dip until bundle expiry/closing)
