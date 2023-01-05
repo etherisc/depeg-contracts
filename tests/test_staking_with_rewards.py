@@ -93,8 +93,9 @@ def test_staking_with_rewards(
 
     assert staking.calculateRewardsIncrement(bundle_stake_info) == 0
 
-    print('--- wait approx 2 months ---')
-    sleep_duration = 60 * 24 * 3600
+    print('--- wait for half of bundle lifetime  ---')
+    time_until_bundle_expiry = bundle_expiry_at - chain.time()
+    sleep_duration = int(time_until_bundle_expiry/2)
     chain.sleep(sleep_duration)
     chain.mine(1)
 
@@ -125,18 +126,14 @@ def test_staking_with_rewards(
     assert bundle_stake_info2['balance'] == staking_amount + rewards_increment + staking_increment
     assert bundle_stake_info2['updatedAt'] >= bundle_stake_info.dict()['updatedAt'] + sleep_duration
 
-    print('--- partial stake withdrawal ---')
-    sleep_a_little_more_duration = 7 * 24 * 3600
-    chain.sleep(sleep_a_little_more_duration)
+    print('--- wait until expiry time is over ---')
+    chain.sleep(sleep_duration + 1)
     chain.mine(1)
 
-    chain_time_unstake1 = chain.time()
-    chain_time_delta = chain_time_unstake1 - chain_time_after
     withdrawal_amount = 10000 * 10**dip.decimals() + rewards_increment + 1
-
     bsi = staking.getBundleStakeInfo(instance_id, bundle_id, staker)
-    ri_unstake = staking.calculateRewardsIncrement(bsi)
     tx3 = staking.unstakeFromBundle(instance_id, bundle_id, withdrawal_amount, {'from': staker})
+    ri_unstake = staking.calculateRewardsIncrement(bsi)
 
     assert 'LogStakingUnstakedFromBundle' in tx3.events
     assert tx3.events['LogStakingUnstakedFromBundle']['user'] == staker
