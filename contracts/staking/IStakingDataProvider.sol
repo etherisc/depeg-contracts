@@ -17,6 +17,8 @@ interface IStakingDataProvider {
     }
 
     function getBundleRegistry() external view returns(BundleRegistry bundleRegistry);
+    function isBundleStakingSupported(bytes32 instanceId, uint256 bundleId) external view returns(bool isSupported);
+    function isBundleUnstakingSupported(bytes32 instanceId, uint256 bundleId) external view returns(bool isSupported);
 
     function getBundleStakeInfo(bytes32 instanceId, uint256 bundleId, address user) external view returns(BundleStakeInfo memory info);
     function hasBundleStakeInfo(bytes32 instanceId, uint256 bundleId, address user) external view returns(bool hasInfo);

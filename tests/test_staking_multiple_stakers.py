@@ -99,8 +99,9 @@ def test_staking_happy_path(
 
     assert dip.balanceOf(staking.getStakingWallet()) == 2 * staking_amount + initial_dip_balance
 
-    print('--- wait one year ---')
-    chain.sleep(staking.oneYear())
+    print('--- wait until mid staking period ---')
+    time_until_expiry = bundle_expiry_at - chain.time()
+    chain.sleep(int(time_until_expiry/2))
     chain.mine(1)
 
     print('--- test setup after increased staking ---')
@@ -122,7 +123,9 @@ def test_staking_happy_path(
     assert dip.balanceOf(staking.getStakingWallet()) == 2 * staking_amount + increase_amount + initial_dip_balance
 
     print('--- test setup after withdrawal of some staking ---')
-    chain.sleep(1) # force updatedAt > createdAt
+    chain.sleep(int(time_until_expiry/2) + 1) # wait until expiry
+    chain.mine(1)
+
     withdrawal_amount = 7 * 10**4 * 10**dip.decimals()
     staking.unstakeFromBundle(instance_id, bundle_id, withdrawal_amount, {'from': stakerWithDips})
 
@@ -137,7 +140,9 @@ def test_staking_happy_path(
     assert dip.balanceOf(staking.getStakingWallet()) == 2 * staking_amount + increase_amount - withdrawal_amount + initial_dip_balance
 
     print('--- test setup after withdrawal of remaining staking ---')
-    chain.sleep(1) # force updatedAt > createdAt
+    chain.sleep(20)
+    chain.mine(1)
+
     staking.unstakeFromBundle(instance_id, bundle_id, {'from': stakerWithDips})
 
     assert staking.getBundleStakes(instance_id, bundle_id, stakerWithDips) == 0

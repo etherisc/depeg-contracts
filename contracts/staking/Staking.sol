@@ -76,6 +76,38 @@ contract Staking is
     }
 
 
+    function isBundleStakingSupported(bytes32 instanceId, uint256 bundleId) 
+        external override
+        view 
+        returns(bool isSupported)
+    {
+        IBundleDataProvider.BundleInfo memory info = _bundleRegistry.getBundleInfo(instanceId, bundleId);
+        isSupported = false;
+
+        if(block.timestamp < info.expiryAt) {
+            if(info.closedAt == 0) {
+                isSupported = true;
+            } else if(block.timestamp < info.closedAt) {
+                isSupported = true;
+            }
+        }
+    }
+
+
+    function isBundleUnstakingSupported(bytes32 instanceId, uint256 bundleId) 
+        external override
+        view 
+        returns(bool isSupported)
+    {
+        IBundleDataProvider.BundleInfo memory info = _bundleRegistry.getBundleInfo(instanceId, bundleId);
+        isSupported = false;
+
+        if(block.timestamp >= info.expiryAt) {
+            isSupported = true;
+        } else if(info.closedAt > 0 && block.timestamp >= info.closedAt) {
+            isSupported = true;
+        }
+    }
 
     function setDipContract(address dipTokenAddress) 
         external
@@ -114,14 +146,8 @@ contract Staking is
         external override
     {
         require(_bundleRegistry.isRegisteredBundle(instanceId, bundleId), "ERROR:STK-040:BUNDLE_NOT_REGISTERED");
-        require(amount > 0, "ERROR:STK-041:STAKING_AMOUNT_ZERO");
-
-        IBundleDataProvider.BundleInfo memory info = _bundleRegistry.getBundleInfo(instanceId, bundleId);
-        require(
-            info.state == IBundle.BundleState.Active
-            || info.state == IBundle.BundleState.Locked, 
-            "ERROR:STK-042:BUNDLE_CLOSED_OR_BURNED"
-        );
+        require(this.isBundleStakingSupported(instanceId, bundleId), "ERROR:STK-041:STAKING_TOO_LATE");
+        require(amount > 0, "ERROR:STK-042:STAKING_AMOUNT_ZERO");
 
         address user = msg.sender;
         BundleStakeInfo storage stakeInfo = _bundleStakeInfo[instanceId][bundleId][user];
@@ -155,8 +181,6 @@ contract Staking is
         unstakeFromBundle(instanceId, bundleId, type(uint256).max);
     }
 
-    // TODO unstake only when bundle lifetime is over
-    // need a locking time for staked dips
     function unstakeFromBundle(
         bytes32 instanceId, 
         uint256 bundleId, 
@@ -165,7 +189,8 @@ contract Staking is
         public override
         onlyWithBundleStakeInfo(instanceId, bundleId, msg.sender)        
     {
-        require(amount > 0, "ERROR:STK-050:WITHDRAWAL_AMOUNT_ZERO");
+        require(this.isBundleUnstakingSupported(instanceId, bundleId), "ERROR:STK-050:UNSTAKING_TOO_EARLY");
+        require(amount > 0, "ERROR:STK-051:UNSTAKING_AMOUNT_ZERO");
 
         address user = msg.sender;
         BundleStakeInfo storage stakeInfo = _bundleStakeInfo[instanceId][bundleId][user];
@@ -432,7 +457,7 @@ contract Staking is
     )
         internal
     {
-        require(amount <= stakeInfo.balance, "ERROR:STK-120:WITHDRAWAL_AMOUNT_EXCEEDS_STAKING_BALANCE");
+        require(amount <= stakeInfo.balance, "ERROR:STK-120:UNSTAKING_AMOUNT_EXCEEDS_STAKING_BALANCE");
         _bundleStakedAmount[stakeInfo.key.instanceId][stakeInfo.key.bundleId] -= amount;
         _instanceStakedAmount[stakeInfo.key.instanceId] -= amount;
         _overallStakedAmount -= amount;
