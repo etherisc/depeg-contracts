@@ -30,6 +30,8 @@ def test_staking_full_setup(
     instanceOperator: Account,
     product,
     customer: Account,
+    protectedWallet: Account,
+    protectedWallet2: Account,
     investor: Account,
     riskpool,
     riskpoolKeeper: Account,
@@ -115,6 +117,7 @@ def test_staking_full_setup(
         instanceOperator,
         product,
         customer,
+        protectedWallet,
         sum_insured,
         duration_days,
         premium_info['premium'])
@@ -146,6 +149,7 @@ def test_staking_full_setup(
         instanceOperator,
         product,
         customer,
+        protectedWallet2,
         sum_insured,
         duration_days,
         premium_info['premium'])

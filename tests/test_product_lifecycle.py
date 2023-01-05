@@ -122,6 +122,7 @@ def test_product_lifecycle_trigger(
     productOwner,
     product,
     customer,
+    protectedWallet,
 ):
     # fund riskpool
     create_bundle(
@@ -171,6 +172,7 @@ def test_product_lifecycle_trigger(
         instanceOperator,
         product,
         customer,
+        protectedWallet,
         sumInsured,
         durationDays,
         maxPremium)
@@ -215,12 +217,13 @@ def test_product_lifecycle_trigger(
     assert product.getDepegState() == 1 #  enum DepegState { Active, Paused, Deactivated }
 
     # verify that it's not possible to underwrite a new policy
-    with brownie.reverts('ERROR:DP-010:PRODUCT_NOT_ACTIVE'):
+    with brownie.reverts('ERROR:DP-011:PRODUCT_NOT_ACTIVE'):
         apply_for_policy(
             instance,
             instanceOperator,
             product,
             customer,
+            protectedWallet,
             sumInsured,
             durationDays,
             maxPremium)
@@ -234,6 +237,7 @@ def test_product_lifecycle_trigger_and_recover(
     productOwner,
     product,
     customer,
+    protectedWallet,
 ):
     # fund riskpool
     create_bundle(
@@ -275,12 +279,13 @@ def test_product_lifecycle_trigger_and_recover(
     durationDays = 60
     maxPremium = 750
 
-    with brownie.reverts('ERROR:DP-010:PRODUCT_NOT_ACTIVE'):
+    with brownie.reverts('ERROR:DP-011:PRODUCT_NOT_ACTIVE'):
         apply_for_policy(
             instance,
             instanceOperator,
             product,
             customer,
+            protectedWallet,
             sumInsured,
             durationDays,
             maxPremium)
@@ -301,12 +306,13 @@ def test_product_lifecycle_trigger_and_recover(
 
     assert product.getDepegState() == 1 #  enum DepegState { Active, Paused, Deactivated }
 
-    with brownie.reverts('ERROR:DP-010:PRODUCT_NOT_ACTIVE'):
+    with brownie.reverts('ERROR:DP-011:PRODUCT_NOT_ACTIVE'):
         apply_for_policy(
             instance,
             instanceOperator,
             product,
             customer,
+            protectedWallet,
             sumInsured,
             durationDays,
             maxPremium)
@@ -345,6 +351,7 @@ def test_product_lifecycle_trigger_and_recover(
         instanceOperator,
         product,
         customer,
+        protectedWallet,
         sumInsured,
         durationDays,
         maxPremium)
@@ -367,6 +374,7 @@ def test_product_lifecycle_depeg(
     productOwner,
     product,
     customer,
+    protectedWallet,
 ):
     # fund riskpool
     create_bundle(
@@ -450,12 +458,13 @@ def test_product_lifecycle_depeg(
     durationDays = 60
     maxPremium = 750
 
-    with brownie.reverts('ERROR:DP-010:PRODUCT_NOT_ACTIVE'):
+    with brownie.reverts('ERROR:DP-011:PRODUCT_NOT_ACTIVE'):
         apply_for_policy(
             instance,
             instanceOperator,
             product,
             customer,
+            protectedWallet,
             sumInsured,
             durationDays,
             maxPremium)
@@ -472,12 +481,13 @@ def test_product_lifecycle_depeg(
     assert product.getDepegState() == 2 #  enum DepegState { Active, Paused, Deactivated }
 
     # check that recovered price does not mean creating policies is working again
-    with brownie.reverts('ERROR:DP-010:PRODUCT_NOT_ACTIVE'):
+    with brownie.reverts('ERROR:DP-011:PRODUCT_NOT_ACTIVE'):
         apply_for_policy(
             instance,
             instanceOperator,
             product,
             customer,
+            protectedWallet,
             sumInsured,
             durationDays,
             maxPremium)

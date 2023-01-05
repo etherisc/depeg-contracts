@@ -69,5 +69,3 @@ product
   + subtract24hFromTriggeredAt
   + reactivate
 - token registration
-
---

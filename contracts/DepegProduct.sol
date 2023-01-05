@@ -34,8 +34,8 @@ contract DepegProduct is
 
     mapping(address /* policyHolder */ => bytes32 [] /* processIds */) private _processIdsForHolder;
 
-    event LogDepegApplicationCreated(bytes32 policyId, address policyHolder, uint256 premiumAmount, uint256 netPremiumAmount, uint256 sumInsuredAmount);
-    event LogDepegPolicyCreated(bytes32 policyId, address policyHolder, uint256 premiumAmount, uint256 sumInsuredAmount);
+    event LogDepegApplicationCreated(bytes32 processId, address policyHolder, address protectedWallet, uint256 sumInsuredAmount, uint256 premiumAmount, uint256 netPremiumAmount);
+    event LogDepegPolicyCreated(bytes32 processId, address policyHolder, uint256 sumInsuredAmount);
     event LogDepegPolicyProcessed(bytes32 policyId);
 
     event LogDepegPriceInfoUpdated(
@@ -87,6 +87,7 @@ contract DepegProduct is
 
 
     function applyForPolicy(
+        address wallet,
         uint256 sumInsured,
         uint256 duration,
         uint256 maxPremium
@@ -94,9 +95,11 @@ contract DepegProduct is
         external 
         returns(bytes32 processId)
     {
+        require(wallet != address(0), "ERROR:DP-010:WALLET_ADDRESS_ZERO");
+
         // block policy creation when protected stable coin
         // is triggered or depegged
-        require(_state == DepegState.Active, "ERROR:DP-010:PRODUCT_NOT_ACTIVE");
+        require(_state == DepegState.Active, "ERROR:DP-011:PRODUCT_NOT_ACTIVE");
 
         (
             uint256 feeAmount, 
@@ -106,6 +109,7 @@ contract DepegProduct is
         address policyHolder = msg.sender;
         bytes memory metaData = "";
         bytes memory applicationData = _riskPool.encodeApplicationParameterAsData(
+            wallet,
             duration,
             maxNetPremium
         );
@@ -123,9 +127,10 @@ contract DepegProduct is
         emit LogDepegApplicationCreated(
             processId, 
             policyHolder, 
+            wallet,
+            sumInsured,
             maxPremium, 
-            maxNetPremium, 
-            sumInsured);
+            maxNetPremium); 
 
         bool success = _underwrite(processId);
 
@@ -135,7 +140,6 @@ contract DepegProduct is
             emit LogDepegPolicyCreated(
                 processId, 
                 policyHolder, 
-                maxPremium, 
                 sumInsured);
         }
     }
