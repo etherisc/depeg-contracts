@@ -92,6 +92,14 @@ def customer2(accounts) -> Account:
     return get_filled_account(accounts, 10, "1 ether")
 
 @pytest.fixture(scope="module")
+def protectedWallet(accounts) -> Account:
+    return get_filled_account(accounts, 11, "1 ether")
+
+@pytest.fixture(scope="module")
+def protectedWallet2(accounts) -> Account:
+    return get_filled_account(accounts, 12, "1 ether")
+
+@pytest.fixture(scope="module")
 def registryOwner(accounts) -> Account:
     return get_filled_account(accounts, 13, "1 ether")
 

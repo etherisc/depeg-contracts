@@ -34,7 +34,7 @@ product
 - remove hard link between staking and capability to sell policies
   + if staking is not high enough only webui should block, not contract
   + staking webui should show delta between capacity and staking support (and visual cue for "understaked" bundles)
-
+- big cleanup after refactoring
 
 === done 3.1.23 ====
 - add onlyowner for updateinstance/updateToken
@@ -64,36 +64,8 @@ product
   + reactivate
 - token registration
 
--- to do
-
-
-
-to switch from gifStaking to Staking
-[] scripts/test_deployment.py
-
-cleanup contract folder staking
-- remove GifStaking/IStakingRegistry
-- move (I)Staking* and FixedMath to folder staking
-
-cleanup tests
-- delete test_staking_* (*: see below)
-- rename test_staking_*_new to test_staking
-
-[Docker] ❯ find . | grep '.py$' | xargs grep -n gifStaking | cut -d':' -f1 | sort | uniq -c
-done/to be cleaned up
-[+]  6 ./tests/conftest.py
-done/to be removed
-[+] 44 ./tests/test_staking_multiple_stakers.py
-[+] 13 ./tests/test_staking_full_setup.py
-[+] 11 ./tests/test_staking_data_provider.py
-[+] 27 ./tests/test_staking_register_token.py
-[+] 17 ./tests/test_staking_base.py
-[+] 23 ./tests/test_staking_rate.py
-[+]  8 ./tests/test_staking_rewards_calculation.py
-[+] 26 ./tests/test_staking_simple.py
-[+] 23 ./tests/test_staking_with_rewards.py
-
 --
-=========================================================== short test summary info ============================================================
-FAILED tests/test_staking_full_setup.py::test_staking_full_setup - AssertionError: Transaction did not revert
-FAILED tests/test_staking_full_setup_new.py::test_staking_full_setup - AssertionError: Transaction did not revert
+FAILED tests/test_product_lifecycle.py::test_product_lifecycle_trigger - AssertionError: Unexpected revert string 'ERROR:DP-011:PRODUCT_NOT_AC...
+FAILED tests/test_product_lifecycle.py::test_product_lifecycle_trigger_and_recover - AssertionError: Unexpected revert string 'ERROR:DP-011:PR...
+FAILED tests/test_product_lifecycle.py::test_product_lifecycle_depeg - AssertionError: Unexpected revert string 'ERROR:DP-011:PRODUCT_NOT_ACTIVE'
+FAILED tests/test_staking_with_rewards.py::test_staking_with_rewards - assert 198086273569499442857 == 198085946046440490876

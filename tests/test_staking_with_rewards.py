@@ -135,8 +135,8 @@ def test_staking_with_rewards(
     withdrawal_amount = 10000 * 10**dip.decimals() + rewards_increment + 1
 
     bsi = staking.getBundleStakeInfo(instance_id, bundle_id, staker)
-    ri_unstake = staking.calculateRewardsIncrement(bsi)
     tx3 = staking.unstakeFromBundle(instance_id, bundle_id, withdrawal_amount, {'from': staker})
+    ri_unstake = staking.calculateRewardsIncrement(bsi)
 
     assert 'LogStakingUnstakedFromBundle' in tx3.events
     assert tx3.events['LogStakingUnstakedFromBundle']['user'] == staker
