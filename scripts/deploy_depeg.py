@@ -921,7 +921,7 @@ def new_policy(
     tx = product.applyForPolicy(wallet, sumInsured, duration, maxPremium, {'from': customer})
 
     if 'LogDepegApplicationCreated' in tx.events:
-        processId = tx.events['LogDepegApplicationCreated']['policyId']
+        processId = tx.events['LogDepegApplicationCreated']['processId']
     else:
         processId = None
 
