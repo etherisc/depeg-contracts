@@ -399,9 +399,12 @@ contract DepegRiskpool is
         }
 
         // otherwise: get amount supported by staking
-        return _stakingDataProvider.getBundleCapitalSupport(
-            _instanceService.getInstanceId(), 
+        bytes32 targetId = _stakingDataProvider.toBundleTargetId(
+            _instanceService.getInstanceId(),
+            getId(),
             bundleId);
+
+        return _stakingDataProvider.capitalSupport(targetId);
     }
 
 

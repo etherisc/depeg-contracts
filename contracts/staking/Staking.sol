@@ -25,23 +25,31 @@ contract Staking is
     uint256 public constant REWARD_MAX_PERCENTAGE = 33;
     uint256 public constant YEAR_DURATION = 365 days;
 
-    // dip to token staking rate
-    mapping(address /* token */ => mapping(uint256 /* chainId */ => uint256 /* rate */ )) private _stakingRate;
+    // staking wallet (ccount holding dips)
+    uint256 private _stakeBalance;
+    address private _stakingWallet;
 
-    // staking state
-    mapping(bytes32 /* instanceId */ => mapping(uint256 /* bundleId */ => mapping(address /* user */ => BundleStakeInfo))) private _bundleStakeInfo;
-    mapping(bytes32 /* instanceId */ => mapping(uint256 /* bundleId */ => uint256 /* amount staked */)) private _bundleStakedAmount;
-    mapping(bytes32 /* instanceId */ => uint256 /* amount staked */) private _instanceStakedAmount;
-
-    BundleRegistry private _bundleRegistry;
-    IERC20Metadata private _dip;
-    FixedMath private _math;
-
+    // staking rewards
+    uint256 private _rewardReserves;
+    uint256 private _rewardBalance;
     uint256 private _rewardRate;
     uint256 private _rewardRateMax;
 
-    uint256 private _overallStakedAmount;
-    address private _stakingWallet;
+    // dip to token staking rate
+    mapping(address /* token */ => mapping(uint256 /* chainId */ => uint256 /* rate */ )) private _stakingRate;
+
+    // target
+    mapping(bytes32 /* targetId */ => Target) private _target;
+    bytes32 [] private _targetIds;
+
+    // staking
+    mapping(bytes32 /* targetId */ => mapping(address /* user */ => StakeInfo)) private _stakeInfo;
+    mapping(bytes32 /* targetId */ => uint256 /* amount staked */) private _targetStakeBalance;
+
+    // external contracts
+    BundleRegistry private _registry;
+    IERC20Metadata private _dip;
+    FixedMath private _math;
 
 
     modifier onlyDefinedStakingRate(address token, uint256 chainId) {
@@ -49,8 +57,13 @@ contract Staking is
         _;
     }
 
-    modifier onlyWithBundleStakeInfo(bytes32 instanceId, uint256 bundleId, address user) {
-        require(this.hasBundleStakeInfo(instanceId, bundleId, user), "ERROR:STK-002:USER_WITHOUT_BUNDLE_STAKE_INFO");
+    modifier onlyInfo(bytes32 targetId, address user) {
+        require(this.hasInfo(targetId, user), "ERROR:STK-002:USER_WITHOUT_STAKE_INFO");
+        _;
+    }
+
+    modifier onlyTarget(bytes32 targetId) {
+        require(this.isTarget(targetId), "ERROR:STK-003:TARGET_NOT_REGISTERED");
         _;
     }
 
@@ -61,27 +74,223 @@ contract Staking is
     {
         require(bundleRegistryAddress != address(0), "ERROR:STK-005:BUNDLE_REGISTRY_ADDRESS_ZERO");
 
-        _bundleRegistry = BundleRegistry(bundleRegistryAddress);
-
+        _registry = BundleRegistry(bundleRegistryAddress);
         _dip = IERC20Metadata(DIP_CONTRACT_ADDRESS);
         _math = new FixedMath();
-        _rewardRateMax = _math.itof(REWARD_MAX_PERCENTAGE, -2);
 
+        _stakeBalance = 0;
         _stakingWallet = address(this);
+
+        _rewardReserves = 0;
+        _rewardBalance = 0;
+        _rewardRate = 0;
+        _rewardRateMax = _math.itof(REWARD_MAX_PERCENTAGE, -2);
+    }
+
+
+    function increaseRewardReserves(uint256 amount) 
+        external override
+    {
+        address user = msg.sender;
+        _rewardReserves += amount;
+
+        _collectDip(user, amount);
+
+        emit LogStakingRewardReservesIncreased(
+            user,
+            amount,
+            _rewardReserves);
     }
 
 
     function getBundleRegistry() external override view returns(BundleRegistry bundleRegistry) {
-        return _bundleRegistry;
+        return _registry;
     }
 
 
-    function isBundleStakingSupported(bytes32 instanceId, uint256 bundleId) 
+    function targets() external override view returns(uint256 numberOfTargets) {
+        return _targetIds.length;
+    }
+
+
+    function getTargetId(uint256 idx) external override view returns(bytes32 targetId) {
+        require(idx < _targetIds.length, "ERROR:STK-010:TARGET_INDEX_TOO_LARGE");
+        return _targetIds[idx];
+    }
+
+
+    function isTarget(bytes32 targetId) external override view returns(bool isATarget) {
+        return _target[targetId].targetType != TargetType.Undefined;
+    }
+
+    function isTargetRegistered(Target memory target) 
+        external override 
+        view 
+        returns(bool isRegistered)
+    {
+        if(target.targetType == TargetType.Instance) {
+            return _registry.isRegisteredInstance(target.instanceId);
+        } else if(target.targetType == TargetType.Component) {
+            return _registry.isRegisteredComponent(target.instanceId, target.componentId);
+        } else if(target.targetType == TargetType.Bundle) {
+            return _registry.isRegisteredBundle(target.instanceId, target.bundleId);
+        } else {
+            return false;
+        }
+    }
+
+
+    function getTarget(bytes32 targetId) 
         external override
         view 
+        onlyTarget(targetId)
+        returns(Target memory target)
+    {
+        return _target[targetId];
+    }
+
+
+    function register(
+        bytes32 targetId, 
+        Target memory target
+    ) 
+        external override
+    {
+        require(!this.isTarget(targetId), "ERROR:STK-010:TARGET_ALREADY_REGISTERED");
+        require(targetId == _toTargetId(target), "ERROR:STK-011:TARGET_DATA_INCONSISTENT");
+
+        // once a target is available in registry anybody may register it 
+        // as a staking target
+        require(this.isTargetRegistered(target), "ERROR:STK-012:TARGET_NOT_IN_REGISTRY");
+
+        _target[targetId] = target;
+        _targetIds.push(targetId);
+
+        emit LogStakingTargetRegistered(
+            targetId, 
+            target.targetType, 
+            target.instanceId, 
+            target.componentId, 
+            target.bundleId);
+    }
+
+
+    function toTarget(
+        TargetType targetType,
+        bytes32 instanceId,
+        uint256 componentId,
+        uint256 bundleId,
+        bytes memory data
+    )
+        external override
+        view
+        returns(
+            bytes32 targetId,
+            Target memory target
+        )
+    {
+        // default token data
+        address token = address(0);
+        uint256 chainId = 0;
+
+        // targetId attributes
+        if(targetType == TargetType.Instance) {
+            componentId = 0;
+            bundleId = 0;
+            data = "";
+        } else if(targetType == TargetType.Component) {
+            bundleId = 0;
+            data = "";
+        } else if(targetType == TargetType.Bundle) {
+            // if available use bundle riskpool id instead of provided component id
+            if(_registry.isRegisteredBundle(instanceId, bundleId)) {
+                IBundleDataProvider.BundleInfo memory info = _registry.getBundleInfo(instanceId, bundleId);
+                componentId = info.riskpoolId;
+            }
+
+            data = "";
+        } else {
+            revert("ERROR:STK-019:TARGET_TYPE_UNSUPPORTED");
+        }
+
+        // set target token where available
+        if(_registry.isRegisteredComponent(instanceId, componentId)) {
+            IComponentDataProvider.ComponentInfo memory info = _registry.getComponentInfo(instanceId, componentId);
+            token = info.token;
+            chainId = info.chainId;
+        }
+
+        return (
+            _toTargetId(targetType, instanceId, componentId, bundleId, data),
+            Target(
+                targetType,
+                instanceId,
+                componentId,
+                bundleId,
+                data,
+                token,
+                chainId
+            ));
+    }
+
+
+    function toInstanceTargetId(bytes32 instanceId)
+        external override
+        pure 
+        returns(bytes32 targetId)
+    {
+        return _toTargetId(
+            TargetType.Instance, 
+            instanceId, 
+            0, 
+            0, 
+            "");
+    }
+
+
+    function toComponentTargetId(
+        bytes32 instanceId, 
+        uint256 componentId
+    ) 
+        external override 
+        pure 
+        returns(bytes32 targetId)
+    {
+        return _toTargetId(
+            TargetType.Component, 
+            instanceId, 
+            componentId, 
+            0, 
+            "");
+    }
+
+    function toBundleTargetId(
+        bytes32 instanceId, 
+        uint256 componentId,
+        uint256 bundleId
+    )
+        external override 
+        pure 
+        returns(bytes32 targetId)
+    {
+        return _toTargetId(
+            TargetType.Bundle, 
+            instanceId, 
+            componentId, 
+            bundleId, 
+            "");
+    }
+
+    function isStakingSupported(bytes32 targetId) 
+        external override
+        view 
+        onlyTarget(targetId)
         returns(bool isSupported)
     {
-        IBundleDataProvider.BundleInfo memory info = _bundleRegistry.getBundleInfo(instanceId, bundleId);
+        Target memory target = this.getTarget(targetId);
+        require(target.targetType == TargetType.Bundle, "ERROR:STK-006:TARGET_NOT_BUNDLE");
+
+        IBundleDataProvider.BundleInfo memory info = _registry.getBundleInfo(target.instanceId, target.bundleId);
         isSupported = false;
 
         if(block.timestamp < info.expiryAt) {
@@ -94,12 +303,16 @@ contract Staking is
     }
 
 
-    function isBundleUnstakingSupported(bytes32 instanceId, uint256 bundleId) 
+    function isUnstakingSupported(bytes32 targetId) 
         external override
         view 
+        onlyTarget(targetId)
         returns(bool isSupported)
     {
-        IBundleDataProvider.BundleInfo memory info = _bundleRegistry.getBundleInfo(instanceId, bundleId);
+        Target memory target = this.getTarget(targetId);
+        require(target.targetType == TargetType.Bundle, "ERROR:STK-007:TARGET_NOT_BUNDLE");
+
+        IBundleDataProvider.BundleInfo memory info = _registry.getBundleInfo(target.instanceId, target.bundleId);
         isSupported = false;
 
         if(block.timestamp >= info.expiryAt) {
@@ -120,7 +333,8 @@ contract Staking is
     }
 
 
-    // dip staking rate: value of 1 dip in amount of provided token (taking into account dip.decimals and token.decimals)
+    // dip staking rate: value of 1 dip in amount of provided token 
+    // (taking into account dip.decimals and token.decimals)
     function setStakingRate(
         address token, 
         uint256 chainId, 
@@ -129,7 +343,7 @@ contract Staking is
         external override
         onlyOwner()
     {
-        require(_bundleRegistry.isRegisteredToken(token, chainId), "ERROR:STK-030:TOKEN_NOT_REGISTERED");
+        require(_registry.isRegisteredToken(token, chainId), "ERROR:STK-030:TOKEN_NOT_REGISTERED");
         require(newStakingRate > 0, "ERROR:STK-031:STAKING_RATE_ZERO");
 
         uint256 oldStakingRate = _stakingRate[token][chainId];
@@ -138,83 +352,148 @@ contract Staking is
         emit LogStakingStakingRateSet(token, chainId, oldStakingRate, newStakingRate);
     }
 
-    function stakeForBundle(
-        bytes32 instanceId, 
-        uint256 bundleId, 
+    function stake(
+        bytes32 targetId, 
         uint256 amount
     )
         external override
+        onlyTarget(targetId)
     {
-        require(_bundleRegistry.isRegisteredBundle(instanceId, bundleId), "ERROR:STK-040:BUNDLE_NOT_REGISTERED");
-        require(this.isBundleStakingSupported(instanceId, bundleId), "ERROR:STK-041:STAKING_TOO_LATE");
+        require(this.isStakingSupported(targetId), "ERROR:STK-041:STAKING_NOT_SUPPORTED");
         require(amount > 0, "ERROR:STK-042:STAKING_AMOUNT_ZERO");
 
         address user = msg.sender;
-        BundleStakeInfo storage stakeInfo = _bundleStakeInfo[instanceId][bundleId][user];
+        Target memory target = _target[targetId];
+        StakeInfo storage info = _stakeInfo[targetId][user];
 
         // handling for new stakes
-        if(stakeInfo.createdAt == 0) {
-            stakeInfo.user = user;
-            stakeInfo.key = IBundleDataProvider.BundleKey(instanceId, bundleId);
-            stakeInfo.createdAt = block.timestamp;
+        if(info.createdAt == 0) {
+            info.user = user;
+            info.targetId = targetId;
+            info.stakeBalance = 0;
+            info.rewardBalance = 0;
+            info.createdAt = block.timestamp;
         }
 
-        uint256 rewards = calculateRewardsIncrement(stakeInfo);
-        _increaseBundleStakes(stakeInfo, amount + rewards);
-        _collectStakes(user, amount);
+        _updateRewards(info);
+        _increaseStakes(info, amount);
+        _collectDip(user, amount);
 
-        emit LogStakingStakedForBundle(
-            user,
-            instanceId,
-            bundleId,
+        emit LogStakingStaked(
+            info.user,
+            info.targetId,
+            target.instanceId,
+            target.componentId,
+            target.bundleId,
             amount,
-            rewards
+            _stakeBalance
         );
     }
 
-    function unstakeFromBundle(
-        bytes32 instanceId, 
-        uint256 bundleId
+
+    function unstakeAndClaimRewards(
+        bytes32 targetId
     )
         external override
     {
-        unstakeFromBundle(instanceId, bundleId, type(uint256).max);
+        this.unstake(targetId, type(uint256).max);
     }
 
-    function unstakeFromBundle(
-        bytes32 instanceId, 
-        uint256 bundleId, 
+
+    function unstake(
+        bytes32 targetId, 
         uint256 amount
     ) 
-        public override
-        onlyWithBundleStakeInfo(instanceId, bundleId, msg.sender)        
+        external override
+        onlyInfo(targetId, msg.sender)        
     {
-        require(this.isBundleUnstakingSupported(instanceId, bundleId), "ERROR:STK-050:UNSTAKING_TOO_EARLY");
-        require(amount > 0, "ERROR:STK-051:UNSTAKING_AMOUNT_ZERO");
+        require(this.isUnstakingSupported(targetId), "ERROR:STK-050:UNSTAKE_NOT_SUPPORTED");
+        require(amount > 0, "ERROR:STK-051:UNSTAKE_AMOUNT_ZERO");
 
         address user = msg.sender;
-        BundleStakeInfo storage stakeInfo = _bundleStakeInfo[instanceId][bundleId][user];
+        Target memory target = _target[targetId];
+        StakeInfo storage info = _stakeInfo[targetId][user];
 
-        uint256 rewards = calculateRewardsIncrement(stakeInfo);
-        if(rewards > 0) {
-            _increaseBundleStakes(stakeInfo, rewards);
-        }
+        _updateRewards(info);
 
         bool unstakeAll = (amount == type(uint256).max);
         if(unstakeAll) {
-            amount = stakeInfo.balance;
+            amount = info.stakeBalance;
         }
 
-        _decreaseBundleStakes(stakeInfo, amount);
-        _payoutStakes(user, amount);
+        _decreaseStakes(info, amount);
+        _payoutDip(user, amount);
 
-        emit LogStakingUnstakedFromBundle(
+        emit LogStakingUnstaked(
             user,
-            instanceId,
-            bundleId,
+            targetId,
+            target.instanceId,
+            target.componentId,
+            target.bundleId,
             amount,
-            rewards,
-            unstakeAll
+            info.stakeBalance
+        );
+
+        if(unstakeAll) {
+            _claimRewards(target, info);
+        }
+    }
+
+
+    function claimRewards(bytes32 targetId)
+        external override
+        onlyInfo(targetId, msg.sender)
+    {
+        Target memory target = _target[targetId];
+        StakeInfo storage info = _stakeInfo[targetId][msg.sender];
+        _claimRewards(target, info);
+    }
+
+
+    function stakes(bytes32 targetId, address user)
+        external override 
+        view 
+        returns(uint256 dipAmount)
+    {
+        return _stakeInfo[targetId][user].stakeBalance;
+    }
+
+
+    function stakes(bytes32 targetId)
+        external override 
+        view 
+        returns(uint256 dipAmount)
+    {
+        return _targetStakeBalance[targetId];
+    }
+
+
+    function _claimRewards(
+        Target memory target, 
+        StakeInfo storage info
+    )
+        internal
+    {
+        uint256 amount = info.rewardBalance;
+
+        // ensure reward payout is within avaliable reward reserves
+        if(amount > _rewardReserves) {
+            amount = _rewardReserves;
+        }
+
+        _rewardReserves -= amount;
+
+        _decreaseRewards(info, amount);
+        _payoutDip(info.user, amount);
+
+        emit LogStakingRewardsClaimed(
+            info.user,
+            info.targetId,
+            target.instanceId,
+            target.componentId,
+            target.bundleId,
+            amount,
+            info.rewardBalance
         );
     }
 
@@ -234,94 +513,56 @@ contract Staking is
     }
 
 
-    function hasBundleStakeInfo(
-        bytes32 instanceId,
-        uint256 bundleId,
+    function hasInfo(
+        bytes32 targetId,
         address user
     )
         external override
         view
-        returns(bool hasInfo)
+        returns(bool hasStakeInfo)
     {
-        BundleStakeInfo memory stakeInfo = _bundleStakeInfo[instanceId][bundleId][user];
-        return stakeInfo.createdAt > 0;
+        return _stakeInfo[targetId][user].createdAt > 0;
     }
 
 
-    function getBundleStakeInfo(
-        bytes32 instanceId, 
-        uint256 bundleId,
+    function getInfo(
+        bytes32 targetId,
         address user
     )
         external override
         view
-        onlyWithBundleStakeInfo(instanceId, bundleId, user)
-        returns(BundleStakeInfo memory info)
+        onlyInfo(targetId, user)
+        returns(StakeInfo memory info)
     {
-        return _bundleStakeInfo[instanceId][bundleId][user];
+        return _stakeInfo[targetId][user];
     }
 
 
-    function getBundleStakes(
-        bytes32 instanceId, 
-        uint256 bundleId,
-        address user
-    )
-        external override 
-        view 
-        returns(uint256 dipAmount)
-    {
-        return _bundleStakeInfo[instanceId][bundleId][user].balance;
-    }
-
-
-    function getBundleStakes(
-        bytes32 instanceId, 
-        uint256 bundleId
-    )
-        external override 
-        view 
-        returns(uint256 dipAmount)
-    {
-        require(_bundleRegistry.isRegisteredBundle(instanceId, bundleId), "ERROR:STK-070:BUNDLE_NOT_REGISTERED");
-        return _bundleStakedAmount[instanceId][bundleId];
-    }
-
-
-    function getTotalStakes(bytes32 instanceId)
-        external override 
-        view
-        returns(uint256 dipAmount)
-    {
-        require(_bundleRegistry.isRegisteredInstance(instanceId), "ERROR:STK-080:INSTANCE_NOT_REGISTERED");
-        return _instanceStakedAmount[instanceId];
-    }
-
-
-    function getTotalStakes() external override view returns(uint256 dipAmount) {
-        return _overallStakedAmount;
-    }
-
-
-    function getBundleCapitalSupport(
-        bytes32 instanceId, 
-        uint256 bundleId
-    )
+    function capitalSupport(bytes32 targetId)
         external override
         view
         returns(uint256 capitalAmount)
     {
-        // if bundle is not registered it is not possible that any dips have been staked
+        // if target is not registered it is not possible that any dips have been staked
         // as a result capital support is 0 too
-        if(!_bundleRegistry.isRegisteredBundle(instanceId, bundleId)) {
+        if(!this.isTarget(targetId)) {
             return 0;
         }
 
-        IInstanceDataProvider.TokenInfo memory info = _bundleRegistry.getBundleTokenInfo(instanceId, bundleId); 
-        uint256 stakedDipAmount = this.getBundleStakes(instanceId, bundleId);
+        // get target token data
+        Target memory target = this.getTarget(targetId);
 
-        return this.calculateCapitalSupport(info.key.token, info.key.chainId, stakedDipAmount);
+        // without a defined token staking does not lead to capital support
+        if(target.token == address(0)) {
+            return 0;
+        }
+
+        return this.calculateCapitalSupport(
+            target.token, 
+            target.chainId, 
+            _targetStakeBalance[targetId]);
     }
+
 
     function getStakingRate(
         address token, 
@@ -331,9 +572,10 @@ contract Staking is
         view
         returns(uint256 rate)
     {
-        require(_bundleRegistry.isRegisteredToken(token, chainId), "ERROR:STK-100:TOKEN_NOT_REGISTERED");
+        require(_registry.isRegisteredToken(token, chainId), "ERROR:STK-100:TOKEN_NOT_REGISTERED");
         return _stakingRate[token][chainId];
     }
+
 
     function hasDefinedStakingRate(
         address token, 
@@ -357,7 +599,7 @@ contract Staking is
         onlyDefinedStakingRate(token, chainId)        
         returns(uint dipAmount)
     {
-        IInstanceDataProvider.TokenInfo memory info = _bundleRegistry.getTokenInfo(token, chainId);
+        IInstanceDataProvider.TokenInfo memory info = _registry.getTokenInfo(token, chainId);
         uint256 rate = _stakingRate[token][chainId];
         return _math.div(targetAmount, rate) * 10 ** (DIP_DECIMALS - info.decimals);
     }
@@ -372,7 +614,7 @@ contract Staking is
         onlyDefinedStakingRate(token, chainId)        
         returns(uint tokenAmount)
     {
-        IInstanceDataProvider.TokenInfo memory info = _bundleRegistry.getTokenInfo(token, chainId);
+        IInstanceDataProvider.TokenInfo memory info = _registry.getTokenInfo(token, chainId);
         uint256 rate = _stakingRate[token][chainId];
         return (_math.mul(dipAmount, rate) * 10 ** info.decimals) / 10 ** DIP_DECIMALS;
     }
@@ -386,7 +628,7 @@ contract Staking is
     }
 
 
-    function calculateRewardsIncrement(BundleStakeInfo memory stakeInfo)
+    function calculateRewardsIncrement(StakeInfo memory stakeInfo)
         public override
         view
         returns(uint256 rewardsAmount)
@@ -395,7 +637,7 @@ contract Staking is
 
         // TODO potentially reduce time depending on the time when the bundle has been closed
 
-        rewardsAmount = calculateRewards(stakeInfo.balance, timeSinceLastUpdate);
+        rewardsAmount = calculateRewards(stakeInfo.stakeBalance, timeSinceLastUpdate);
     }
 
 
@@ -420,6 +662,17 @@ contract Staking is
         return _stakingWallet;
     }
 
+    function getRewardReserves() external override view returns(uint256 rewardReserves) {
+        return _rewardReserves;
+    }
+
+    function getRewardBalance() external override view returns(uint256 rewardReserves) {
+        return _rewardBalance;
+    }
+
+    function getStakeBalance() external override view returns(uint256 stakesBalane) {
+        return _stakeBalance;
+    }
 
     function oneYear() external override pure returns(uint256 yearInSeconds) {
         return YEAR_DURATION;
@@ -436,53 +689,115 @@ contract Staking is
         );
     }
 
-    function _increaseBundleStakes(
-        BundleStakeInfo storage stakeInfo,
+
+    function _toTargetId(Target memory target)
+        internal 
+        pure 
+        returns(bytes32 targetId)
+    {
+        return _toTargetId(
+            target.targetType,
+            target.instanceId,
+            target.componentId,
+            target.bundleId,
+            target.data);
+    }
+
+
+    function _toTargetId(
+        TargetType targetType,
+        bytes32 instanceId,
+        uint256 componentId,
+        uint256 bundleId,
+        bytes memory data
+    )
+        internal
+        pure
+        returns(bytes32 targetId)
+    {
+        targetId = keccak256(
+            abi.encodePacked(
+                targetType,
+                instanceId, 
+                componentId,
+                bundleId,
+                data
+            ));
+    }
+
+
+    function _updateRewards(StakeInfo storage info)
+        internal
+    {
+        uint256 amount = calculateRewardsIncrement(info);
+        _rewardBalance += amount;
+
+        info.rewardBalance += amount;
+        info.updatedAt = block.timestamp;
+    }
+
+
+    function _decreaseRewards(
+        StakeInfo storage info,
         uint256 amount
     )
         internal
     {
-        _bundleStakedAmount[stakeInfo.key.instanceId][stakeInfo.key.bundleId] += amount;
-        _instanceStakedAmount[stakeInfo.key.instanceId] += amount;
-        _overallStakedAmount += amount;
+        _rewardBalance -= amount;
 
-        stakeInfo.balance += amount;
-        stakeInfo.updatedAt = block.timestamp;
+        info.rewardBalance -= amount;
+        info.updatedAt = block.timestamp;
     }
 
 
-    function _decreaseBundleStakes(
-        BundleStakeInfo storage stakeInfo,
+    function _increaseStakes(
+        StakeInfo storage info,
         uint256 amount
     )
         internal
     {
-        require(amount <= stakeInfo.balance, "ERROR:STK-120:UNSTAKING_AMOUNT_EXCEEDS_STAKING_BALANCE");
-        _bundleStakedAmount[stakeInfo.key.instanceId][stakeInfo.key.bundleId] -= amount;
-        _instanceStakedAmount[stakeInfo.key.instanceId] -= amount;
-        _overallStakedAmount -= amount;
+        _stakeBalance += amount;
 
-        stakeInfo.balance -= amount;
-        stakeInfo.updatedAt = block.timestamp;
+        info.stakeBalance += amount;
+        info.updatedAt = block.timestamp;
     }
-    
 
 
-    function _collectStakes(address staker, uint256 amount)
+    function _decreaseStakes(
+        StakeInfo storage info,
+        uint256 amount
+    )
         internal
     {
-        _dip.transferFrom(staker, _stakingWallet, amount);
+        require(amount <= info.stakeBalance, "ERROR:STK-120:UNSTAKING_AMOUNT_EXCEEDS_STAKING_BALANCE");
+        _stakeBalance -= amount;
+
+        info.stakeBalance -= amount;
+        info.updatedAt = block.timestamp;
     }
 
 
-    function _payoutStakes(address staker, uint256 amount)
+    function _collectDip(address user, uint256 amount)
+        internal
+    {
+        _dip.transferFrom(user, _stakingWallet, amount);
+
+        // enforce dip balance matches with stakes and reward reserve bookkeeping
+        assert(_dip.balanceOf(_stakingWallet) == _stakeBalance + _rewardReserves);
+    }
+
+
+    function _payoutDip(address user, uint256 amount)
         internal
     {
         if(_stakingWallet != address(this)) {
-            _dip.transferFrom(_stakingWallet, staker, amount);
+            _dip.transferFrom(_stakingWallet, user, amount);
         }
         else {
-            _dip.transfer(staker, amount);
+            _dip.transfer(user, amount);
         }
+
+        // enforce dip balance matches with stakes and reward reserve bookkeeping
+        assert(_dip.balanceOf(_stakingWallet) == _stakeBalance + _rewardReserves);
     }
 }
