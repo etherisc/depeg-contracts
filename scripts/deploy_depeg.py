@@ -197,7 +197,7 @@ def verify_deploy(
         'BundleRegistryRiskpoolRegistered',
         bundle_registry.isRegisteredComponent(instance_id, riskpool_id), 
         True)
-    
+
     bundle_ids = riskpool.getActiveBundleIds()
 
     verify_element(
@@ -211,7 +211,8 @@ def verify_deploy(
             bundle_registry.getBundleId(instance_id, riskpool_id, idx),
             bundle_id)
 
-        staked_dips = staking.getBundleStakes(instance_id, bundle_id)
+        bundle_target_id = staking.toBundleTargetId(instance_id, riskpool_id, bundle_id)
+        staked_dips = staking.stakes(bundle_target_id)
         stakes_ok = 'OK' if staked_dips > 0 else 'ERROR'
         print('StakingBundleStakedDip{} {} {} {:.2f}'.format(
             idx,
@@ -220,7 +221,7 @@ def verify_deploy(
             staked_dips/10**dip.decimals()
         ))
 
-        capital_support = staking.getBundleCapitalSupport(instance_id, bundle_id)
+        capital_support = staking.capitalSupport(bundle_target_id)
         support_ok = 'OK' if capital_support > 0 else 'ERROR'
         print('StakingBundleCapitalSupport{} {} {} {:.2f}'.format(
             idx,
@@ -744,9 +745,17 @@ def all_in_1(
     dip.transfer(a[STAKER], required_dip, {'from': a[INSTANCE_OPERATOR]})
     dip.approve(staking.getStakingWallet(), required_dip, {'from':a[STAKER]}) 
 
+    type_bundle = 4
+    (bundle_target_id1, bt1) = staking.toTarget(type_bundle, instance_id, riskpool_id, bundle_id1, '')
+    (bundle_target_id2, bt2) = staking.toTarget(type_bundle, instance_id, riskpool_id, bundle_id2, '')
+
+    # register bundles as staking targets
+    staking.register(bundle_target_id1, bt1, {'from': a[STAKER]})
+    staking.register(bundle_target_id2, bt2, {'from': a[STAKER]})
+
     # leave staker with 0.1 * required_dip as 'play' funding for later use
-    staking.stakeForBundle(instance_id, bundle_id1, 0.4 * required_dip, {'from': a[STAKER]})
-    staking.stakeForBundle(instance_id, bundle_id2, 0.5 * required_dip, {'from': a[STAKER]})
+    staking.stake(bundle_target_id1, 0.4 * required_dip, {'from': a[STAKER]})
+    staking.stake(bundle_target_id2, 0.5 * required_dip, {'from': a[STAKER]})
 
     print('--- create policy ---')
     customer_funding=1000 * mult

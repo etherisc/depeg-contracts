@@ -288,7 +288,11 @@ contract Staking is
         returns(bool isSupported)
     {
         Target memory target = this.getTarget(targetId);
-        require(target.targetType == TargetType.Bundle, "ERROR:STK-006:TARGET_NOT_BUNDLE");
+
+        // currently only bundle staking is supported
+        if(target.targetType != TargetType.Bundle) {
+            return false;
+        }
 
         IBundleDataProvider.BundleInfo memory info = _registry.getBundleInfo(target.instanceId, target.bundleId);
         isSupported = false;
@@ -310,7 +314,11 @@ contract Staking is
         returns(bool isSupported)
     {
         Target memory target = this.getTarget(targetId);
-        require(target.targetType == TargetType.Bundle, "ERROR:STK-007:TARGET_NOT_BUNDLE");
+
+        // currently only bundle (un)staking is supported
+        if(target.targetType != TargetType.Bundle) {
+            return false;
+        }
 
         IBundleDataProvider.BundleInfo memory info = _registry.getBundleInfo(target.instanceId, target.bundleId);
         isSupported = false;
@@ -391,26 +399,27 @@ contract Staking is
     }
 
 
-    function unstakeAndClaimRewards(
-        bytes32 targetId
-    )
-        external override
-    {
-        this.unstake(targetId, type(uint256).max);
+    function unstakeAndClaimRewards(bytes32 targetId) external override {
+        _unstake(targetId, msg.sender, type(uint256).max);
     }
 
 
-    function unstake(
-        bytes32 targetId, 
+    function unstake(bytes32 targetId, uint256 amount) external override {
+        _unstake(targetId, msg.sender, amount);
+    }
+
+
+    function _unstake(
+        bytes32 targetId,
+        address user, 
         uint256 amount
     ) 
-        external override
-        onlyInfo(targetId, msg.sender)        
+        internal
+        onlyInfo(targetId, user)        
     {
         require(this.isUnstakingSupported(targetId), "ERROR:STK-050:UNSTAKE_NOT_SUPPORTED");
         require(amount > 0, "ERROR:STK-051:UNSTAKE_AMOUNT_ZERO");
 
-        address user = msg.sender;
         Target memory target = _target[targetId];
         StakeInfo storage info = _stakeInfo[targetId][user];
 
@@ -756,6 +765,7 @@ contract Staking is
     )
         internal
     {
+        _targetStakeBalance[info.targetId] += amount;
         _stakeBalance += amount;
 
         info.stakeBalance += amount;
@@ -770,6 +780,8 @@ contract Staking is
         internal
     {
         require(amount <= info.stakeBalance, "ERROR:STK-120:UNSTAKING_AMOUNT_EXCEEDS_STAKING_BALANCE");
+
+        _targetStakeBalance[info.targetId] -= amount;
         _stakeBalance -= amount;
 
         info.stakeBalance -= amount;
