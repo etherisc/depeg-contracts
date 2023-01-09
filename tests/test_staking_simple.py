@@ -240,7 +240,7 @@ def test_staking_failure_modes(
     type_bundle = 4
     (bundle_target_id, bt) = staking.toTarget(type_bundle, instance_id, riskpool_id, bundle_id, '')
 
-    with brownie.reverts('ERROR:STK-012:TARGET_NOT_IN_REGISTRY'):
+    with brownie.reverts('ERROR:STK-032:TARGET_NOT_IN_REGISTRY'):
         staking.register(bundle_target_id, bt)
 
     # 1st attempt to get bundle stake info
@@ -276,7 +276,7 @@ def test_staking_failure_modes(
     with brownie.reverts("ERROR:STK-002:USER_WITHOUT_STAKE_INFO"):
         staking.getInfo(bundle_target_id, stakerWithDips)
 
-    with brownie.reverts("ERROR:STK-042:STAKING_AMOUNT_ZERO"):
+    with brownie.reverts("ERROR:STK-041:STAKING_AMOUNT_ZERO"):
         staking.stake(bundle_target_id, 0, {'from': stakerWithDips})
 
     # create approval and try again
@@ -284,7 +284,7 @@ def test_staking_failure_modes(
     staking.stake(bundle_target_id, staking_amount, {'from': stakerWithDips})
 
     # 2nd attempt to unstake from bundle
-    with brownie.reverts("ERROR:STK-050:UNSTAKE_NOT_SUPPORTED"):
+    with brownie.reverts("ERROR:STK-250:UNSTAKE_NOT_SUPPORTED"):
         staking.unstake(bundle_target_id, 0, {'from': stakerWithDips})
 
     # wait to allow unstaking
@@ -292,14 +292,14 @@ def test_staking_failure_modes(
     chain.mine(1)
 
     # 2nd attempt to unstake from bundle
-    with brownie.reverts("ERROR:STK-051:UNSTAKE_AMOUNT_ZERO"):
+    with brownie.reverts("ERROR:STK-251:UNSTAKE_AMOUNT_ZERO"):
         staking.unstake(bundle_target_id, 0, {'from': stakerWithDips})
 
     # 3rd attempt to unstake from bundle
-    with brownie.reverts("ERROR:STK-120:UNSTAKING_AMOUNT_EXCEEDS_STAKING_BALANCE"):
+    with brownie.reverts("ERROR:STK-270:UNSTAKING_AMOUNT_EXCEEDS_STAKING_BALANCE"):
         staking.unstake(bundle_target_id, staking_amount + 1, {'from': stakerWithDips})
 
     # attempt to stake after bundle is expired/closed
-    with brownie.reverts('ERROR:STK-041:STAKING_NOT_SUPPORTED'):
+    with brownie.reverts('ERROR:STK-040:STAKING_NOT_SUPPORTED'):
         dip.approve(staking.getStakingWallet(), staking_amount, {'from': stakerWithDips})
         staking.stake(bundle_target_id, staking_amount, {'from': stakerWithDips})

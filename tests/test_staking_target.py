@@ -246,7 +246,7 @@ def test_targets_failure_modes(
     # register instance target
     staking.register(iid, instance_target)
 
-    with brownie.reverts('ERROR:STK-010:TARGET_INDEX_TOO_LARGE'):
+    with brownie.reverts('ERROR:STK-200:TARGET_INDEX_TOO_LARGE'):
         target = staking.getTargetId(1)
 
     (cid, component_target) = staking.toTarget(
@@ -257,18 +257,18 @@ def test_targets_failure_modes(
         staking.getTarget(cid)
 
     # try to register protocol target (not (yet) supported)
-    with brownie.reverts('ERROR:STK-019:TARGET_TYPE_UNSUPPORTED'):
+    with brownie.reverts('ERROR:STK-220:TARGET_TYPE_UNSUPPORTED'):
         (pid, protocol_target) = staking.toTarget(
             type_protocol, 0, 0, 0, '')
 
     # try to re-register instance target
-    with brownie.reverts('ERROR:STK-010:TARGET_ALREADY_REGISTERED'):
+    with brownie.reverts('ERROR:STK-030:TARGET_ALREADY_REGISTERED'):
         staking.register(iid, instance_target)
 
     # try to register target with a non-matching id
-    with brownie.reverts('ERROR:STK-011:TARGET_DATA_INCONSISTENT'):
+    with brownie.reverts('ERROR:STK-031:TARGET_DATA_INCONSISTENT'):
         staking.register(cid, instance_target)
 
     # try to register component target (without having registered component first)
-    with brownie.reverts('ERROR:STK-012:TARGET_NOT_IN_REGISTRY'):
+    with brownie.reverts('ERROR:STK-032:TARGET_NOT_IN_REGISTRY'):
         staking.register(cid, component_target)
