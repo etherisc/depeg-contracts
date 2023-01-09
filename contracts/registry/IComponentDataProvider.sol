@@ -17,6 +17,8 @@ interface IComponentDataProvider is
         ComponentKey key;
         IComponent.ComponentType componentType;
         IComponent.ComponentState state;
+        address token;
+        uint256 chainId;
         uint256 createdAt;
         uint256 updatedAt;
     }

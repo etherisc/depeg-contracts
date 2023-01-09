@@ -62,7 +62,7 @@ def test_reward_rate_failure_modes(
     reward_rate_i = reward_rate_f * 10 ** exp
     reward_rate = staking.toRate(reward_rate_i, -exp)
 
-    with brownie.reverts('ERROR:STK-060:REWARD_EXCEEDS_MAX_VALUE'):
+    with brownie.reverts('ERROR:STK-010:REWARD_EXCEEDS_MAX_VALUE'):
         staking.setRewardRate(reward_rate, {'from': registryOwner})
 
 
@@ -253,7 +253,7 @@ def test_staking_rate_failure_modes(
     staking_rate_i = staking_rate_f * 10 ** exp
     staking_rate = staking.toRate(staking_rate_i, -exp)
 
-    with brownie.reverts('ERROR:STK-030:TOKEN_NOT_REGISTERED'):
+    with brownie.reverts('ERROR:STK-020:TOKEN_NOT_REGISTERED'):
         staking.setStakingRate(
             usd1.address,
             web3.chain_id,
@@ -273,7 +273,7 @@ def test_staking_rate_failure_modes(
     # attempt to set zero rate
     staking_rate_zero = 0
 
-    with brownie.reverts('ERROR:STK-031:STAKING_RATE_ZERO'):
+    with brownie.reverts('ERROR:STK-021:STAKING_RATE_ZERO'):
         staking.setStakingRate(
             usd1.address,
             web3.chain_id,

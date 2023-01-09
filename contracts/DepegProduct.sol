@@ -260,12 +260,12 @@ contract DepegProduct is
     function calculateNetPremium(uint256 sumInsured, uint256 duration, uint256 bundleId) public view returns(uint256 netPremium) {
         IBundle.Bundle memory bundle = _instanceService.getBundle(bundleId);
         (
-            string memory name,
-            uint256 lifetime,
-            uint256 minSumInsured,
-            uint256 maxSumInsured,
-            uint256 minDuration,
-            uint256 maxDuration,
+            , // name not needed
+            , // lifetime not needed
+            , // minSumInsured not needed
+            , // maxSumInsured not needed
+            , // minDuration not needed
+            , // maxDuration not needed
             uint256 annualPercentageReturn
         ) = _riskPool.decodeBundleParamsFromFilter(bundle.filter);
         netPremium = _riskPool.calculatePremium(sumInsured, duration, annualPercentageReturn);

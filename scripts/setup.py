@@ -99,8 +99,7 @@ def create_bundle(
         funding, 
         {'from': investor})
 
-    # returns bundleId
-    return tx.return_value
+    return tx.events['LogRiskpoolBundleCreated']['bundleId']
 
 
 def apply_for_policy(
@@ -125,5 +124,4 @@ def apply_for_policy(
         maxPremium, 
         {'from': customer})
 
-    # returns policy id
-    return tx.return_value
+    return tx.events['LogApplicationCreated']['processId']
