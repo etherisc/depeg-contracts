@@ -19,6 +19,8 @@ interface IStaking is
     event LogStakingRewardsUpdated(address user, bytes32 targetId, bytes32 instanceId, uint256 componentId, uint256 bundleId, uint256 amount, uint256 newBalance);
     event LogStakingRewardsClaimed(address user, bytes32 targetId, bytes32 instanceId, uint256 componentId, uint256 bundleId, uint256 amount, uint256 newBalance);
 
+    event LogStakingDipBalanceChanged(uint256 stakeBalance, uint256 rewardBalance, uint256 actualBalance, uint reserves);
+
     function increaseRewardReserves(uint256 amount) external;
 
     function setRewardRate(uint256 rewardRate) external;
