@@ -129,4 +129,4 @@ def apply_for_policy(
         maxPremium, 
         {'from': customer})
 
-    return tx.events['LogDepegPolicyCreated']['policyId']
+    return tx.events['LogApplicationCreated']['processId']
