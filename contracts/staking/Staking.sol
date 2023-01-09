@@ -383,7 +383,7 @@ contract Staking is
             info.createdAt = block.timestamp;
         }
 
-        _updateRewards(info);
+        _updateRewards(target, info);
         _increaseStakes(info, amount);
         _collectDip(user, amount);
 
@@ -423,7 +423,7 @@ contract Staking is
         Target memory target = _target[targetId];
         StakeInfo storage info = _stakeInfo[targetId][user];
 
-        _updateRewards(info);
+        _updateRewards(target, info);
 
         bool unstakeAll = (amount == type(uint256).max);
         if(unstakeAll) {
@@ -484,6 +484,9 @@ contract Staking is
         internal
     {
         uint256 amount = info.rewardBalance;
+
+        // TODO remove require, only for testing here...
+        require(amount <= _rewardReserves, 'ERR:REWARD_RESERVES_INSUFFICIENT');
 
         // ensure reward payout is within avaliable reward reserves
         if(amount > _rewardReserves) {
@@ -735,7 +738,7 @@ contract Staking is
     }
 
 
-    function _updateRewards(StakeInfo storage info)
+    function _updateRewards(Target memory target, StakeInfo storage info)
         internal
     {
         uint256 amount = calculateRewardsIncrement(info);
@@ -743,6 +746,16 @@ contract Staking is
 
         info.rewardBalance += amount;
         info.updatedAt = block.timestamp;
+
+        emit LogStakingRewardsUpdated(
+            info.user,
+            info.targetId,
+            target.instanceId,
+            target.componentId,
+            target.bundleId,
+            amount,
+            info.rewardBalance
+        );
     }
 
 
@@ -794,8 +807,12 @@ contract Staking is
     {
         _dip.transferFrom(user, _stakingWallet, amount);
 
-        // enforce dip balance matches with stakes and reward reserve bookkeeping
-        assert(_dip.balanceOf(_stakingWallet) == _stakeBalance + _rewardReserves);
+        uint256 actualBalance = _dip.balanceOf(_stakingWallet);
+        emit LogStakingDipBalanceChanged(
+            _stakeBalance,
+            _rewardBalance, 
+            actualBalance, 
+            actualBalance - _stakeBalance - _rewardBalance);
     }
 
 
@@ -809,7 +826,11 @@ contract Staking is
             _dip.transfer(user, amount);
         }
 
-        // enforce dip balance matches with stakes and reward reserve bookkeeping
-        assert(_dip.balanceOf(_stakingWallet) == _stakeBalance + _rewardReserves);
+        uint256 actualBalance = _dip.balanceOf(_stakingWallet);
+        emit LogStakingDipBalanceChanged(
+            _stakeBalance,
+            _rewardBalance, 
+            actualBalance, 
+            actualBalance - _stakeBalance - _rewardBalance);
     }
 }

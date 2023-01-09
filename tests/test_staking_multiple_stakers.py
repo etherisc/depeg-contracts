@@ -71,14 +71,19 @@ def test_staking_happy_path(
 
     print('--- everything ready before any staking is done ---')
     initial_dip_balance = 10**6 * 10**dip.decimals()
-    dip.transfer(staking.getStakingWallet(), initial_dip_balance, {'from':instanceOperator})
+    dip.approve(staking.getStakingWallet(), initial_dip_balance, {'from':instanceOperator})
+    tx = staking.increaseRewardReserves(initial_dip_balance, {'from':instanceOperator})
 
-    assert staking.getBundleStakes(instance_id, bundle_id, stakerWithDips) == 0
-    assert staking.getBundleStakes(instance_id, bundle_id, staker2WithDips) == 0
+    type_bundle = 4
+    (bundle_target_id, bt) = staking.toTarget(type_bundle, instance_id, riskpool_id, bundle_id, '')
+    staking.register(bundle_target_id, bt)
 
-    assert staking.getBundleStakes(instance_id, bundle_id) == 0
-    assert staking.getTotalStakes(instance_id) == 0
-    assert staking.getTotalStakes() == 0
+    assert staking.stakes(bundle_target_id, stakerWithDips) == 0
+    assert staking.stakes(bundle_target_id, staker2WithDips) == 0
+
+    assert staking.stakes(bundle_target_id) == 0
+    assert staking.getStakeBalance() == 0
+    assert staking.getRewardBalance() == 0
 
     assert dip.balanceOf(staking.getStakingWallet()) == initial_dip_balance
 
@@ -87,15 +92,15 @@ def test_staking_happy_path(
     dip.approve(staking.getStakingWallet(), staking_amount, {'from': stakerWithDips})
     dip.approve(staking.getStakingWallet(), staking_amount, {'from': staker2WithDips})
 
-    staking.stakeForBundle(instance_id, bundle_id, staking_amount, {'from': stakerWithDips})
-    staking.stakeForBundle(instance_id, bundle_id, staking_amount, {'from': staker2WithDips})
+    staking.stake(bundle_target_id, staking_amount, {'from': stakerWithDips})
+    staking.stake(bundle_target_id, staking_amount, {'from': staker2WithDips})
 
-    assert staking.getBundleStakes(instance_id, bundle_id, stakerWithDips) == staking_amount
-    assert staking.getBundleStakes(instance_id, bundle_id, staker2WithDips) == staking_amount
+    assert staking.stakes(bundle_target_id, stakerWithDips) == staking_amount
+    assert staking.stakes(bundle_target_id, staker2WithDips) == staking_amount
 
-    assert staking.getBundleStakes(instance_id, bundle_id) == 2 * staking_amount
-    assert staking.getTotalStakes(instance_id) == 2 * staking_amount
-    assert staking.getTotalStakes() == 2 * staking_amount
+    assert staking.stakes(bundle_target_id) == 2 * staking_amount
+    assert staking.getStakeBalance() == 2 * staking_amount
+    assert staking.getRewardBalance() == 0
 
     assert dip.balanceOf(staking.getStakingWallet()) == 2 * staking_amount + initial_dip_balance
 
@@ -105,20 +110,21 @@ def test_staking_happy_path(
     chain.mine(1)
 
     print('--- test setup after increased staking ---')
-    stake_info = staking.getBundleStakeInfo(instance_id, bundle_id, stakerWithDips)
+    stake_info = staking.getInfo(bundle_target_id, stakerWithDips)
     reward_amount = staking.calculateRewardsIncrement(stake_info)
     increase_amount = 5 * 10**4 * 10**dip.decimals()
     dip.approve(staking.getStakingWallet(), increase_amount, {'from': stakerWithDips})
 
-    staking.stakeForBundle(instance_id, bundle_id, increase_amount, {'from': stakerWithDips})
+    staking.stake(bundle_target_id, increase_amount, {'from': stakerWithDips})
 
-    assert staking.getBundleStakes(instance_id, bundle_id, stakerWithDips) == staking_amount + reward_amount + increase_amount
-    assert staking.getBundleStakes(instance_id, bundle_id, staker2WithDips) == staking_amount
+    assert staking.stakes(bundle_target_id, stakerWithDips) == staking_amount + increase_amount
+    assert staking.stakes(bundle_target_id, staker2WithDips) == staking_amount
 
-    total_stakes = 2 * staking_amount + reward_amount + increase_amount
-    assert staking.getBundleStakes(instance_id, bundle_id) == total_stakes
-    assert staking.getTotalStakes(instance_id) == total_stakes
-    assert staking.getTotalStakes() == total_stakes
+    total_stakes = 2 * staking_amount + increase_amount
+    assert staking.stakes(bundle_target_id) == total_stakes
+
+    assert staking.getStakeBalance() == total_stakes
+    assert staking.getRewardBalance() == reward_amount
 
     assert dip.balanceOf(staking.getStakingWallet()) == 2 * staking_amount + increase_amount + initial_dip_balance
 
@@ -127,15 +133,16 @@ def test_staking_happy_path(
     chain.mine(1)
 
     withdrawal_amount = 7 * 10**4 * 10**dip.decimals()
-    staking.unstakeFromBundle(instance_id, bundle_id, withdrawal_amount, {'from': stakerWithDips})
+    staking.unstake(bundle_target_id, withdrawal_amount, {'from': stakerWithDips})
 
-    assert staking.getBundleStakes(instance_id, bundle_id, stakerWithDips) == staking_amount + reward_amount + increase_amount - withdrawal_amount
-    assert staking.getBundleStakes(instance_id, bundle_id, staker2WithDips) == staking_amount
+    assert staking.stakes(bundle_target_id, stakerWithDips) == staking_amount + reward_amount + increase_amount - withdrawal_amount
+    assert staking.stakes(bundle_target_id, staker2WithDips) == staking_amount
 
-    total_stakes = 2 * staking_amount + reward_amount + increase_amount - withdrawal_amount
-    assert staking.getBundleStakes(instance_id, bundle_id) == total_stakes
-    assert staking.getTotalStakes(instance_id) == total_stakes
-    assert staking.getTotalStakes() == total_stakes
+    total_stakes = 2 * staking_amount + increase_amount - withdrawal_amount
+    assert staking.stakes(bundle_target_id) == total_stakes
+
+    assert staking.getStakeBalance() == total_stakes
+    assert staking.getRewardBalance() == reward_amount
 
     assert dip.balanceOf(staking.getStakingWallet()) == 2 * staking_amount + increase_amount - withdrawal_amount + initial_dip_balance
 
@@ -143,13 +150,14 @@ def test_staking_happy_path(
     chain.sleep(20)
     chain.mine(1)
 
-    staking.unstakeFromBundle(instance_id, bundle_id, {'from': stakerWithDips})
+    staking.unstakeAndClaimRewards(bundle_target_id, {'from': stakerWithDips})
 
-    assert staking.getBundleStakes(instance_id, bundle_id, stakerWithDips) == 0
-    assert staking.getBundleStakes(instance_id, bundle_id, staker2WithDips) == staking_amount
+    assert staking.stakes(bundle_target_id, stakerWithDips) == 0
+    assert staking.stakes(bundle_target_id, staker2WithDips) == staking_amount
 
-    assert staking.getBundleStakes(instance_id, bundle_id) == staking_amount
-    assert staking.getTotalStakes(instance_id) == staking_amount
-    assert staking.getTotalStakes() == staking_amount
+    assert staking.stakes(bundle_target_id) == staking_amount
+
+    assert staking.getStakeBalance() == staking_amount
+    assert staking.getRewardBalance() == 0
 
     assert dip.balanceOf(staking.getStakingWallet()) == initial_dip_balance + staking_amount - reward_amount

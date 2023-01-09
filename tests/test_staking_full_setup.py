@@ -83,6 +83,11 @@ def test_staking_full_setup(
     assert bundle['capital'] > 0.9 * FUNDING
     assert bundle['lockedCapital'] == 0
 
+    print('--- register bundle as staking target ---')
+    type_bundle = 4
+    (bundle_target_id, bt) = staking.toTarget(type_bundle, instance_id, riskpool_id, bundle_id, '')
+    staking.register(bundle_target_id, bt)
+
     print('--- link riskpool to staking contract ---')
     riskpool.setStakingDataProvider(staking, {'from': riskpoolKeeper})
 
@@ -95,8 +100,8 @@ def test_staking_full_setup(
     assert bundle['capital'] > 0.9 * FUNDING
     assert bundle['lockedCapital'] == 0
 
-    assert staking.getBundleStakes(instance_id, bundle_id) == 0
-    assert staking.getBundleCapitalSupport(instance_id, bundle_id) == 0
+    assert staking.stakes(bundle_target_id) == 0
+    assert staking.capitalSupport(bundle_target_id) == 0
 
     # case: insufficient staking
     # attempt to buy a policy where the sum insured cannot be covered by riskpool
@@ -109,8 +114,8 @@ def test_staking_full_setup(
     assert premium_info['comment'] == 'recommended bundle'
 
     # check that capital support is 0 (as nothing has yet been staked to the bundle)
-    assert staking.getBundleCapitalSupport(instance_id, bundle_id) == 0
-    assert sum_insured > staking.getBundleCapitalSupport(instance_id, bundle_id)
+    assert staking.capitalSupport(bundle_target_id) == 0
+    assert sum_insured > staking.capitalSupport(bundle_target_id) == 0
 
     process_id1 = apply_for_policy(
         instance,
@@ -135,13 +140,12 @@ def test_staking_full_setup(
     print('--- add bundle stakes and retry to buy a policy---')
     target_usd2_support = 3 * sum_insured
     required_staking_amount = staking.calculateRequiredStaking(usd2, chain_id, target_usd2_support)
-    staking_amount = 100000 * 10**dip.decimals()
     dip.approve(staking.getStakingWallet(), required_staking_amount, {'from': stakerWithDips})
-    staking.stakeForBundle(instance_id, bundle_id, required_staking_amount, {'from': stakerWithDips})
+    staking.stake(bundle_target_id, required_staking_amount, {'from': stakerWithDips})
 
     # check conditions to allow for underwriting
-    assert staking.getBundleStakes(instance_id, bundle_id) == required_staking_amount
-    assert staking.getBundleCapitalSupport(instance_id, bundle_id) == target_usd2_support
+    assert staking.stakes(bundle_target_id) == required_staking_amount
+    assert staking.capitalSupport(bundle_target_id) == target_usd2_support
     assert sum_insured <= bundle['capital'] - bundle['lockedCapital']
 
     process_id2 = apply_for_policy(
@@ -168,6 +172,6 @@ def test_staking_full_setup(
     print('bundle2 {}'.format(bundle2))
 
     assert bundle2['bundleId'] == bundle_id
-    assert bundle2['capitalSupportedByStaking'] == staking.getBundleCapitalSupport(instance_id, bundle_id)
+    assert bundle2['capitalSupportedByStaking'] == staking.capitalSupport(bundle_target_id)
     assert bundle2['capital'] == bundle['capital']
     assert bundle2['lockedCapital'] == 2 * sum_insured

@@ -57,37 +57,61 @@ def test_staking_with_rewards(
     assert dip.balanceOf(staker) == 0
 
     initial_dip_balance = 10**6 * 10**dip.decimals()
-    dip.transfer(staking.getStakingWallet(), initial_dip_balance, {'from':instanceOperator})
     dip.transfer(staker, initial_dip_balance, {'from':instanceOperator})
+
+    dip.approve(staking.getStakingWallet(), initial_dip_balance, {'from':instanceOperator})
+    tx = staking.increaseRewardReserves(initial_dip_balance, {'from':instanceOperator})
+
+    assert 'LogStakingRewardReservesIncreased' in tx.events
+    assert tx.events['LogStakingRewardReservesIncreased']['user'] == instanceOperator
+    assert tx.events['LogStakingRewardReservesIncreased']['amount'] == initial_dip_balance
+    assert tx.events['LogStakingRewardReservesIncreased']['newBalance'] == initial_dip_balance
+
+    assert 'LogStakingDipBalanceChanged' in tx.events
+    assert tx.events['LogStakingDipBalanceChanged']['stakeBalance'] == 0 
+    assert tx.events['LogStakingDipBalanceChanged']['rewardBalance'] == 0 
+    assert tx.events['LogStakingDipBalanceChanged']['actualBalance'] == initial_dip_balance
+    assert tx.events['LogStakingDipBalanceChanged']['reserves'] == initial_dip_balance
 
     assert dip.balanceOf(staking.getStakingWallet()) == initial_dip_balance
     assert dip.balanceOf(staker) == initial_dip_balance
 
     print('--- setup with initial staking ---')
+    type_bundle = 4
+    (bundle_target_id, bt) = staking.toTarget(type_bundle, instance_id, riskpool_id, bundle_id, '')
+    staking.register(bundle_target_id, bt)
+
     staking_amount = 50000 * 10**dip.decimals()
     dip.approve(staking.getStakingWallet(), staking_amount, {'from':staker})
 
     chain_time_before = chain.time()
-    tx = staking.stakeForBundle(instance_id, bundle_id, staking_amount, {'from': staker})
+    tx = staking.stake(bundle_target_id, staking_amount, {'from': staker})
 
-    assert 'LogStakingStakedForBundle' in tx.events
-    assert tx.events['LogStakingStakedForBundle']['user'] == staker
-    assert tx.events['LogStakingStakedForBundle']['instanceId'] == instance_id
-    assert tx.events['LogStakingStakedForBundle']['bundleId'] == bundle_id
-    assert tx.events['LogStakingStakedForBundle']['amount'] == staking_amount
-    assert tx.events['LogStakingStakedForBundle']['rewards'] == 0
+    assert 'LogStakingStaked' in tx.events
+    assert tx.events['LogStakingStaked']['user'] == staker
+    assert tx.events['LogStakingStaked']['targetId'] == bundle_target_id
+    assert tx.events['LogStakingStaked']['instanceId'] == instance_id
+    assert tx.events['LogStakingStaked']['bundleId'] == bundle_id
+    assert tx.events['LogStakingStaked']['amount'] == staking_amount
+    assert tx.events['LogStakingStaked']['newBalance'] == staking_amount
+
+    assert 'LogStakingDipBalanceChanged' in tx.events
+    assert tx.events['LogStakingDipBalanceChanged']['stakeBalance'] == staking_amount
+    assert tx.events['LogStakingDipBalanceChanged']['rewardBalance'] == 0
+    assert tx.events['LogStakingDipBalanceChanged']['actualBalance'] == initial_dip_balance + staking_amount
+    assert tx.events['LogStakingDipBalanceChanged']['reserves'] == initial_dip_balance
 
     assert dip.balanceOf(staking) == initial_dip_balance + staking_amount
     assert dip.balanceOf(staker) == initial_dip_balance - staking_amount
 
-    bundle_stake_info = staking.getBundleStakeInfo(instance_id, bundle_id, staker)
+    bundle_stake_info = staking.getInfo(bundle_target_id, staker)
     info = bundle_stake_info.dict()
     print('info {}'.format(info))
 
     assert info['user'] == staker
-    assert info['key'][0] == instance_id
-    assert info['key'][1] == bundle_id
-    assert info['balance'] == staking_amount
+    assert info['targetId'] == bundle_target_id
+    assert info['stakeBalance'] == staking_amount
+    assert info['rewardBalance'] == 0
     assert info['createdAt'] > 0
     assert info['updatedAt'] == info['createdAt']
 
@@ -105,25 +129,32 @@ def test_staking_with_rewards(
 
     chain_time_after = chain.time()
     rr = staking.fromRate(reward_rate).dict()
-    tx2 = staking.stakeForBundle(instance_id, bundle_id, staking_increment, {'from': staker})
+    tx2 = staking.stake(bundle_target_id, staking_increment, {'from': staker})
 
     rewards_increment = staking.calculateRewardsIncrement(bundle_stake_info)
     duration_factor = (chain_time_after - chain_time_before) / staking.oneYear()
     rewards_increment_expected = staking_amount * duration_factor * rr['value']/rr['divisor']
+
+    assert 'LogStakingDipBalanceChanged' in tx.events
+    assert tx.events['LogStakingDipBalanceChanged']['stakeBalance'] == staking_amount
+    assert tx.events['LogStakingDipBalanceChanged']['rewardBalance'] == 0
+    assert tx.events['LogStakingDipBalanceChanged']['actualBalance'] == initial_dip_balance + staking_amount
+    assert tx.events['LogStakingDipBalanceChanged']['reserves'] == initial_dip_balance
 
     # sensitivity: < 1 / 1'000'000
     assert (rewards_increment - rewards_increment_expected)/rewards_increment_expected <= 10**-6
     assert dip.balanceOf(staking) == initial_dip_balance + staking_amount + staking_increment
     assert dip.balanceOf(staker) == initial_dip_balance - staking_amount - staking_increment
 
-    assert 'LogStakingStakedForBundle' in tx2.events
-    assert tx2.events['LogStakingStakedForBundle']['amount'] == staking_increment
-    assert tx2.events['LogStakingStakedForBundle']['rewards'] == rewards_increment
+    assert 'LogStakingStaked' in tx2.events
+    assert tx2.events['LogStakingStaked']['amount'] == staking_increment
+    assert tx2.events['LogStakingStaked']['newBalance'] == staking_amount + staking_increment
 
-    bundle_stake_info2 = staking.getBundleStakeInfo(instance_id, bundle_id, staker).dict()
+    bundle_stake_info2 = staking.getInfo(bundle_target_id, staker).dict()
     print('bundle_stake_info2 {}'.format(bundle_stake_info2))
 
-    assert bundle_stake_info2['balance'] == staking_amount + rewards_increment + staking_increment
+    assert bundle_stake_info2['stakeBalance'] == staking_amount + staking_increment
+    assert bundle_stake_info2['rewardBalance'] == rewards_increment
     assert bundle_stake_info2['updatedAt'] >= bundle_stake_info.dict()['updatedAt'] + sleep_duration
 
     print('--- wait until expiry time is over ---')
@@ -131,43 +162,68 @@ def test_staking_with_rewards(
     chain.mine(1)
 
     withdrawal_amount = 10000 * 10**dip.decimals() + rewards_increment + 1
-    bsi = staking.getBundleStakeInfo(instance_id, bundle_id, staker)
-    tx3 = staking.unstakeFromBundle(instance_id, bundle_id, withdrawal_amount, {'from': staker})
+    bsi = staking.getInfo(bundle_target_id, staker)
+    tx3 = staking.unstake(bundle_target_id, withdrawal_amount, {'from': staker})
     ri_unstake = staking.calculateRewardsIncrement(bsi)
 
-    assert 'LogStakingUnstakedFromBundle' in tx3.events
-    assert tx3.events['LogStakingUnstakedFromBundle']['user'] == staker
-    assert tx3.events['LogStakingUnstakedFromBundle']['instanceId'] == instance_id
-    assert tx3.events['LogStakingUnstakedFromBundle']['bundleId'] == bundle_id
-    assert tx3.events['LogStakingUnstakedFromBundle']['amount'] == withdrawal_amount
-    assert tx3.events['LogStakingUnstakedFromBundle']['rewards'] == ri_unstake
-    assert tx3.events['LogStakingUnstakedFromBundle']['all'] is False
+    assert 'LogStakingUnstaked' in tx3.events
+    assert tx3.events['LogStakingUnstaked']['user'] == staker
+    assert tx3.events['LogStakingUnstaked']['targetId'] == bundle_target_id
+    assert tx3.events['LogStakingUnstaked']['instanceId'] == instance_id
+    assert tx3.events['LogStakingUnstaked']['componentId'] == riskpool_id
+    assert tx3.events['LogStakingUnstaked']['bundleId'] == bundle_id
+    assert tx3.events['LogStakingUnstaked']['amount'] == withdrawal_amount
+    assert tx3.events['LogStakingUnstaked']['newBalance'] == staking_amount + staking_increment - withdrawal_amount
+
+    assert 'LogStakingRewardsUpdated' in tx3.events
+    assert tx3.events['LogStakingRewardsUpdated']['user'] == staker
+    assert tx3.events['LogStakingRewardsUpdated']['targetId'] == bundle_target_id
+    assert tx3.events['LogStakingRewardsUpdated']['instanceId'] == instance_id
+    assert tx3.events['LogStakingRewardsUpdated']['componentId'] == riskpool_id
+    assert tx3.events['LogStakingRewardsUpdated']['bundleId'] == bundle_id
+    assert tx3.events['LogStakingRewardsUpdated']['amount'] == ri_unstake
+
+    expected_reward_balance = rewards_increment_expected + ri_unstake
+    actual_reward_balance = tx3.events['LogStakingRewardsUpdated']['newBalance']
+    assert abs(expected_reward_balance - actual_reward_balance)/expected_reward_balance < 10**-6
 
     assert dip.balanceOf(staking) == initial_dip_balance + staking_amount + staking_increment - withdrawal_amount
     assert dip.balanceOf(staker) == initial_dip_balance - staking_amount - staking_increment + withdrawal_amount
 
-    bundle_stake_info3 = staking.getBundleStakeInfo(instance_id, bundle_id, staker)
+    bundle_stake_info3 = staking.getInfo(bundle_target_id, staker)
     print('bundle_stake_info3 {}'.format(bundle_stake_info3.dict()))
 
     expected_balance = 40000 * 10**dip.decimals() + ri_unstake
-    assert bundle_stake_info3.dict()['balance'] == expected_balance
+    bsi3 = bundle_stake_info3.dict()
+    assert bsi3['stakeBalance'] + bsi3['rewardBalance'] == expected_balance
 
     print('--- remaining stake withdrawal ---')
-    tx4 = staking.unstakeFromBundle(instance_id, bundle_id, {'from': staker})
+    tx4 = staking.unstakeAndClaimRewards(bundle_target_id, {'from': staker})
     ri_final = staking.calculateRewardsIncrement(bundle_stake_info3)
 
-    assert 'LogStakingUnstakedFromBundle' in tx4.events
-    assert tx4.events['LogStakingUnstakedFromBundle']['user'] == staker
-    assert tx4.events['LogStakingUnstakedFromBundle']['instanceId'] == instance_id
-    assert tx4.events['LogStakingUnstakedFromBundle']['bundleId'] == bundle_id
-    assert tx4.events['LogStakingUnstakedFromBundle']['amount'] == expected_balance + ri_final
-    assert tx4.events['LogStakingUnstakedFromBundle']['rewards'] == ri_final
-    assert tx4.events['LogStakingUnstakedFromBundle']['all'] is True
+    assert 'LogStakingUnstaked' in tx4.events
+    assert tx4.events['LogStakingUnstaked']['user'] == staker
+    assert tx4.events['LogStakingUnstaked']['targetId'] == bundle_target_id
+    assert tx4.events['LogStakingUnstaked']['instanceId'] == instance_id
+    assert tx4.events['LogStakingUnstaked']['componentId'] == riskpool_id
+    assert tx4.events['LogStakingUnstaked']['bundleId'] == bundle_id
+    assert tx4.events['LogStakingUnstaked']['amount'] == bsi3['stakeBalance']
+    assert tx4.events['LogStakingUnstaked']['newBalance'] == 0
+
+    assert 'LogStakingRewardsClaimed' in tx4.events
+    assert tx4.events['LogStakingRewardsClaimed']['user'] == staker
+    assert tx4.events['LogStakingRewardsClaimed']['targetId'] == bundle_target_id
+    assert tx4.events['LogStakingRewardsClaimed']['instanceId'] == instance_id
+    assert tx4.events['LogStakingRewardsClaimed']['componentId'] == riskpool_id
+    assert tx4.events['LogStakingRewardsClaimed']['bundleId'] == bundle_id
+    assert tx4.events['LogStakingRewardsClaimed']['amount'] == bsi3['rewardBalance'] + ri_final
+    assert tx4.events['LogStakingRewardsClaimed']['newBalance'] == 0
 
     assert dip.balanceOf(staker) == initial_dip_balance + rewards_increment + ri_unstake + ri_final
 
-    bundle_stake_info4 = staking.getBundleStakeInfo(instance_id, bundle_id, staker).dict()
+    bundle_stake_info4 = staking.getInfo(bundle_target_id, staker).dict()
     print('bundle_stake_info4 {}'.format(bundle_stake_info4))
 
     expected_balance = 0
-    assert bundle_stake_info4['balance'] == expected_balance
+    assert bundle_stake_info4['stakeBalance'] == expected_balance
+    assert bundle_stake_info4['rewardBalance'] == expected_balance
