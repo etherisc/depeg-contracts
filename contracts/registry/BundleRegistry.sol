@@ -35,7 +35,6 @@ contract BundleRegistry is
     )
         external override
         onlyRegisteredComponent(instanceId, riskpoolId)
-        // TODO add onlyRegisteredRiskpool + tests
         onlyUnregisteredBundle(instanceId, bundleId)
         onlySameChain(instanceId)
     {
@@ -46,7 +45,10 @@ contract BundleRegistry is
         {
             InstanceInfo memory instance = getInstanceInfo(instanceId);
             IInstanceService instanceService = _getInstanceService(instance.registry);
+
             bundle = instanceService.getBundle(bundleId);
+            require(riskpoolId == bundle.riskpoolId, "ERROR:BRG-010:BUNDLE_RISKPOOL_MISMATCH");
+
             token = address(instanceService.getComponentToken(riskpoolId));
         }
         

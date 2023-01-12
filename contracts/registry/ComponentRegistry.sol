@@ -32,7 +32,9 @@ contract ComponentRegistry is
             instanceId,
             componentId,
             instanceService.getComponentType(componentId),
-            instanceService.getComponentState(componentId)
+            instanceService.getComponentState(componentId),
+            address(instanceService.getComponentToken(componentId)),
+            instanceService.getChainId()
         );
     }
 
@@ -90,7 +92,9 @@ contract ComponentRegistry is
         bytes32 instanceId,
         uint256 componentId,
         IComponent.ComponentType componentType,
-        IComponent.ComponentState state
+        IComponent.ComponentState state,
+        address token,
+        uint256 chainId
     )
         internal
     {
@@ -106,6 +110,8 @@ contract ComponentRegistry is
 
         component.componentType = componentType;
         component.state = state;
+        component.token = token;
+        component.chainId = chainId;
         component.updatedAt = block.timestamp;
 
         emit LogInstanceRegistryComponentRegistered(

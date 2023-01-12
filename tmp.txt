@@ -2,6 +2,11 @@ depeg
 
 === priorization ===
 - separate book keeping for rewards and stakes
+  + guaranteed payback of stakes
+  + no zinseszins/guaranteed rewards etc.
+  + reward payouts from separate account as long as its balance > 0
+  + separate functions for unstakeFromBundle and claimBundleStakeRewards
+  + later: nft defines owner of bundle stakes and includes access to related rewards
 - staking nft
 - api
 
@@ -30,6 +35,13 @@ product
   + policy holder to actively withraw payout per/from protected wallet
   + token balance at block timestamp
   + withdrawPayout
+
+=== done 6.1.23 ===
+- failure mode testing for staking target handling
+
+=== done 6.1.23 ===
+- new unified staking api (separate bookkeeping for stakes and rewards, support more than bundles)
+- begin of substantial refactoring
 
 === done 5.1.23 ===
 - locking period for staking
@@ -71,3 +83,49 @@ product
 - token registration
 
 --
+
+
+target -> object
+
+general
+- upgradability
+- path from upgradable to frozen
+- star model (1 global registry, n side chain registries)
+
+
+object registry
+- has owner
+- scope:global/sidechain
+- responsibilities
+  + registration of objects
+  + manage objects
+  + cross-chain object state replication
+
+staking (mainnet only)
+  + allows to stake/unstake for/from approved objects
+  + distribution of rewards to stakers
+  + slashing of stakes/rewards from stakers
+
+object
+- id
+- name
+- type: chain, registry, protocol, token, instance, component, bundle
+- contractAddress
+- chainId
+- state: proposed, rejected, approved, suspended, archived
+- stakable: yes/no (ie chain, token not stakable)
+- unstakable: yes/no (ie chain, token not unstakable)
+- stakes
+- capitalSupport(token)
+
+object type
+- chain
+- token
+- protocol
+- registry (has owner) 1 per sidechain /w >= 1 instance
+  + global: n side chain registries
+  + side chain: 1 global registry
+- instance (has operator) 0..n per chain
+- component (has owner) 2..n per instance (2: at least 1 product, 1 riskpool)
+- bundle (has investor, via nft) 1..n per rikspool
+- 
