@@ -1,15 +1,6 @@
 depeg
 
 === priorization ===
-- separate book keeping for rewards and stakes
-<<<<<<< HEAD
-  + guaranteed payback of stakes
-  + no zinseszins/guaranteed rewards etc.
-  + reward payouts from separate account as long as its balance > 0
-  + separate functions for unstakeFromBundle and claimBundleStakeRewards
-  + later: nft defines owner of bundle stakes and includes access to related rewards
-=======
->>>>>>> abd0433 (enforce locking of staked dip until bundle expiry/closing)
 - staking nft
 - api
 
@@ -39,7 +30,6 @@ product
   + token balance at block timestamp
   + withdrawPayout
 
-<<<<<<< HEAD
 === done 6.1.23 ===
 - failure mode testing for staking target handling
 
@@ -47,8 +37,6 @@ product
 - new unified staking api (separate bookkeeping for stakes and rewards, support more than bundles)
 - begin of substantial refactoring
 
-=======
->>>>>>> abd0433 (enforce locking of staked dip until bundle expiry/closing)
 === done 5.1.23 ===
 - locking period for staking
 - syncs /w marc, add wallet address attribute
