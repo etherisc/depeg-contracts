@@ -4,6 +4,7 @@ import pytest
 from brownie.network.account import Account
 from brownie import (
     chain,
+    history,
     interface
 )
 
@@ -31,6 +32,7 @@ def test_create_application(
     instanceWallet,
     investor,
     customer,
+    protectedWallet,
     product,
     riskpool
 ):
@@ -53,13 +55,27 @@ def test_create_application(
     maxPremium = 750
 
     processId = apply_for_policy(
-        instance, 
-        instanceOperator, 
-        product, 
-        customer, 
-        sumInsured, 
-        durationDays, 
+        instance,
+        instanceOperator,
+        product,
+        customer,
+        protectedWallet,
+        sumInsured,
+        durationDays,
         maxPremium)
+
+    tx = history[-1]
+    assert 'LogDepegApplicationCreated' in tx.events
+    assert tx.events['LogDepegApplicationCreated']['processId'] == processId
+    assert tx.events['LogDepegApplicationCreated']['policyHolder'] == customer
+    assert tx.events['LogDepegApplicationCreated']['protectedWallet'] == protectedWallet
+    assert tx.events['LogDepegApplicationCreated']['sumInsuredAmount'] == sumInsured
+    assert tx.events['LogDepegApplicationCreated']['premiumAmount'] == maxPremium
+
+    assert 'LogDepegPolicyCreated' in tx.events
+    assert tx.events['LogDepegPolicyCreated']['processId'] == processId
+    assert tx.events['LogDepegPolicyCreated']['policyHolder'] == customer
+    assert tx.events['LogDepegPolicyCreated']['sumInsuredAmount'] == sumInsured
 
     metadata = instanceService.getMetadata(processId)
     application = instanceService.getApplication(processId)
@@ -87,10 +103,12 @@ def test_create_application(
     netPremium = maxPremium - premiumFees
 
     (
+        wallet,
         applicationDuration,
         applicationMaxPremium
     ) = riskpool.decodeApplicationParameterFromData(application[3])
 
+    assert wallet == protectedWallet
     assert applicationDuration == durationDays * 24 * 3600
     assert applicationMaxPremium == netPremium
 
@@ -115,6 +133,8 @@ def test_application_with_expired_bundle(
     instanceWallet,
     investor,
     customer,
+    protectedWallet,
+    protectedWallet2,
     product,
     riskpool
 ):
@@ -134,10 +154,11 @@ def test_application_with_expired_bundle(
     maxPremium = 750
 
     processId1 = apply_for_policy(
-        instance, 
+        instance,
         instanceOperator, 
-        product, 
-        customer, 
+        product,
+        customer,
+        protectedWallet,
         sumInsured, 
         durationDays, 
         maxPremium)
@@ -150,11 +171,12 @@ def test_application_with_expired_bundle(
 
     processId2 = apply_for_policy(
         instance, 
-        instanceOperator, 
-        product, 
-        customer, 
-        sumInsured, 
-        durationDays, 
+        instanceOperator,
+        product,
+        customer,
+        protectedWallet2,
+        sumInsured,
+        durationDays,
         maxPremium)
 
     print('application2: {}'.format(instanceService.getApplication(processId2).dict()))

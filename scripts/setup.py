@@ -107,6 +107,7 @@ def apply_for_policy(
     instanceOperator: Account,
     product: DepegProduct, 
     customer: Account,
+    wallet: Account = None,
     sumInsured: int = DEFAULT_SUM_INSURED,
     durationDays: int = DEFAULT_DURATION_DAYS,
     maxPremium: int = DEFAULT_MAX_PREMIUM,
@@ -118,7 +119,11 @@ def apply_for_policy(
     token.transfer(customer, maxPremium, {'from': instanceOperator})
     token.approve(instance.getTreasury(), maxPremium, {'from': customer})
 
+    if not wallet:
+        wallet = customer
+
     tx = product.applyForPolicy(
+        wallet,
         sumInsured,
         durationDays * 24 * 3600,
         maxPremium, 

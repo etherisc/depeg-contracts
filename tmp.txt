@@ -1,12 +1,6 @@
 depeg
 
 === priorization ===
-- separate book keeping for rewards and stakes
-  + guaranteed payback of stakes
-  + no zinseszins/guaranteed rewards etc.
-  + reward payouts from separate account as long as its balance > 0
-  + separate functions for unstakeFromBundle and claimBundleStakeRewards
-  + later: nft defines owner of bundle stakes and includes access to related rewards
 - staking nft
 - api
 
@@ -80,18 +74,14 @@ product
 - testnet functions
   + subtract24hFromTriggeredAt
   + reactivate
-- token registration
 
 --
-
-
 target -> object
 
 general
 - upgradability
 - path from upgradable to frozen
 - star model (1 global registry, n side chain registries)
-
 
 object registry
 - has owner
@@ -128,4 +118,3 @@ object type
 - instance (has operator) 0..n per chain
 - component (has owner) 2..n per instance (2: at least 1 product, 1 riskpool)
 - bundle (has investor, via nft) 1..n per rikspool
-- 

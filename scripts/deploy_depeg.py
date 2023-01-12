@@ -762,11 +762,13 @@ def all_in_1(
     usd2.transfer(a[CUSTOMER1], customer_funding, {'from': a[INSTANCE_OPERATOR]})
     usd2.approve(instance_service.getTreasuryAddress(), customer_funding, {'from': a[CUSTOMER1]})
 
+    wallet = a[CUSTOMER1]
     sum_insured = 20000 * mult
     duration = 50
     max_premium = 1000 * mult
     process_id = new_policy(
         deployment,
+        wallet,
         sum_insured,
         duration,
         max_premium)
@@ -864,11 +866,12 @@ def best_quote(
     sumInsured,
     durationDays
 ):
+    token = contract_from_address(USD2, d[ERC20_PROTECTED_TOKEN])
     return best_premium(
         d[INSTANCE_SERVICE],
         d[RISKPOOL],
         d[PRODUCT],
-        sumInsured,
+        sumInsured * 10**token.decimals(),
         durationDays)
 
 
@@ -916,6 +919,7 @@ def best_premium(
 
 def new_policy(
     d,
+    wallet,
     sumInsured,
     durationDays,
     maxPremium  
@@ -923,10 +927,10 @@ def new_policy(
     product = d[PRODUCT]
     customer = d[CUSTOMER1]
     duration = durationDays*24*3600
-    tx = product.applyForPolicy(sumInsured, duration, maxPremium, {'from': customer})
+    tx = product.applyForPolicy(wallet, sumInsured, duration, maxPremium, {'from': customer})
 
     if 'LogDepegApplicationCreated' in tx.events:
-        processId = tx.events['LogDepegApplicationCreated']['policyId']
+        processId = tx.events['LogDepegApplicationCreated']['processId']
     else:
         processId = None
 
@@ -954,7 +958,7 @@ def inspect_applications(d):
     processIds = product.applications()
 
     # print header row
-    print('i customer product id type state premium suminsured duration maxpremium')
+    print('i customer product id type state wallet premium suminsured duration maxpremium')
 
     # print individual rows
     for idx in range(processIds):
@@ -968,7 +972,7 @@ def inspect_applications(d):
         premium = application[1]
         suminsured = application[2]
         appdata = application[3]
-        (duration, maxpremium) = riskpool.decodeApplicationParameterFromData(appdata)
+        (wallet, duration, maxpremium) = riskpool.decodeApplicationParameterFromData(appdata)
 
         if state == 2:
             policy = instanceService.getPolicy(processId)
@@ -978,18 +982,25 @@ def inspect_applications(d):
             policy = None
             kind = 'application'
 
-        print('{} {} {} {} {} {} {:.1f} {:.1f} {} {:.1f}'.format(
+        print('{} {} {} {} {} {} {} {:.1f} {:.1f} {} {:.1f}'.format(
             idx,
-            customer[:6],
+            _shortenAddress(customer),
             productId,
             processId,
             kind,
             state,
+            _shortenAddress(wallet),
             premium/mul_usd2,
             suminsured/mul_usd1,
             duration/(24*3600),
             maxpremium/mul_usd2
         ))
+
+
+def _shortenAddress(address) -> str:
+    return '{}..{}'.format(
+        address[:5],
+        address[-4:])
 
 
 def get_bundle_data(

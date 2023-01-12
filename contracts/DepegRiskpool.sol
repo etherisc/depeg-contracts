@@ -257,6 +257,7 @@ contract DepegRiskpool is
 
 
     function encodeApplicationParameterAsData(
+        address wallet,
         uint256 duration,
         uint256 maxPremium
     )
@@ -264,6 +265,7 @@ contract DepegRiskpool is
         returns (bytes memory data)
     {
         data = abi.encode(
+            wallet,
             duration,
             maxPremium
         );
@@ -275,14 +277,16 @@ contract DepegRiskpool is
     )
         public pure
         returns (
+            address wallet,
             uint256 duration,
             uint256 maxPremium
         )
     {
         (
+            wallet,
             duration,
             maxPremium
-        ) = abi.decode(data, (uint256, uint256));
+        ) = abi.decode(data, (address, uint256, uint256));
     }
 
     function getBundleFilter(uint256 bundleId) public view returns (bytes memory filter) {
@@ -355,6 +359,7 @@ contract DepegRiskpool is
         }
 
         (
+            , // we don't care about the wallet address here
             uint256 duration,
             uint256 maxPremium
         ) = decodeApplicationParameterFromData(application.data);
