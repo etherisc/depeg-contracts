@@ -56,7 +56,6 @@ def test_staking_happy_path(
     assert bundleRegistry.bundles(instance_id, riskpool_id) == 1
 
     print('--- test setup before any staking ---')
-<<<<<<< HEAD
     type_bundle = 4
     (bundle_target_id, bt) = staking.toTarget(type_bundle, instance_id, riskpool_id, bundle_id, '')
     staking.register(bundle_target_id, bt)
@@ -65,12 +64,6 @@ def test_staking_happy_path(
     assert staking.isUnstakingSupported(bundle_target_id) is False
     assert staking.hasInfo(bundle_target_id, stakerWithDips) is False
     assert staking.stakes(bundle_target_id, stakerWithDips) == 0
-=======
-    assert staking.isBundleStakingSupported(instance_id, bundle_id) is True
-    assert staking.isBundleUnstakingSupported(instance_id, bundle_id) is False
-    assert staking.hasBundleStakeInfo(instance_id, bundle_id, stakerWithDips) is False
-    assert staking.getBundleStakes(instance_id, bundle_id, stakerWithDips) == 0
->>>>>>> abd0433 (enforce locking of staked dip until bundle expiry/closing)
     assert dip.balanceOf(staking.getStakingWallet()) == 0
 
     print('--- test setup after first staking ---')
@@ -114,13 +107,8 @@ def test_staking_happy_path(
     chain.sleep(60 * 24 * 3600)
     chain.mine(1)
 
-<<<<<<< HEAD
     assert staking.isStakingSupported(bundle_target_id) is False
     assert staking.isUnstakingSupported(bundle_target_id) is True
-=======
-    assert staking.isBundleStakingSupported(instance_id, bundle_id) is False
-    assert staking.isBundleUnstakingSupported(instance_id, bundle_id) is True
->>>>>>> abd0433 (enforce locking of staked dip until bundle expiry/closing)
 
     withdrawalAmount = 7 * 10**4 * 10**dip.decimals()
     staking.unstake(bundle_target_id, withdrawalAmount, {'from': stakerWithDips})
@@ -185,26 +173,17 @@ def test_staking_early_bundle_closing(
     bundleRegistry.registerBundle(instance_id, riskpool_id, bundle_id, bundle_name, bundle_expiry_at)
 
     print('--- test setup before any staking ---')
-<<<<<<< HEAD
     type_bundle = 4
     (bundle_target_id, bt) = staking.toTarget(type_bundle, instance_id, riskpool_id, bundle_id, '')
     staking.register(bundle_target_id, bt)
 
     assert staking.isStakingSupported(bundle_target_id) is True
     assert staking.isUnstakingSupported(bundle_target_id) is False
-=======
-    assert staking.isBundleStakingSupported(instance_id, bundle_id) is True
-    assert staking.isBundleUnstakingSupported(instance_id, bundle_id) is False
->>>>>>> abd0433 (enforce locking of staked dip until bundle expiry/closing)
 
     # stake some dips
     staking_amount = 10**5 * 10**dip.decimals()
     dip.approve(staking.getStakingWallet(), staking_amount, {'from': stakerWithDips})
-<<<<<<< HEAD
     staking.stake(bundle_target_id, staking_amount, {'from': stakerWithDips})
-=======
-    staking.stakeForBundle(instance_id, bundle_id, staking_amount, {'from': stakerWithDips})
->>>>>>> abd0433 (enforce locking of staked dip until bundle expiry/closing)
 
     print('--- close bundle early ---')
     time_until_expiry = bundle_expiry_at - chain.time()
@@ -215,30 +194,17 @@ def test_staking_early_bundle_closing(
 
     riskpool.closeBundle(bundle_id, {'from': investor})
 
-<<<<<<< HEAD
     assert staking.isStakingSupported(bundle_target_id) is True
     assert staking.isUnstakingSupported(bundle_target_id) is False
-=======
-    assert staking.isBundleStakingSupported(instance_id, bundle_id) is True
-    assert staking.isBundleUnstakingSupported(instance_id, bundle_id) is False
->>>>>>> abd0433 (enforce locking of staked dip until bundle expiry/closing)
 
     # sync new bundle state to registry
     bundleRegistry.updateBundle(instance_id, bundle_id)
 
-<<<<<<< HEAD
     assert staking.isStakingSupported(bundle_target_id) is False
     assert staking.isUnstakingSupported(bundle_target_id) is True
 
     # unstake dips
     staking.unstakeAndClaimRewards(bundle_target_id, {'from': stakerWithDips})
-=======
-    assert staking.isBundleStakingSupported(instance_id, bundle_id) is False
-    assert staking.isBundleUnstakingSupported(instance_id, bundle_id) is True
-
-    # unstake dips
-    staking.unstakeFromBundle(instance_id, bundle_id, {'from': stakerWithDips})
->>>>>>> abd0433 (enforce locking of staked dip until bundle expiry/closing)
 
 
 def test_staking_failure_modes(
@@ -310,33 +276,22 @@ def test_staking_failure_modes(
     with brownie.reverts("ERROR:STK-002:USER_WITHOUT_STAKE_INFO"):
         staking.getInfo(bundle_target_id, stakerWithDips)
 
-<<<<<<< HEAD
     with brownie.reverts("ERROR:STK-041:STAKING_AMOUNT_ZERO"):
         staking.stake(bundle_target_id, 0, {'from': stakerWithDips})
-=======
-    with brownie.reverts("ERROR:STK-042:STAKING_AMOUNT_ZERO"):
-        staking.stakeForBundle(instance_id, bundle_id, 0, {'from': stakerWithDips})
->>>>>>> abd0433 (enforce locking of staked dip until bundle expiry/closing)
 
     # create approval and try again
     dip.approve(staking.getStakingWallet(), staking_amount, {'from': stakerWithDips})
     staking.stake(bundle_target_id, staking_amount, {'from': stakerWithDips})
 
     # 2nd attempt to unstake from bundle
-<<<<<<< HEAD
     with brownie.reverts("ERROR:STK-250:UNSTAKE_NOT_SUPPORTED"):
         staking.unstake(bundle_target_id, 0, {'from': stakerWithDips})
-=======
-    with brownie.reverts("ERROR:STK-050:UNSTAKING_TOO_EARLY"):
-        staking.unstakeFromBundle(instance_id, bundle_id, 0, {'from': stakerWithDips})
->>>>>>> abd0433 (enforce locking of staked dip until bundle expiry/closing)
 
     # wait to allow unstaking
     chain.sleep(60 * 24 * 3600)
     chain.mine(1)
 
     # 2nd attempt to unstake from bundle
-<<<<<<< HEAD
     with brownie.reverts("ERROR:STK-251:UNSTAKE_AMOUNT_ZERO"):
         staking.unstake(bundle_target_id, 0, {'from': stakerWithDips})
 
@@ -348,16 +303,3 @@ def test_staking_failure_modes(
     with brownie.reverts('ERROR:STK-040:STAKING_NOT_SUPPORTED'):
         dip.approve(staking.getStakingWallet(), staking_amount, {'from': stakerWithDips})
         staking.stake(bundle_target_id, staking_amount, {'from': stakerWithDips})
-=======
-    with brownie.reverts("ERROR:STK-051:UNSTAKING_AMOUNT_ZERO"):
-        staking.unstakeFromBundle(instance_id, bundle_id, 0, {'from': stakerWithDips})
-
-    # 3rd attempt to unstake from bundle
-    with brownie.reverts("ERROR:STK-120:UNSTAKING_AMOUNT_EXCEEDS_STAKING_BALANCE"):
-        staking.unstakeFromBundle(instance_id, bundle_id, staking_amount + 1, {'from': stakerWithDips})
-
-    # attempt to stake after bundle is expired/closed
-    with brownie.reverts('ERROR:STK-041:STAKING_TOO_LATE'):
-        dip.approve(staking.getStakingWallet(), staking_amount, {'from': stakerWithDips})
-        staking.stakeForBundle(instance_id, bundle_id, staking_amount, {'from': stakerWithDips})
->>>>>>> abd0433 (enforce locking of staked dip until bundle expiry/closing)

@@ -39,13 +39,7 @@ interface IStakingDataProvider {
         uint256 updatedAt;
     }
 
-<<<<<<< HEAD
     function getStakingWallet() external view returns(address stakingWallet);
-=======
-    function getBundleRegistry() external view returns(BundleRegistry bundleRegistry);
-    function isBundleStakingSupported(bytes32 instanceId, uint256 bundleId) external view returns(bool isSupported);
-    function isBundleUnstakingSupported(bytes32 instanceId, uint256 bundleId) external view returns(bool isSupported);
->>>>>>> abd0433 (enforce locking of staked dip until bundle expiry/closing)
 
     function getRewardRate() external view returns(uint256 rate);
     function getRewardBalance() external view returns(uint256 rewardReserves);
