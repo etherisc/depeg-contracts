@@ -80,4 +80,47 @@ product
 - testnet functions
   + subtract24hFromTriggeredAt
   + reactivate
-- token registration
+
+--
+target -> object
+
+general
+- upgradability
+- path from upgradable to frozen
+- star model (1 global registry, n side chain registries)
+
+object registry
+- has owner
+- scope:global/sidechain
+- responsibilities
+  + registration of objects
+  + manage objects
+  + cross-chain object state replication
+
+staking (mainnet only)
+  + allows to stake/unstake for/from approved objects
+  + distribution of rewards to stakers
+  + slashing of stakes/rewards from stakers
+
+object
+- id
+- name
+- type: chain, registry, protocol, token, instance, component, bundle
+- contractAddress
+- chainId
+- state: proposed, rejected, approved, suspended, archived
+- stakable: yes/no (ie chain, token not stakable)
+- unstakable: yes/no (ie chain, token not unstakable)
+- stakes
+- capitalSupport(token)
+
+object type
+- chain
+- token
+- protocol
+- registry (has owner) 1 per sidechain /w >= 1 instance
+  + global: n side chain registries
+  + side chain: 1 global registry
+- instance (has operator) 0..n per chain
+- component (has owner) 2..n per instance (2: at least 1 product, 1 riskpool)
+- bundle (has investor, via nft) 1..n per rikspool

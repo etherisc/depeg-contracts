@@ -120,6 +120,9 @@ contract Staking is
 
     // dip staking rate: value of 1 dip in amount of provided token 
     // (taking into account dip.decimals and token.decimals)
+    // example: for a rate of 0.1 to usdc:
+    // 1 dip (amount = 1000000000000000000) supports 0.1 usdc (amount = 100000)
+    // dip having 18 decimals and usdc 6
     function setStakingRate(
         address token, 
         uint256 chainId, 
