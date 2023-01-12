@@ -91,7 +91,7 @@ interface IStakingDataProvider {
     function stakes(bytes32 targetId) external view returns(uint256 dipAmount);
     function capitalSupport(bytes32 targetId) external view returns(uint256 capitalAmount);
 
-    function getStakeBalance() external view returns(uint256 stakeBalane);
+    function getStakeBalance() external view returns(uint256 stakeBalance);
 
     // getters for bundle staking
     function getBundleRegistry() external view returns(BundleRegistry bundleRegistry);
