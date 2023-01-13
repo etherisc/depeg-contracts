@@ -28,6 +28,11 @@ RUN pip3 install thefuck --user \
 RUN echo 'eval "$(mcfly init zsh)"' >> ~/.zshrc \
     && touch ~/.zsh_history
 
+# install fastapi
+RUN pip install fastapi
+RUN pip install "uvicorn[standard]"
+
+# install brownie
 RUN pip install eth-brownie
 
 # [Optional] Uncomment this line to install global node packages.

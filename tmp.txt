@@ -1,11 +1,12 @@
 depeg
 
 === priorization ===
-- staking nft
 - api
+- staking nft
 
 === backlog ===
 staking
+- add staking setup to amend_funds/check_funds
 - add inspect_registry to deploy_depeg (shows registered tokens + instances)
 - add inspect_staking to deploy_depeg (shows registered bundles, stakes, stakers)
 - stop rewards once bundle lifetime is exceeded
