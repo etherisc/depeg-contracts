@@ -205,6 +205,24 @@ def verify_deploy(
         bundle_registry.bundles(instance_id, riskpool_id),
         len(bundle_ids))
 
+    r = staking.getRewardRate()
+    (value,divisor) = staking.fromRate(r)
+    reward_rate = value/divisor
+    verify_element(
+        'StakingRewardRate',
+        reward_rate,
+        0.042
+    )
+
+    r = staking.getStakingRate(erc20_token, web3.chain_id)
+    (value,divisor) = staking.fromRate(r)
+    staking_rate = value/divisor
+    verify_element(
+        'StakingStakingRate',
+        staking_rate,
+        0.1
+    )
+
     for idx, bundle_id in enumerate(bundle_ids):
         verify_element(
             'BundleRegistryBundleId{}'.format(idx),

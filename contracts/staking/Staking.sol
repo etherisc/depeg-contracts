@@ -618,6 +618,12 @@ contract Staking is
     }
 
 
+    function getReserveBalance() external override view returns(int reserves) {
+        uint256 actualBalance = _dip.balanceOf(_stakingWallet);
+        return _getReserveBalance(actualBalance);
+    }
+
+
     function getBundleRegistry() external override view returns(BundleRegistry bundleRegistry) {
         return _registry;
     }
@@ -779,9 +785,8 @@ contract Staking is
             _stakeBalance,
             _rewardBalance, 
             actualBalance, 
-            actualBalance - _stakeBalance - _rewardBalance);
+            _getReserveBalance(actualBalance));
     }
-
 
     function _payoutDip(address user, uint256 amount)
         internal
@@ -798,7 +803,16 @@ contract Staking is
             _stakeBalance,
             _rewardBalance, 
             actualBalance, 
-            actualBalance - _stakeBalance - _rewardBalance);
+            _getReserveBalance(actualBalance));
+    }
+
+
+    function _getReserveBalance(uint256 actualBalance) 
+        internal
+        view
+        returns(int256 reserves)
+    {
+        return int256(actualBalance) - int256(_stakeBalance + _rewardBalance);
     }
 
 

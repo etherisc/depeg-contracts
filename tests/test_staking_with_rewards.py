@@ -227,3 +227,79 @@ def test_staking_with_rewards(
     expected_balance = 0
     assert bundle_stake_info4['stakeBalance'] == expected_balance
     assert bundle_stake_info4['rewardBalance'] == expected_balance
+
+
+
+def test_staking_rewards_corner_case(
+    instance,
+    instanceOperator: Account,
+    investor: Account,
+    riskpool,
+    instanceService,
+    bundleRegistry: BundleRegistry,
+    staking: Staking,
+    staker: Account,
+    dip: DIP,
+    usd2: USD2
+):
+    instance_id = instanceService.getInstanceId()
+    riskpool_id = riskpool.getId()
+    bundle_name = 'bundle-1'
+    bundle_id = new_bundle(
+        instance,
+        instanceOperator,
+        investor,
+        riskpool,
+        bundle_name)
+
+    bundle = riskpool.getBundleInfo(bundle_id).dict()
+    print('bundle {}'.format(bundle))
+
+    # register token, instance, component and bundle
+    bundle_expiry_at = bundle['createdAt'] + bundle['lifetime']
+    bundleRegistry.registerToken(riskpool.getErc20Token())
+    bundleRegistry.registerInstance(instance.getRegistry())
+    bundleRegistry.registerComponent(instance_id, riskpool_id)
+    bundleRegistry.registerBundle(instance_id, riskpool_id, bundle_id, bundle_name, bundle_expiry_at)
+
+    staking.setDipContract(dip)
+
+    print('--- start with reward rate 0 ---')
+    reward_rate_zero = staking.toRate(0, 0) # 20% apr for staking
+    staking.setRewardRate(reward_rate_zero)
+
+    print('--- setup with initial staking ---')
+    type_bundle = 4
+    (bundle_target_id, bt) = staking.toTarget(type_bundle, instance_id, riskpool_id, bundle_id, '')
+    staking.register(bundle_target_id, bt)
+
+    initial_dip_balance = 10**6 * 10**dip.decimals()
+    dip.transfer(staker, initial_dip_balance, {'from':instanceOperator})
+
+    staking_amount = 10**4 * 10**dip.decimals()
+    dip.approve(staking.getStakingWallet(), 4 * staking_amount, {'from':staker})
+
+    print('--- stake 1st time (rate == 0) ---')
+    tx0 = staking.stake(bundle_target_id, staking_amount, {'from': staker})
+
+    # wait some days
+    chain.sleep(14 * 24 * 3600)
+    chain.mine(1)
+
+    print('--- update reward rate to non-zero ---')
+    reward_rate_4_2 = staking.toRate(42, -3) # 20% apr for staking
+    staking.setRewardRate(reward_rate_4_2)
+
+    print('--- stake 2nd time (rate > 0) ---')
+    tx1 = staking.stake(bundle_target_id, staking_amount, {'from': staker})
+
+    # wait some more days
+    chain.sleep(14 * 24 * 3600)
+    chain.mine(1)
+
+    print('--- stake 3rd time (rate > 0) ---')
+    tx2 = staking.stake(bundle_target_id, staking_amount, {'from': staker})
+
+    assert 'LogStakingDipBalanceChanged' in tx1.events
+    assert tx2.events['LogStakingDipBalanceChanged']['reserves'] < 0
+    assert tx2.events['LogStakingDipBalanceChanged']['reserves'] == staking.getReserveBalance()
