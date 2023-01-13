@@ -1,4 +1,5 @@
 import logging
+import random
 import sched
 import time
 
@@ -17,11 +18,27 @@ from fastapi import (
 # reg 2: uvicorn scripts.mock.feeder:app --reload
 # reg 4: curl localhost:8000/
 
-# price feed states
+# getting/setting price feed state
+# curl localhost:8000/state
+# curl -X PUT localhost:8000/state/stable
+
+# price feed stuff
 STABLE = 'stable'
 TRIGGERED = 'triggered'
 DEPEGGED = 'depegged'
 STATES = [STABLE, TRIGGERED, DEPEGGED]
+
+PRICE_MAX = 1.02
+PRICE_TRIGGER = 0.995
+PRICE_RECOVER = 0.998
+PRICE_DEPEG = 0.93
+PRICE_MIN = 0.82
+
+TRANSITIONS = {}
+TRANSITIONS['stable->triggered'] = [0.999,0.998,0.997,0.996,0.995]
+TRANSITIONS['triggered->stable'] = [0.996,0.997,0.998]
+TRANSITIONS['triggered->depegged'] = [0.99,0.98,0.95,0.91]
+TRANSITIONS['depegged->stable'] = [0.9,0.95,0.99,1.0]
 
 # scheduler
 PRIORITY = 1
@@ -31,6 +48,8 @@ INTERVAL = 5 # seconds to wait for new data
 app = FastAPI()
 
 # pricefeed stuff
+price_buffer = []
+current_price = 1.0
 state = STABLE
 
 # scheduling stuff
@@ -56,15 +75,27 @@ async def get_state():
 @app.put('/state/{new_state}')
 async def set_state(new_state:str):
     global state
+    global price_buffer
 
     if new_state not in STATES:
         raise HTTPException(
-            status_code=404, 
+            status_code=400,
             detail="state {} invalid. valid states: {}".format(
                 new_state, ','.join(STATES)
             ))
 
     old_state = state
+
+    transition = '{}->{}'.format(old_state, new_state)
+    if transition in TRANSITIONS:
+        price_buffer += TRANSITIONS[transition]
+    else:
+        raise HTTPException(
+            status_code=400,
+            detail="state transition {}->{} invalid".format(
+                old_state, new_state))
+
+    # set new state
     state = new_state;
 
     return {
@@ -73,8 +104,31 @@ async def set_state(new_state:str):
         }
 
 
+def next_price() -> float:
+    global price_buffer
+
+    if len(price_buffer) > 0:
+        price = price_buffer[0]
+        del price_buffer[0]
+        return price
+
+    if state == STABLE:
+        return random.uniform(PRICE_TRIGGER, PRICE_MAX)
+    elif state == TRIGGERED:
+        return random.uniform(PRICE_DEPEG, PRICE_RECOVER)
+    else:
+        return random.uniform(PRICE_MIN, PRICE_DEPEG)
+
+
 def execute_event():
-    logging.info('rounds <<{}>>'.format(rounds))
+    global current_price
+
+    current_price = next_price()
+
+    logging.info('state {} price {} rounds {}'.format(
+        state,
+        current_price,
+        rounds))
 
 
 @app.on_event('startup')
