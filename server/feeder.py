@@ -1,14 +1,15 @@
 import logging
 import random
 
+from datetime import datetime
+from typing import Optional
+from pydantic import BaseModel
+
 from brownie import network
 from brownie.project.Project import (
     USD1,
     UsdcPriceDataProvider
 )
-
-from datetime import datetime
-from pydantic import BaseModel
 
 from server.account import BrownieAccount
 
@@ -32,6 +33,16 @@ TRANSITIONS['depegged -> stable'] = [0.9,0.95,0.99,1.0]
 
 # setup logger
 logger = logging.getLogger(__name__)
+
+
+class PriceFeedState(BaseModel):
+
+    state:str
+    round_id:int
+    price_buffer:list[int]
+    token:Optional[str]
+    provider:Optional[str]
+    owner:Optional[str]
 
 
 class PriceFeed(BaseModel):
@@ -66,35 +77,29 @@ class PriceFeed(BaseModel):
         raise RuntimeError('node is not connected to network')
 
 
-    def get_status(self, usd1: USD1, provider: UsdcPriceDataProvider) -> dict:
-        return {
-            'connected': network.is_connected(),
-            'token': usd1.address,
-            'provider': provider.address,
-            'owner': self.owner.get_account().address,
-            'state': self.state,
-            'round_id': self.round_id,
-            'price_buffer': self.price_buffer,
-        }
+    def get_status(self, usd1: USD1, provider: UsdcPriceDataProvider) -> PriceFeedState:
+        token_address = usd1.address if usd1 else None
+        provider_address = provider.address if provider else None
+        owner_address = self.owner.get_account().address if self.owner else None
+
+        return PriceFeedState(
+            state=self.state,
+            round_id=self.round_id,
+            price_buffer=self.price_buffer,
+            token=token_address,
+            provider=provider_address,
+            owner=owner_address)
 
 
-    def deploy_contracts(self) -> None:
-        if network.is_connected():
-            if not self.usd1:
-                logger.info('deploying USD1')
-                self.usd1 = USD1.deploy(
-                    self.from_owner)
-                logger.info('successfully deployed %s', self.usd1)
+    def process_latest_price_info(self, provider: UsdcPriceDataProvider):
+        logger.info('provider %s', provider)
 
-            if not self.feeder:
-                logger.info('deploying UsdcPriceDataProvider')
-                self.feeder = UsdcPriceDataProvider.deploy(
-                    self.usd1,
-                    self.from_owner)
-                logger.info('successfully deployed %s', self.feeder)
+        if provider:
+            logger.info('smart contract call: provider.processLatestPriceInfo()')
+            provider.processLatestPriceInfo({'from': self.owner.get_account()})
 
         else:
-            raise Exception('not connected to network')
+            raise RuntimeError('deploy feeder first')
 
 
     def set_state(self, new_state:str) -> None:
@@ -112,7 +117,7 @@ class PriceFeed(BaseModel):
             self.price_buffer += TRANSITIONS[transition]
             logger.info('prices added to buffer: %s', ', '.join(TRANSITIONS[transition]))
         else:
-            raise Exception(
+            raise RuntimeError(
                 'state transition {} -> {} is invalid'.format(
                     old_state,
                     new_state))

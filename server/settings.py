@@ -8,7 +8,7 @@ from pydantic import (
 from server.node import BrownieNode
 
 ENV_FILE = 'server/.env'
-INTERVAL = 5
+FEEDER_INTERVAL = 5
 
 # setup logger
 logger = logging.getLogger(__name__)
@@ -16,10 +16,8 @@ logger = logging.getLogger(__name__)
 
 class Settings(BaseSettings):
 
-    demo: str
+    feeder_interval: int = FEEDER_INTERVAL
     node: BrownieNode = BrownieNode()
-    interval: int = INTERVAL 
-
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
