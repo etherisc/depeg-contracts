@@ -88,7 +88,6 @@ contract DepegRiskpool is
     {
         _staking = IStaking(stakingDataProviderAddress);
         _bundleRegistry = IBundleRegistry(_staking.getBundleRegistry());
-        
     }
 
 
@@ -115,7 +114,7 @@ contract DepegRiskpool is
         returns(uint256 bundleId)
     {
         require(
-             _bundleIdForBundleName[name] == 0,
+            _bundleIdForBundleName[name] == 0,
             "ERROR:DRP-020:NAME_NOT_UNIQUE");
         require(
             lifetime >= MIN_BUNDLE_LIFETIME
@@ -161,6 +160,56 @@ contract DepegRiskpool is
         if(keccak256(abi.encodePacked(name)) != EMPTY_STRING_HASH) {
             _bundleIdForBundleName[name] = bundleId;
         }
+
+        // Register the new bundle with the staking/bundle registry contract. 
+        // Staking and registry are set in tandem (the address of the registry is retrieved from staking),
+        // so if one is present, its safe to assume the other is too.
+        if (address(_bundleRegistry) != address(0)) { 
+            registerBundleInRegistry(bundleId, name, lifetime);
+            registerBundleForStaking(bundleId);
+        }
+    }
+
+    /**
+     * @dev Register the bundle with given id in the bundle registry.
+     */    
+    function registerBundleInRegistry(
+        uint256 bundleId,
+        string memory name,
+        uint256 lifetime
+    )
+        private
+    {
+        bytes32 instanceId = _instanceService.getInstanceId();
+        IBundle.Bundle memory bundle = _instanceService.getBundle(bundleId);
+        uint256 expiration = bundle.createdAt + lifetime;
+        _bundleRegistry.registerBundle(
+            instanceId,
+            bundle.riskpoolId,
+            bundleId,
+            name,
+            expiration
+        );
+    }
+
+    /**
+     * @dev Register the bundle with given id for staking (must be registered in bundle registry before).
+     */
+    function registerBundleForStaking(
+        uint256 bundleId
+    )
+        private
+    {
+        bytes32 instanceId = _instanceService.getInstanceId();
+        IBundle.Bundle memory bundle = _instanceService.getBundle(bundleId);
+        (bytes32 targetId, IStakingDataProvider.Target memory target) = 
+            _staking.toTarget(
+                IStakingDataProvider.TargetType.Bundle, 
+                instanceId, 
+                bundle.riskpoolId, 
+                bundleId, 
+                "");
+        _staking.register(targetId, target);
     }
 
     function getBundleInfo(uint256 bundleId)
