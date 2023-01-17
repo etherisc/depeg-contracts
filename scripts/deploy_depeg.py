@@ -163,7 +163,7 @@ def verify_deploy(
     verify_element('PriceDataProviderOwner', price_data_provider.getOwner(), productOwner)
     print('TODO add additional price data provider checks')
 
-    staking = contract_from_address(Staking, riskpool.getStakingAddress())
+    staking = contract_from_address(Staking, riskpool.getStaking())
     bundle_registry = contract_from_address(BundleRegistry, staking.getBundleRegistry())
     instance_id = instanceService.getInstanceId()
     riskpool_id = riskpool.getId()
