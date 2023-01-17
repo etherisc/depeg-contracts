@@ -9,8 +9,8 @@ import "@etherisc/gif-interface/contracts/modules/IPolicy.sol";
 import "@etherisc/gif-interface/contracts/tokens/IBundleToken.sol";
 
 import "./gif/BasicRiskpool2.sol";
-import "./registry/IBundleDataProvider.sol";
-import "./staking/IStakingDataProvider.sol";
+import "./registry/IBundleRegistry.sol";
+import "./staking/IStaking.sol";
 
 
 contract DepegRiskpool is 
@@ -39,7 +39,7 @@ contract DepegRiskpool is
 
     uint256 public constant USD_CAPITAL_CAP = 1 * 10**6;
 
-    bytes32 public constant EMPTY_STRING_HASH = keccak256(abi.encodePacked(''));
+    bytes32 public constant EMPTY_STRING_HASH = keccak256(abi.encodePacked(""));
 
     uint256 public constant MIN_BUNDLE_LIFETIME = 14 * 24 * 3600;
     uint256 public constant MAX_BUNDLE_LIFETIME = 180 * 24 * 3600;
@@ -51,8 +51,9 @@ contract DepegRiskpool is
 
     mapping(string /* bundle name */ => uint256 /* bundle id */) _bundleIdForBundleName;
 
-    IBundleDataProvider private _bundleDataProvider;
-    IStakingDataProvider private _stakingDataProvider;
+    IBundleRegistry private _bundleRegistry;
+    IComponentDataProvider private _componentDataProvider;
+    IStaking private _staking;
 
     uint256 private _poolCapitalCap;
     uint256 private _bundleCapitalCap;
@@ -77,26 +78,27 @@ contract DepegRiskpool is
         require(sumOfSumInsuredCap <= _poolCapitalCap, "ERROR:DRP-010:SUM_OF_SUM_INSURED_CAP_TOO_LARGE");
         require(sumOfSumInsuredCap > 0, "ERROR:DRP-011:SUM_OF_SUM_INSURED_CAP_ZERO");
 
-        _bundleDataProvider = IBundleDataProvider(address(0));
-        _stakingDataProvider = IStakingDataProvider(address(0));
+        _staking = IStaking(address(0));
+        _bundleRegistry = IBundleRegistry(address(0));
     }
 
 
-    function setStakingDataProvider(address dataProviderAddress)
+    function setStakingAddress(address stakingAddress)
         external
         onlyOwner
     {
-        _bundleDataProvider = IBundleDataProvider(dataProviderAddress);
-        _stakingDataProvider = IStakingDataProvider(dataProviderAddress);
+        _staking = IStaking(stakingAddress);
+        _bundleRegistry = IBundleRegistry(_staking.getBundleRegistry());
+        _componentDataProvider = IComponentDataProvider(_staking .getBundleRegistry());
     }
 
 
-    function getStakingDataProvider()
+    function getStaking()
         external
         view
-        returns(IStakingDataProvider stakingDataProvider)
+        returns(IStaking staking)
     {
-        return _stakingDataProvider;
+        return _staking;
     }
 
 
@@ -114,7 +116,7 @@ contract DepegRiskpool is
         returns(uint256 bundleId)
     {
         require(
-             _bundleIdForBundleName[name] == 0,
+            _bundleIdForBundleName[name] == 0,
             "ERROR:DRP-020:NAME_NOT_UNIQUE");
         require(
             lifetime >= MIN_BUNDLE_LIFETIME
@@ -160,6 +162,65 @@ contract DepegRiskpool is
         if(keccak256(abi.encodePacked(name)) != EMPTY_STRING_HASH) {
             _bundleIdForBundleName[name] = bundleId;
         }
+
+        // Register the new bundle with the staking/bundle registry contract. 
+        // Staking and registry are set in tandem (the address of the registry is retrieved from staking),
+        // so if one is present, its safe to assume the other is too.
+        IBundle.Bundle memory bundle = _instanceService.getBundle(bundleId);
+
+        if (address(_bundleRegistry) != address(0) && isComponentRegistered(bundle.riskpoolId)) { 
+            registerBundleInRegistry(bundle, name, lifetime);
+            registerBundleForStaking(bundle);
+        }
+    }
+
+    function isComponentRegistered(uint256 componentId)
+        private
+        view
+        returns(bool)
+    {
+        bytes32 instanceId = _instanceService.getInstanceId();
+        return _componentDataProvider.isRegisteredComponent(instanceId, componentId);
+    }
+
+    /**
+     * @dev Register the bundle with given id in the bundle registry.
+     */    
+    function registerBundleInRegistry(
+        IBundle.Bundle memory bundle,
+        string memory name,
+        uint256 lifetime
+    )
+        private
+    {
+        bytes32 instanceId = _instanceService.getInstanceId();
+        uint256 expiration = bundle.createdAt + lifetime;
+        _bundleRegistry.registerBundle(
+            instanceId,
+            bundle.riskpoolId,
+            bundle.id,
+            name,
+            expiration
+        );
+    }
+
+    /**
+     * @dev Register the bundle with given id for staking (must be registered in bundle registry before).
+     */
+    function registerBundleForStaking(
+        IBundle.Bundle memory bundle
+    )
+        private
+    {
+        bytes32 instanceId = _instanceService.getInstanceId();
+        (bytes32 targetId, IStakingDataProvider.Target memory target) = 
+            _staking.toTarget(
+                IStakingDataProvider.TargetType.Bundle, 
+                instanceId, 
+                bundle.riskpoolId, 
+                bundle.id, 
+                "");
+        _staking.register(targetId, target);
     }
 
     function getBundleInfo(uint256 bundleId)
@@ -394,17 +455,17 @@ contract DepegRiskpool is
         returns(uint256 capitalCap)
     {
         // if no staking data provider is available anything goes
-        if(address(_stakingDataProvider) == address(0)) {
+        if(address(_staking) == address(0)) {
             return _bundleCapitalCap;
         }
 
         // otherwise: get amount supported by staking
-        bytes32 targetId = _stakingDataProvider.toBundleTargetId(
+        bytes32 targetId = _staking.toBundleTargetId(
             _instanceService.getInstanceId(),
             getId(),
             bundleId);
 
-        return _stakingDataProvider.capitalSupport(targetId);
+        return _staking.capitalSupport(targetId);
     }
 
 

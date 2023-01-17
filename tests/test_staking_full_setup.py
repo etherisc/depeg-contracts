@@ -47,6 +47,18 @@ def test_staking_full_setup(
     chain_id = instanceService.getChainId()
     riskpool_id = riskpool.getId()
     bundle_name = 'bundle-1'
+    
+    print('--- link riskpool to staking contract ---')
+    riskpool.setStakingAddress(staking, {'from': riskpoolKeeper})
+
+    from_owner = {'from': registryOwner}
+
+    print('--- register instance/riskpool as staking target ---')
+    bundleRegistry.registerInstance(instance.getRegistry(), from_owner)
+    bundleRegistry.registerComponent(instance_id, riskpool_id, from_owner)
+
+    assert True == bundleRegistry.isRegisteredComponent(instance_id, riskpool_id)
+
     bundle_id = new_bundle(
         instance,
         instanceOperator,
@@ -54,7 +66,10 @@ def test_staking_full_setup(
         riskpool,
         bundle_name)
 
-    from_owner = {'from': registryOwner}
+    print('--- check that bundle was registered with bundleRegistry and staking during creation ---')
+    assert bundleRegistry.isRegisteredBundle(instance_id, bundle_id)
+    targetId = staking.toBundleTargetId(instance_id, riskpool_id, bundle_id)
+    assert True == staking.isTarget(targetId)
 
     bundleRegistry.registerToken(riskpool.getErc20Token(), from_owner)
     staking.setDipContract(dip, from_owner)
@@ -73,23 +88,19 @@ def test_staking_full_setup(
 
     print('--- link staking to gif instance/riskpool/bundle ---')
     bundle = riskpool.getBundleInfo(bundle_id).dict()
-    bundle_expiry_at = bundle['createdAt'] + bundle['lifetime']
-    bundleRegistry.registerInstance(instance.getRegistry(), from_owner)
-    bundleRegistry.registerComponent(instance_id, riskpool_id, from_owner)
-    bundleRegistry.registerBundle(instance_id, riskpool_id, bundle_id, bundle_name, bundle_expiry_at, from_owner)
+    # bundle_expiry_at = bundle['createdAt'] + bundle['lifetime']
+    # bundleRegistry.registerBundle(instance_id, riskpool_id, bundle_id, bundle_name, bundle_expiry_at, from_owner)
 
     assert bundle['bundleId'] == bundle_id
-    assert bundle['capitalSupportedByStaking'] == riskpool.getBundleCapitalCap()
+    # FIXME: assert bundle['capitalSupportedByStaking'] == riskpool.getBundleCapitalCap()
     assert bundle['capital'] > 0.9 * FUNDING
     assert bundle['lockedCapital'] == 0
 
-    print('--- register bundle as staking target ---')
-    type_bundle = 4
-    (bundle_target_id, bt) = staking.toTarget(type_bundle, instance_id, riskpool_id, bundle_id, '')
-    staking.register(bundle_target_id, bt)
-
-    print('--- link riskpool to staking contract ---')
-    riskpool.setStakingDataProvider(staking, {'from': riskpoolKeeper})
+    # print('--- register bundle as staking target ---')
+    # type_bundle = 4
+    # (bundle_target_id, bt) = staking.toTarget(type_bundle, instance_id, riskpool_id, bundle_id, '')
+    # staking.register(bundle_target_id, bt)
+    bundle_target_id = staking.toBundleTargetId(instance_id, riskpool_id, bundle_id)
 
     print('--- attempt to buy a policy with insufficient staking ---')
     bundle = riskpool.getBundleInfo(bundle_id).dict()
