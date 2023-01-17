@@ -61,7 +61,7 @@ def test_staking_happy_path(
         staking_rate,
         from_owner)
 
-    riskpool.setStakingDataProvider(staking, {'from': riskpoolKeeper})
+    riskpool.setStaking(staking, {'from': riskpoolKeeper})
 
     bundle = riskpool.getBundleInfo(bundle_id).dict()
     bundle_expiry_at = bundle['createdAt'] + bundle['lifetime']

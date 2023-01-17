@@ -89,7 +89,7 @@ def test_staking_full_setup(
     staking.register(bundle_target_id, bt)
 
     print('--- link riskpool to staking contract ---')
-    riskpool.setStakingDataProvider(staking, {'from': riskpoolKeeper})
+    riskpool.setStaking(staking, {'from': riskpoolKeeper})
 
     print('--- attempt to buy a policy with insufficient staking ---')
     bundle = riskpool.getBundleInfo(bundle_id).dict()
