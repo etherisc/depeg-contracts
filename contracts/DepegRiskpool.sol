@@ -82,11 +82,11 @@ contract DepegRiskpool is
     }
 
 
-    function setStakingAddress(address stakingDataProviderAddress)
+    function setStakingAddress(address stakingAddress)
         external
         onlyOwner
     {
-        _staking = IStaking(stakingDataProviderAddress);
+        _staking = IStaking(stakingAddress);
         _bundleRegistry = IBundleRegistry(_staking.getBundleRegistry());
     }
 
