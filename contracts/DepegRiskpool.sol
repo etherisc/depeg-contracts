@@ -52,6 +52,7 @@ contract DepegRiskpool is
     mapping(string /* bundle name */ => uint256 /* bundle id */) _bundleIdForBundleName;
 
     IBundleRegistry private _bundleRegistry;
+    IComponentDataProvider private _componentDataProvider;
     IStaking private _staking;
 
     uint256 private _poolCapitalCap;
@@ -88,6 +89,7 @@ contract DepegRiskpool is
     {
         _staking = IStaking(stakingAddress);
         _bundleRegistry = IBundleRegistry(_staking.getBundleRegistry());
+        _componentDataProvider = IComponentDataProvider(_staking .getBundleRegistry());
     }
 
 
@@ -164,29 +166,39 @@ contract DepegRiskpool is
         // Register the new bundle with the staking/bundle registry contract. 
         // Staking and registry are set in tandem (the address of the registry is retrieved from staking),
         // so if one is present, its safe to assume the other is too.
-        if (address(_bundleRegistry) != address(0)) { 
-            registerBundleInRegistry(bundleId, name, lifetime);
-            registerBundleForStaking(bundleId);
+        IBundle.Bundle memory bundle = _instanceService.getBundle(bundleId);
+
+        if (address(_bundleRegistry) != address(0) && isComponentRegistered(bundle.riskpoolId)) { 
+            registerBundleInRegistry(bundle, name, lifetime);
+            registerBundleForStaking(bundle);
         }
+    }
+
+    function isComponentRegistered(uint256 componentId)
+        private
+        view
+        returns(bool)
+    {
+        bytes32 instanceId = _instanceService.getInstanceId();
+        return _componentDataProvider.isRegisteredComponent(instanceId, componentId);
     }
 
     /**
      * @dev Register the bundle with given id in the bundle registry.
      */    
     function registerBundleInRegistry(
-        uint256 bundleId,
+        IBundle.Bundle memory bundle,
         string memory name,
         uint256 lifetime
     )
         private
     {
         bytes32 instanceId = _instanceService.getInstanceId();
-        IBundle.Bundle memory bundle = _instanceService.getBundle(bundleId);
         uint256 expiration = bundle.createdAt + lifetime;
         _bundleRegistry.registerBundle(
             instanceId,
             bundle.riskpoolId,
-            bundleId,
+            bundle.id,
             name,
             expiration
         );
@@ -196,18 +208,17 @@ contract DepegRiskpool is
      * @dev Register the bundle with given id for staking (must be registered in bundle registry before).
      */
     function registerBundleForStaking(
-        uint256 bundleId
+        IBundle.Bundle memory bundle
     )
         private
     {
         bytes32 instanceId = _instanceService.getInstanceId();
-        IBundle.Bundle memory bundle = _instanceService.getBundle(bundleId);
         (bytes32 targetId, IStakingDataProvider.Target memory target) = 
             _staking.toTarget(
                 IStakingDataProvider.TargetType.Bundle, 
                 instanceId, 
                 bundle.riskpoolId, 
-                bundleId, 
+                bundle.id, 
                 "");
         _staking.register(targetId, target);
     }
