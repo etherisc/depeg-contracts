@@ -82,7 +82,7 @@ contract DepegRiskpool is
     }
 
 
-    function setStaking(address stakingDataProviderAddress)
+    function setStakingAddress(address stakingDataProviderAddress)
         external
         onlyOwner
     {

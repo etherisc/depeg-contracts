@@ -49,7 +49,7 @@ def test_staking_full_setup(
     bundle_name = 'bundle-1'
     
     print('--- link riskpool to staking contract ---')
-    riskpool.setStaking(staking, {'from': riskpoolKeeper})
+    riskpool.setStakingAddress(staking, {'from': riskpoolKeeper})
 
     from_owner = {'from': registryOwner}
 

@@ -740,7 +740,7 @@ def all_in_1(
 
     # link riskpool to staking
     if not disable_staking:
-        riskpool.setStaking(staking, {'from': a[RISKPOOL_KEEPER]})
+        riskpool.setStakingAddress(staking, {'from': a[RISKPOOL_KEEPER]})
 
     print('--- register instance and bundles for staking ---')
     bundle_registry.registerInstance(
