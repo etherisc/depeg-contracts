@@ -163,7 +163,7 @@ def verify_deploy(
     verify_element('PriceDataProviderOwner', price_data_provider.getOwner(), productOwner)
     print('TODO add additional price data provider checks')
 
-    staking = contract_from_address(Staking, riskpool.getStakingDataProvider())
+    staking = contract_from_address(Staking, riskpool.getStakingAddress())
     bundle_registry = contract_from_address(BundleRegistry, staking.getBundleRegistry())
     instance_id = instanceService.getInstanceId()
     riskpool_id = riskpool.getId()
@@ -740,7 +740,7 @@ def all_in_1(
 
     # link riskpool to staking
     if not disable_staking:
-        riskpool.setStakingAddress(staking, {'from': a[RISKPOOL_KEEPER]})
+        riskpool.setStaking(staking, {'from': a[RISKPOOL_KEEPER]})
 
     print('--- register instance and bundles for staking ---')
     bundle_registry.registerInstance(
