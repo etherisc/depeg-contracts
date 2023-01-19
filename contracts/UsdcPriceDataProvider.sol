@@ -32,7 +32,13 @@ contract UsdcPriceDataProvider is
     uint256 public constant CHAINLINK_HEARTBEAT_MARGIN = 100;
     uint256 public constant CHAINLINK_USDC_USD_HEARTBEAT = 24 * 3600;
 
+    uint8 public constant PRICE_HISTORY_SIZE = 20;
+
     IERC20Metadata private _token;
+
+    uint256 private _priceInfoHistoryIdx;
+    PriceInfo [] private _priceInfoHistory;
+
     PriceInfo private _latestPriceInfo;
     PriceInfo private _depegPriceInfo;
 
@@ -54,6 +60,8 @@ contract UsdcPriceDataProvider is
         } else {
             revert("ERROR:UPDP-010:CHAIN_NOT_SUPPORTET");
         }
+
+        _priceInfoHistoryIdx = 0;
     }
 
 
@@ -64,9 +72,9 @@ contract UsdcPriceDataProvider is
         (
             uint80 roundId,
             int256 answer,
-            uint256 startedAt,
+            , // startedAt unused
             uint256 updatedAt,
-            uint80 answeredInRound
+             // answeredInRound unused
         ) = latestRoundData();
 
         require(answer >= 0, "ERROR:UPDP-020:NEGATIVE_PRICE_VALUES_INVALID");
@@ -90,6 +98,15 @@ contract UsdcPriceDataProvider is
             updatedAt
         );
 
+        // update price history
+        if(_priceInfoHistoryIdx < PRICE_HISTORY_SIZE) {
+            _priceInfoHistory.push(priceInfo);
+        } else {
+            _priceInfoHistory[_priceInfoHistoryIdx % PRICE_HISTORY_SIZE] = priceInfo;
+        }
+
+        _priceInfoHistoryIdx++;
+
         // record depeg price info
         // the price recorded here will be used to determine payout amounts
         if(_depegPriceInfo.depeggedAt == 0 && priceInfo.depeggedAt > 0) {
@@ -98,6 +115,20 @@ contract UsdcPriceDataProvider is
 
         _latestPriceInfo = priceInfo;
     }
+
+    function priceHistoryItems()
+        external 
+        view 
+        returns(uint256 items)
+    { return _priceInfoHistory.length; }
+
+    function getPriceHistoryItem(uint256 idx)
+        external 
+        view 
+        returns(PriceInfo memory item)
+    { return _priceInfoHistory[idx]; }
+
+
 
     function forceDepegForNextPriceInfo()
         external override

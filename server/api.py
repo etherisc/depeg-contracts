@@ -1,3 +1,18 @@
+# usage:
+# 0. set correct prduct address in servers .env file
+# 1. open new terminal
+# 2. start uvicorn server
+#    - uvicorn server.api:app --reload
+# 3. switch back to original terminal
+# 4. test api (command line)
+#    - curl localhost:8000/node
+#    - curl localhost:8000/settings
+#    - curl localhost:8000/feeder
+#    - curl localhost:8000/feeder/deploy
+#    - curl localhost:8000/feeder/process
+#    - curl localhost:8000/feeder/price_info
+# 5. test api (browser)
+#    - http://localhost:8000/docs
 
 import logging
 import sched
@@ -13,33 +28,59 @@ from fastapi import (
 from server.node import NodeStatus
 from server.settings import Settings
 from server.feeder import (
-    PriceFeedState,
+    PriceFeedStatus,
     PriceFeed,
 )
-# usage
-# 1. open new terminal
-# 2. start uvicorn server
-# 3. switch back to original terminal
-# 4. test api servier with curl
-# reg 2: uvicorn server.api:app --reload
-# reg 4: curl localhost:8000/
+from server.product import (
+    ProductStatus,
+    Product
+)
 
-# getting config
-# curl localhost:8000/config
+# openapi documentation
+OPENAPI_TITLE = 'Price Feeder API Server'
+OPENAPI_URL = 'localhost:8000/docs'
+OPENAPI_TAGS = [
+    {
+        'name': 'product',
+        'description': 'Access to the depeg product contract'
+    },
+    {
+        'name': 'feeder',
+        'description': 'Control of the (test) price feeder contract'
+    },
+    {
+        'name': 'node',
+        'description': 'Connecting and disconnecting to blockchain'
+    },
+    {
+        'name': 'settings',
+        'description': 'Manage settings from .env file'
+    },
+]
 
 # scheduler
 PRIORITY = 1
 INTERVAL = 5 # seconds to wait for new data
 
+
 # setup logger
 logger = logging.getLogger(__name__)
 
 # the api server
-app = FastAPI()
+app = FastAPI(
+    title=OPENAPI_TITLE,
+    openapi_tags=OPENAPI_TAGS
+)
+
 settings = Settings()
 feeder = PriceFeed()
+product = Product(
+    product_contract_address = settings.product_contract_address,
+    product_owner_id = settings.product_owner_id)
+
+depeg_product = None
+price_data_provider = None
 token = None
-provider = None
 
 # setup scheduling
 schedule = sched.scheduler(time.time, time.sleep)
@@ -48,65 +89,113 @@ events = 0
 
 
 def execute_event():
-    logging.info('events {}'.format(events))
-    feeder.push_next_price(provider)
+    logger.info('events %s', events)
 
+    if not price_data_provider:
+        logger.warning('no provider')
+        return
+
+    try:
+        feeder.push_next_price(
+            price_data_provider,
+            product.owner.get_account())
+
+    except (RuntimeError, ValueError) as ex:
+        raise HTTPException(
+            status_code=400,
+            detail=getattr(ex, 'message', repr(ex))) from ex
 
 
 @app.get('/')
 async def root():
     return { 
-        'info': 'api server',
-        'openapi': 'localhost:8000/docs'
+        'info': OPENAPI_TITLE,
+        'openapi': OPENAPI_URL
         }
 
 
-@app.get('/feeder')
-async def get_feeder_status() -> PriceFeedState:
-    return feeder.get_status(token, provider)
+@app.get('/product', tags=['product'])
+async def get_product_status() -> ProductStatus:
+    return product.get_status()
 
 
-@app.get('/feeder/process')
-async def process_price_info() -> dict:
-    global provider
-
+@app.get('/product/price_history', tags=['product'])
+async def get_product_price_history() -> list:
     try:
-        feeder.process_latest_price_info(provider)
+        return product.get_price_history(price_data_provider)
 
     except RuntimeError as ex:
         raise HTTPException(
             status_code=400,
             detail=getattr(ex, 'message', repr(ex))) from ex
 
-    return {
-        'has_new_price_info': provider.hasNewPriceInfo().dict(),
-        'latest_round_data': provider.latestRoundData().dict()
-    }
 
+@app.get('/product/price_info', tags=['product'])
+async def get_product_price_info() -> dict:
+    try:
+        return product.get_price_info(price_data_provider)
 
-@app.get('/feeder/price_info')
-async def get_feeder_price_info() -> dict:
-    if not provider:
+    except RuntimeError as ex:
         raise HTTPException(
             status_code=400,
-            detail='no price feeder deployed')
-
-    return {
-        'has_new_price_info': provider.hasNewPriceInfo().dict(),
-        'latest_round_data': provider.latestRoundData().dict()
-    }
+            detail=getattr(ex, 'message', repr(ex))) from ex
 
 
-@app.get('/feeder/deploy')
-async def deploy_feeder() -> PriceFeedState:
-    global provider
+@app.put('/product/update_price', tags=['product'])
+async def update_price_info() -> dict:
+    try:
+        return product.update_price_info(
+            depeg_product,
+            product.owner.get_account())
+
+    except (RuntimeError, ValueError) as ex:
+        message = getattr(ex, 'message', repr(ex))
+
+        if 'ERROR:UPDP-021:PRICE_ID_SEQUENCE_INVALID' in message:
+            raise HTTPException(
+                status_code=400,
+                detail='invalid price id: reset depeg state in feeder') from ex
+
+        raise HTTPException(
+            status_code=400,
+            detail=message) from ex
+
+
+@app.put('/product/connect', tags=['product'])
+async def connect_to_product_contract() -> ProductStatus:
+    global depeg_product
+    global price_data_provider
     global token
 
     try:
         settings.node.connect()
-        token = feeder.deploy_token()
-        provider = feeder.deploy_data_provider(token)
-        return feeder.get_status(token, provider)
+        (
+            depeg_product,
+            price_data_provider,
+            token
+        ) = product.connect_to_contract(
+            settings.product_contract_address,
+            settings.product_owner_id
+        )
+
+        return product.get_status()
+
+    except (RuntimeError, ValueError) as ex:
+        raise HTTPException(
+            status_code=400,
+            detail=getattr(ex, 'message', repr(ex))) from ex
+
+
+@app.get('/feeder', tags=['feeder'])
+async def get_feeder_status() -> PriceFeedStatus:
+    return feeder.get_status(price_data_provider)
+
+
+@app.put('/feeder/set_state/{new_state}', tags=['feeder'])
+async def set_state(new_state:str) -> PriceFeedStatus:
+    try:
+        feeder.set_state(new_state)
+        return feeder.get_status(price_data_provider)
 
     except RuntimeError as ex:
         raise HTTPException(
@@ -114,27 +203,39 @@ async def deploy_feeder() -> PriceFeedState:
             detail=getattr(ex, 'message', repr(ex))) from ex
 
 
-@app.get('/node')
+@app.put('/feeder/reset_depeg', tags=['feeder'])
+async def process_price_info() -> PriceFeedStatus:
+    try:
+        feeder.reset_depeg(price_data_provider, product.owner.get_account())
+        return feeder.get_status(price_data_provider)
+
+    except RuntimeError as ex:
+        raise HTTPException(
+            status_code=400,
+            detail=getattr(ex, 'message', repr(ex))) from ex
+
+
+@app.get('/node', tags=['node'])
 async def get_node_status() -> NodeStatus:
     return settings.node.get_status()
 
 
-@app.get('/node/connect')
+@app.put('/node/connect', tags=['node'])
 async def node_connect() -> NodeStatus:
     return settings.node.connect()
 
 
-@app.get('/node/disconnect')
+@app.put('/node/disconnect', tags=['node'])
 async def node_disconnect() -> NodeStatus:
     return settings.node.disconnect()
 
 
-@app.get('/settings')
+@app.get('/settings', tags=['settings'])
 async def get_settings() -> Settings:
     return settings
 
 
-@app.get('/settings/reload')
+@app.put('/settings/reload', tags=['settings'])
 async def reload_settings() -> Settings:
     global settings
     settings = Settings()
