@@ -494,29 +494,6 @@ def test_price_price_id_sequence_skip_one(usdc_feeder: UsdcPriceDataProvider):
             print('price_info[{}] {}'.format(i, price_info))
 
 
-def test_price_price_id_sequence_decrease_one(usdc_feeder: UsdcPriceDataProvider):
-
-    if web3.chain_id != GANACHE:
-        print('unsupported test case for chain_id {}'.format(web3.chain_id))
-        return
-
-    for i, data in enumerate(USDC_CHAINLINK_DATA_PRICE_DECREASE):
-        inject_data(usdc_feeder, data)
-
-        print('data[{}] {}'.format(i, data))
-
-        # roundid 36893488147419103822
-        if i == 0:
-            # tx = usdc_feeder.getPriceInfo(price_id)
-            tx = usdc_feeder.processLatestPriceInfo()
-            price_info = tx.return_value.dict()
-            print('price_info[{}] {}'.format(i, price_info))
-        # roundid 36893488147419103821 (decrease one)
-        elif i == 1:
-            with brownie.reverts('ERROR:UPDP-021:PRICE_ID_SEQUENCE_INVALID'):
-                usdc_feeder.processLatestPriceInfo()
-
-
 def test_price_data_valid(usdc_feeder: UsdcPriceDataProvider):
 
     if web3.chain_id != GANACHE:

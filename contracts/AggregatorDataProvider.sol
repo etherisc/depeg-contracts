@@ -131,10 +131,6 @@ contract AggregatorDataProvider is
             return _aggregator.getRoundData(_roundId);
         }
 
-        if(_roundId == type(uint80).max && _roundIds.length > 0) {
-            _roundId = _roundIds[_roundIds.length - 1];
-        }
-
         ChainlinkRoundData memory data = _aggregatorData[_roundId];
 
         return (
@@ -275,7 +271,7 @@ contract AggregatorDataProvider is
             return _aggregator.latestRoundData();
         }
 
-        return getRoundData(type(uint80).max);
+        return getRoundData(_maxRoundId);
     }
 
     function isMainnet()
