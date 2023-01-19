@@ -112,6 +112,20 @@ USDC_CHAINLINK_DATA_TRIGGER_AND_DEPEG = [
     '36893488147419103831 99990000 1660210000 1660210000 36893488147419103831',
 ]
 
+STATE_COMPLIANCE = {}
+STATE_COMPLIANCE['Undefined'] = 0
+STATE_COMPLIANCE['Initializing'] = 1
+STATE_COMPLIANCE['Valid'] = 2
+STATE_COMPLIANCE['FailedOnce'] = 3
+STATE_COMPLIANCE['FailedMultipleTimes'] = 4
+
+STATE_STABILITY = {}
+STATE_STABILITY['Undefined'] = 0
+STATE_STABILITY['Initializing'] = 1
+STATE_STABILITY['Stable'] = 2
+STATE_STABILITY['Triggered'] = 3
+STATE_STABILITY['Depegged'] = 4
+
 # enforce function isolation for tests below
 @pytest.fixture(autouse=True)
 def isolation(fn_isolation):
@@ -171,8 +185,8 @@ def test_live_data(usdc_feeder: UsdcPriceDataProvider):
     # test assumes that usdc feed is ok currently ...
     assert price_info['id'] == round_data['roundId']
     assert price_info['price'] == round_data['answer']
-    assert price_info['compliance'] == 0
-    assert price_info['stability'] == 0
+    assert price_info['compliance'] == STATE_COMPLIANCE['Initializing']
+    assert price_info['stability'] == STATE_STABILITY['Initializing']
     assert price_info['triggeredAt'] == 0
     assert price_info['depeggedAt'] == 0
     assert price_info['createdAt'] == round_data['updatedAt']
@@ -187,7 +201,7 @@ def test_live_data(usdc_feeder: UsdcPriceDataProvider):
 
 
 def test_feed_manipulation_disabled_on_mainnet(
-    usdc_feeder: UsdcPriceDataProvider, 
+    usdc_feeder: UsdcPriceDataProvider,
     instanceOperator:Account,
     productOwner:Account,
 ):
@@ -271,16 +285,16 @@ def test_force_and_reset_depeg(
 
     assert price_info['id'] == round_id
     assert price_info['price'] == price
-    assert price_info['compliance'] == 1
-    assert price_info['stability'] == 1
+    assert price_info['compliance'] == STATE_COMPLIANCE['Valid']
+    assert price_info['stability'] == STATE_STABILITY['Stable']
     assert price_info['triggeredAt'] == 0
     assert price_info['depeggedAt'] == 0
     assert price_info['createdAt'] == time
 
     assert price_info_depeg_init['id'] == 0
     assert price_info_depeg_init['price'] == 0
-    assert price_info_depeg_init['compliance'] == 0
-    assert price_info_depeg_init['stability'] == 0
+    assert price_info_depeg_init['compliance'] == STATE_COMPLIANCE['Undefined']
+    assert price_info_depeg_init['stability'] == STATE_STABILITY['Undefined']
     assert price_info_depeg_init['triggeredAt'] == 0
     assert price_info_depeg_init['depeggedAt'] == 0
     assert price_info_depeg_init['createdAt'] == 0
@@ -300,8 +314,8 @@ def test_force_and_reset_depeg(
     price_info = usdc_feeder.getLatestPriceInfo().dict()
     print('price_info3 {}'.format(price_info))
 
-    assert price_info['compliance'] == 2 # failedOnce
-    assert price_info['stability'] == 2 # triggered
+    assert price_info['compliance'] == STATE_COMPLIANCE['FailedOnce']
+    assert price_info['stability'] == STATE_STABILITY['Triggered']
     assert price_info['triggeredAt'] == time
     assert price_info['depeggedAt'] == 0
 
@@ -339,8 +353,8 @@ def test_force_and_reset_depeg(
 
     assert price_info['id'] == round_id
     assert price_info['price'] == price_depeg
-    assert price_info['compliance'] == 3 # failedMultiple
-    assert price_info['stability'] == 3 # depegged
+    assert price_info['compliance'] == STATE_COMPLIANCE['FailedMultipleTimes']
+    assert price_info['stability'] == STATE_STABILITY['Depegged']
     assert price_info['triggeredAt'] == time_trigger
     assert price_info['depeggedAt'] == time_depeg
 
@@ -369,8 +383,8 @@ def test_force_and_reset_depeg(
     # check price info
     assert price_info['id'] == round_id
     assert price_info['price'] == price
-    assert price_info['compliance'] == 3 # failedMultiple
-    assert price_info['stability'] == 3 # depegged
+    assert price_info['compliance'] == STATE_COMPLIANCE['FailedMultipleTimes']
+    assert price_info['stability'] == STATE_STABILITY['Depegged']
     assert price_info['triggeredAt'] == time_trigger
     assert price_info['depeggedAt'] == time_depeg
     assert price_info['createdAt'] == time
@@ -404,8 +418,8 @@ def test_force_and_reset_depeg(
     price_info = usdc_feeder.getLatestPriceInfo().dict()
     assert price_info['id'] == round_id
     assert price_info['price'] == price
-    assert price_info['compliance'] == 1 # valid
-    assert price_info['stability'] == 1 # stable
+    assert price_info['compliance'] == STATE_COMPLIANCE['Valid']
+    assert price_info['stability'] == STATE_STABILITY['Stable']
     assert price_info['triggeredAt'] == 0
     assert price_info['depeggedAt'] == 0
     assert price_info['createdAt'] == time
@@ -414,8 +428,8 @@ def test_force_and_reset_depeg(
     price_info_depeg_reset = usdc_feeder.getDepegPriceInfo().dict()
     assert price_info_depeg_reset['id'] == 0
     assert price_info_depeg_reset['price'] == 0
-    assert price_info_depeg_reset['compliance'] == 0
-    assert price_info_depeg_reset['stability'] == 0
+    assert price_info_depeg_reset['compliance'] == STATE_COMPLIANCE['Undefined']
+    assert price_info_depeg_reset['stability'] == STATE_STABILITY['Undefined']
     assert price_info_depeg_reset['triggeredAt'] == 0
     assert price_info_depeg_reset['depeggedAt'] == 0
     assert price_info_depeg_reset['createdAt'] == 0
@@ -519,11 +533,11 @@ def test_price_data_valid(usdc_feeder: UsdcPriceDataProvider):
         print('price_info[{}] {}'.format(i, price_info))
 
         if i == 0:
-            assert price_info['compliance'] == 0 # Initializing
-            assert price_info['stability'] == 0 # Initializing
+            assert price_info['compliance'] == STATE_COMPLIANCE['Initializing']
+            assert price_info['stability'] == STATE_STABILITY['Initializing']
         else:
-            assert price_info['compliance'] == 1 # Valid
-            assert price_info['stability'] == 1 # Stable
+            assert price_info['compliance'] == STATE_COMPLIANCE['Valid']
+            assert price_info['stability'] == STATE_STABILITY['Stable']
 
 
 def test_price_data_heatbeat_error(usdc_feeder: UsdcPriceDataProvider):
@@ -547,23 +561,23 @@ def test_price_data_heatbeat_error(usdc_feeder: UsdcPriceDataProvider):
         if i == 0:
             assert 'LogPriceDataDeviationExceeded' not in tx.events
             assert 'LogPriceDataHeartbeatExceeded' not in tx.events
-            assert price_info['compliance'] == 0 # Initializing
-            assert price_info['stability'] == 0 # Initializing
+            assert price_info['compliance'] == STATE_COMPLIANCE['Initializing']
+            assert price_info['stability'] == STATE_STABILITY['Initializing']
         elif i == 1:
             assert 'LogPriceDataDeviationExceeded' not in tx.events
             assert 'LogPriceDataHeartbeatExceeded' in tx.events
-            assert price_info['compliance'] == 2 # FailedOnce
-            assert price_info['stability'] == 1 # Stable
+            assert price_info['compliance'] == STATE_COMPLIANCE['FailedOnce']
+            assert price_info['stability'] == STATE_STABILITY['Stable']
         elif i == 2:
             assert 'LogPriceDataDeviationExceeded' not in tx.events
             assert 'LogPriceDataHeartbeatExceeded' in tx.events
-            assert price_info['compliance'] == 3 # FailedMultipleTimes
-            assert price_info['stability'] == 1 # Stable
+            assert price_info['compliance'] == STATE_COMPLIANCE['FailedMultipleTimes']
+            assert price_info['stability'] == STATE_STABILITY['Stable']
         elif i == 3:
             assert 'LogPriceDataDeviationExceeded' not in tx.events
             assert 'LogPriceDataHeartbeatExceeded' not in tx.events
-            assert price_info['compliance'] == 1 # Valid
-            assert price_info['stability'] == 1 # Stable
+            assert price_info['compliance'] == STATE_COMPLIANCE['Valid']
+            assert price_info['stability'] == STATE_STABILITY['Stable']
 
 
 def test_price_data_deviation_error(usdc_feeder: UsdcPriceDataProvider):
@@ -587,23 +601,23 @@ def test_price_data_deviation_error(usdc_feeder: UsdcPriceDataProvider):
         if i == 0:
             assert 'LogPriceDataHeartbeatExceeded' not in tx.events
             assert 'LogPriceDataDeviationExceeded' not in tx.events
-            assert price_info['compliance'] == 0 # Initializing
-            assert price_info['stability'] == 0 # Initializing
+            assert price_info['compliance'] == STATE_COMPLIANCE['Initializing']
+            assert price_info['stability'] == STATE_STABILITY['Initializing']
         elif i == 1:
             assert 'LogPriceDataHeartbeatExceeded' not in tx.events
             assert 'LogPriceDataDeviationExceeded' in tx.events
-            assert price_info['compliance'] == 2 # FailedOnce
-            assert price_info['stability'] == 1 # Stable
+            assert price_info['compliance'] == STATE_COMPLIANCE['FailedOnce']
+            assert price_info['stability'] == STATE_STABILITY['Stable']
         elif i == 2:
             assert 'LogPriceDataHeartbeatExceeded' not in tx.events
             assert 'LogPriceDataDeviationExceeded' in tx.events
-            assert price_info['compliance'] == 3 # FailedMultipleTimes
-            assert price_info['stability'] == 1 # Stable
+            assert price_info['compliance'] == STATE_COMPLIANCE['FailedMultipleTimes']
+            assert price_info['stability'] == STATE_STABILITY['Stable']
         elif i == 3:
             assert 'LogPriceDataHeartbeatExceeded' not in tx.events
             assert 'LogPriceDataDeviationExceeded' not in tx.events
-            assert price_info['compliance'] == 1 # Valid
-            assert price_info['stability'] == 1 # Stable
+            assert price_info['compliance'] == STATE_COMPLIANCE['Valid']
+            assert price_info['stability'] == STATE_STABILITY['Stable']
 
 
 def test_price_data_trigger_and_recovery(usdc_feeder: UsdcPriceDataProvider):
@@ -627,12 +641,12 @@ def test_price_data_trigger_and_recovery(usdc_feeder: UsdcPriceDataProvider):
         if i == 0:
             assert usdc_feeder.getTriggeredAt() == 0
             assert usdc_feeder.getDepeggedAt() == 0
-            assert price_info['stability'] == 0 # Initializing
+            assert price_info['stability'] == STATE_STABILITY['Initializing']
         # 1 1660080000  99700000 below recovery but above trigger
         elif i == 1:
             assert usdc_feeder.getTriggeredAt() == 0
             assert usdc_feeder.getDepeggedAt() == 0
-            assert price_info['stability'] == 1 # Stable
+            assert price_info['stability'] == STATE_STABILITY['Stable']
         # 2 1660090000  99500001 1 above trigger
         elif i == 2:
             assert usdc_feeder.getTriggeredAt() == 0
@@ -640,7 +654,7 @@ def test_price_data_trigger_and_recovery(usdc_feeder: UsdcPriceDataProvider):
             assert len(tx.events) == 0
             assert price_info['triggeredAt'] == 0
             assert price_info['depeggedAt'] == 0
-            assert price_info['stability'] == 1 # Stable
+            assert price_info['stability'] == STATE_STABILITY['Stable']
         # 3 1660100000  99500000 at trigger
         elif i == 3:
             triggeredAt = price_info['createdAt']
@@ -652,22 +666,22 @@ def test_price_data_trigger_and_recovery(usdc_feeder: UsdcPriceDataProvider):
             assert tx.events['LogPriceDataTriggered']['triggeredAt'] == price_info['triggeredAt']
             assert price_info['triggeredAt'] == triggeredAt
             assert price_info['depeggedAt'] == 0
-            assert price_info['stability'] == 2 # Triggered
+            assert price_info['stability'] == STATE_STABILITY['Triggered']
         # 4 1660120000  99800000 above trigger but below recovery
         elif i == 4:
             assert usdc_feeder.getTriggeredAt() == triggeredAt
             assert usdc_feeder.getDepeggedAt() == 0
-            assert price_info['stability'] == 2 # Triggered
+            assert price_info['stability'] == STATE_STABILITY['Triggered']
         # 5 1660140000  98000000 really below trigger
         elif i == 5:
             assert usdc_feeder.getTriggeredAt() == triggeredAt
             assert usdc_feeder.getDepeggedAt() == 0
-            assert price_info['stability'] == 2 # Triggered
+            assert price_info['stability'] == STATE_STABILITY['Triggered']
         # 6 1660160000  99899999 1 below recovery
         elif i == 6:
             assert usdc_feeder.getTriggeredAt() == triggeredAt
             assert usdc_feeder.getDepeggedAt() == 0
-            assert price_info['stability'] == 2 # Triggered
+            assert price_info['stability'] == STATE_STABILITY['Triggered']
         # 7 1660186401  99900000 at recovery
         elif i == 7:
             assert usdc_feeder.getTriggeredAt() == 0
@@ -679,14 +693,14 @@ def test_price_data_trigger_and_recovery(usdc_feeder: UsdcPriceDataProvider):
             assert tx.events['LogPriceDataRecovered']['recoveredAt'] == price_info['createdAt']
             assert price_info['triggeredAt'] == 0
             assert price_info['depeggedAt'] == 0
-            assert price_info['stability'] == 1 # Stable
+            assert price_info['stability'] == STATE_STABILITY['Stable']
         # 8 1660200000  99700000 below recovery and above trigger
         elif i == 8:
             assert usdc_feeder.getTriggeredAt() == 0
             assert usdc_feeder.getDepeggedAt() == 0
             assert price_info['triggeredAt'] == 0
             assert price_info['depeggedAt'] == 0
-            assert price_info['stability'] == 1 # Stable
+            assert price_info['stability'] == STATE_STABILITY['Stable']
 
 
 def test_price_data_trigger_and_depeg(usdc_feeder: UsdcPriceDataProvider):
@@ -710,12 +724,12 @@ def test_price_data_trigger_and_depeg(usdc_feeder: UsdcPriceDataProvider):
         if i == 0:
             assert usdc_feeder.getTriggeredAt() == 0
             assert usdc_feeder.getDepeggedAt() == 0
-            assert price_info['stability'] == 0 # Initializing
+            assert price_info['stability'] == STATE_STABILITY['Initializing']
         # 1 1660080000  99700000 below recovery but above trigger
         elif i == 1:
             assert usdc_feeder.getTriggeredAt() == 0
             assert usdc_feeder.getDepeggedAt() == 0
-            assert price_info['stability'] == 1 # Stable
+            assert price_info['stability'] == STATE_STABILITY['Stable']
         # 2 1660090000  99500001 1 above trigger
         elif i == 2:
             assert usdc_feeder.getTriggeredAt() == 0
@@ -723,7 +737,7 @@ def test_price_data_trigger_and_depeg(usdc_feeder: UsdcPriceDataProvider):
             assert len(tx.events) == 0
             assert price_info['triggeredAt'] == 0
             assert price_info['depeggedAt'] == 0
-            assert price_info['stability'] == 1 # Stable
+            assert price_info['stability'] == STATE_STABILITY['Stable']
         # 3 1660100000  99500000 at trigger
         elif i == 3:
             triggeredAt = price_info['createdAt']
@@ -735,22 +749,22 @@ def test_price_data_trigger_and_depeg(usdc_feeder: UsdcPriceDataProvider):
             assert tx.events['LogPriceDataTriggered']['triggeredAt'] == price_info['triggeredAt']
             assert price_info['triggeredAt'] == triggeredAt
             assert price_info['depeggedAt'] == 0
-            assert price_info['stability'] == 2 # Triggered
+            assert price_info['stability'] == STATE_STABILITY['Triggered']
         # 4 1660120000  99800000 above trigger but below recovery
         elif i == 4:
             assert usdc_feeder.getTriggeredAt() == triggeredAt
             assert usdc_feeder.getDepeggedAt() == 0
-            assert price_info['stability'] == 2 # Triggered
+            assert price_info['stability'] == STATE_STABILITY['Triggered']
         # 5 1660140000  98000000 really below trigger
         elif i == 5:
             assert usdc_feeder.getTriggeredAt() == triggeredAt
             assert usdc_feeder.getDepeggedAt() == 0
-            assert price_info['stability'] == 2 # Triggered
+            assert price_info['stability'] == STATE_STABILITY['Triggered']
         # 6 1660160000  99899999 1 below recovery
         elif i == 6:
             assert usdc_feeder.getTriggeredAt() == triggeredAt
             assert usdc_feeder.getDepeggedAt() == 0
-            assert price_info['stability'] == 2 # Triggered
+            assert price_info['stability'] == STATE_STABILITY['Triggered']
         # 7 1660186401  99900000 at recovery, but too late -> depeg
         elif i == 7:
             depeggedAt = price_info['createdAt']
@@ -764,7 +778,7 @@ def test_price_data_trigger_and_depeg(usdc_feeder: UsdcPriceDataProvider):
             assert tx.events['LogPriceDataDepegged']['depeggedAt'] == depeggedAt
             assert price_info['triggeredAt'] == triggeredAt
             assert price_info['depeggedAt'] == depeggedAt
-            assert price_info['stability'] == 3 # Stable
+            assert price_info['stability'] == STATE_STABILITY['Depegged']
         # 8 1660200000  99700000 below recovery and above trigger
         # still depegged because once depegged state remains at depegged no matter waht
         elif i in [8, 9]:
@@ -772,7 +786,7 @@ def test_price_data_trigger_and_depeg(usdc_feeder: UsdcPriceDataProvider):
             assert usdc_feeder.getDepeggedAt() == depeggedAt
             assert price_info['triggeredAt'] == triggeredAt
             assert price_info['depeggedAt'] == depeggedAt
-            assert price_info['stability'] == 3 # Stable
+            assert price_info['stability'] == STATE_STABILITY['Depegged']
 
 
 def check_round(actual_data, expected_data):

@@ -3,11 +3,12 @@ pragma solidity 0.8.2;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 
-import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
+// V2V3 combines AggregatorInterface and AggregatorV3Interface
+import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV2V3Interface.sol";
 
 contract AggregatorDataProvider is 
     Ownable,
-    AggregatorV3Interface 
+    AggregatorV2V3Interface
 {
     // matches return data for latestRoundData
     struct ChainlinkRoundData {
@@ -23,7 +24,7 @@ contract AggregatorDataProvider is
     uint256 public constant GANACHE2 = 1234;
     uint256 public constant MUMBAI = 80001;
     
-    AggregatorV3Interface private _aggregator;
+    AggregatorV2V3Interface private _aggregator;
 
     uint256 private _deviation;
     uint256 private _heartbeat;
@@ -35,6 +36,7 @@ contract AggregatorDataProvider is
 
     mapping(uint80 /* round id */ => ChainlinkRoundData) private _aggregatorData;
     uint80 [] private _roundIds;
+    uint80 private _maxRoundId;
 
     modifier onlyTestnet() {
         require(isTestnet(), "ERROR:ADP-001:NOT_TEST_CHAIN");
@@ -53,9 +55,9 @@ contract AggregatorDataProvider is
         Ownable()
     {
         if(isMainnet()) {
-            _aggregator = AggregatorV3Interface(aggregatorAddress);
+            _aggregator = AggregatorV2V3Interface(aggregatorAddress);
         } else if(isTestnet()) {
-            _aggregator = AggregatorV3Interface(address(this));
+            _aggregator = AggregatorV2V3Interface(address(this));
         } else {
             revert("ERROR:ADP-010:CHAIN_NOT_SUPPORTET");
         }
@@ -67,7 +69,26 @@ contract AggregatorDataProvider is
         _deviation = deviationLevel;
         _heartbeat = heartbeatSeconds;
         _heartbeatMargin = heartbeatMarginSeconds;
+
+        _maxRoundId = 0;
     }
+
+    function addRoundData(
+        int256 answer,
+        uint256 startedAt
+    )
+        external
+    {
+        _maxRoundId++;
+        setRoundData(
+            _maxRoundId,
+            answer,
+            startedAt,
+            startedAt, // set updatedAt == startedAt
+            _maxRoundId
+        );
+    }
+
 
     function setRoundData (
         uint80 roundId,
@@ -76,10 +97,15 @@ contract AggregatorDataProvider is
         uint256 updatedAt,
         uint80 answeredInRound
     )
-        external
+        public
         onlyOwner()
         onlyTestnet()
     {
+        // update max roundId if necessary
+        if(roundId > _maxRoundId) {
+            _maxRoundId = roundId;
+        }
+
         _roundIds.push(roundId);
         _aggregatorData[roundId] = ChainlinkRoundData(
             roundId,
@@ -168,6 +194,46 @@ contract AggregatorDataProvider is
 
     function heartbeatMargin() public view returns (uint256) {
         return _heartbeatMargin;
+    }
+
+    function latestAnswer() external override view returns (int256) {
+        if(isMainnet()) {
+            return _aggregator.latestAnswer();
+        }
+
+        return _aggregatorData[_maxRoundId].answer;
+    }
+
+    function latestTimestamp() external override view returns (uint256) {
+        if(isMainnet()) {
+            return _aggregator.latestTimestamp();
+        }
+
+        return _aggregatorData[_maxRoundId].updatedAt;
+    }
+
+    function latestRound() external override view returns (uint256) {
+        if(isMainnet()) {
+            return _aggregator.latestRound();
+        }
+
+        return _maxRoundId;
+    }
+
+    function getAnswer(uint256 roundId) external override view returns (int256) {
+        if(isMainnet()) {
+            return _aggregator.getAnswer(roundId);
+        }
+
+        return _aggregatorData[uint80(roundId)].answer;
+    }
+
+    function getTimestamp(uint256 roundId) external override view returns (uint256) {
+        if(isMainnet()) {
+            return _aggregator.getTimestamp(roundId);
+        }
+
+        return _aggregatorData[uint80(roundId)].updatedAt;
     }
 
     function description() public override view returns (string memory) {

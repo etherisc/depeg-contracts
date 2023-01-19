@@ -103,9 +103,10 @@ def test_product_lifecycle_startup(
     price_info = product.getLatestPriceInfo().dict()
     print('priceInfo {}'.format(price_info))
 
+    compliance_initializing = 1
     assert price_info['id'] == price_id
     assert price_info['price'] == price
-    assert price_info['compliance'] == 0
+    assert price_info['compliance'] == compliance_initializing
     assert price_info['triggeredAt'] == 0
     assert price_info['depeggedAt'] == 0
     assert price_info['createdAt'] == timestamp

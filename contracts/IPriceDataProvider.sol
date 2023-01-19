@@ -4,6 +4,7 @@ pragma solidity 0.8.2;
 interface IPriceDataProvider {
 
     enum ComplianceState {
+        Undefined,
         Initializing,
         Valid,
         FailedOnce,
@@ -11,6 +12,7 @@ interface IPriceDataProvider {
     }
 
     enum StabilityState {
+        Undefined,
         Initializing,
         Stable,
         Triggered,
@@ -45,6 +47,13 @@ interface IPriceDataProvider {
         uint256 price,
         uint256 triggeredAt,
         uint256 depeggedAt);
+
+    event LogUsdcProviderForcedDepeg (
+        uint256 updatedTriggeredAt,
+        uint256 forcedDepegAt);
+
+    event LogUsdcProviderResetDepeg (
+        uint256 resetDepegAt);
 
     struct PriceInfo {
         uint256 id;

@@ -10,9 +10,6 @@ contract UsdcPriceDataProvider is
     AggregatorDataProvider, 
     IPriceDataProvider
 {
-    event LogUsdcProviderForcedDepeg (uint256 updatedTriggeredAt, uint256 forcedDepegAt);
-    event LogUsdcProviderResetDepeg (uint256 resetDepegAt);
-
     address public constant USDC_CONTACT_ADDRESS = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
     address public constant CHAINLINK_USDC_USD_FEED_MAINNET = 0x8fFfFfd4AfB6115b954Bd326cbe7B4BA576818f6;
     uint8 public constant CHAINLINK_USDC_DECIMALS = 8;
@@ -120,6 +117,7 @@ contract UsdcPriceDataProvider is
     {
         // reset any info that will be copied over
         // to next latest price info
+        // _latestPriceInfo.id = 0;
         _latestPriceInfo.compliance = IPriceDataProvider.ComplianceState.Valid;
         _latestPriceInfo.stability = IPriceDataProvider.StabilityState.Stable;
         _latestPriceInfo.triggeredAt = 0;
@@ -128,8 +126,8 @@ contract UsdcPriceDataProvider is
         // reset depeg price info
         _depegPriceInfo.id = 0;
         _depegPriceInfo.price = 0;
-        _depegPriceInfo.compliance = IPriceDataProvider.ComplianceState.Initializing;
-        _depegPriceInfo.stability = IPriceDataProvider.StabilityState.Initializing;
+        _depegPriceInfo.compliance = IPriceDataProvider.ComplianceState.Undefined;
+        _depegPriceInfo.stability = IPriceDataProvider.StabilityState.Undefined;
         _depegPriceInfo.triggeredAt = 0;
         _depegPriceInfo.depeggedAt = 0;
         _depegPriceInfo.createdAt = 0;
