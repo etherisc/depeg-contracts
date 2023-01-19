@@ -135,6 +135,7 @@ def verify_deploy(
     verify_element('RiskpoolId', riskpool.getId(), riskpool_id)
     verify_element('RiskpoolType', instanceService.getComponentType(riskpool_id), 2)
     verify_element('RiskpoolState', instanceService.getComponentState(riskpool_id), 3)
+    verify_element('RiskpoolContract', riskpool.address, instanceService.getComponent(riskpool_id))
     verify_element('RiskpoolKeeper', riskpool.owner(), riskpoolKeeper)
     verify_element('RiskpoolWallet', instanceService.getRiskpoolWallet(riskpool_id), riskpoolWallet)
     verify_element('RiskpoolBalance', instanceService.getBalance(riskpool_id), erc20_token.balanceOf(riskpoolWallet))
@@ -143,6 +144,8 @@ def verify_deploy(
     verify_element('ProductId', product.getId(), product_id)
     verify_element('ProductType', instanceService.getComponentType(product_id), 1)
     verify_element('ProductState', instanceService.getComponentState(product_id), 3)
+    verify_element('ProductDepegState', product.getDepegState(), 1) # active
+    verify_element('ProductContract', product.address, instanceService.getComponent(product_id))
     verify_element('ProductOwner', product.owner(), productOwner)
     verify_element('ProductProtectedToken', product.getProtectedToken(), erc20_protected_token.address)
     verify_element('ProductToken', product.getToken(), erc20_token.address)
@@ -666,6 +669,8 @@ def all_in_1(
     riskpoolWallet = a[RISKPOOL_WALLET]
     
     print('====== deploy price data provider ======')
+    # hint: this contract will automatically link to chainlink pricefeed
+    # when connected to mainnet
     priceDataProvider = UsdcPriceDataProvider.deploy(
         usd1.address,
         {'from': productOwner},

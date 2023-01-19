@@ -18,6 +18,12 @@ from scripts.util import (
     contract_from_address
 )
 
+STATE_PRODUCT = {}
+STATE_PRODUCT['Undefined'] = 0 
+STATE_PRODUCT['Active'] = 1
+STATE_PRODUCT['Paused'] = 2
+STATE_PRODUCT['Depegged'] = 3
+
 ROUND_ID_INITIAL = 36893488147419103822
 
 PERFECT_PRICE = 10**8 # == 10**usdc.decimals()
@@ -63,7 +69,7 @@ def test_product_lifecycle_startup(
     usd1
 ):
     # check initial lifecycle state
-    assert product.getDepegState() == 0 #  enum DepegState { Active, Paused, Deactivated }
+    assert product.getDepegState() == STATE_PRODUCT['Active']
 
     # initially no new price info expected
     info = product.hasNewPriceInfo().dict()
@@ -112,7 +118,7 @@ def test_product_lifecycle_startup(
     assert price_info['createdAt'] == timestamp
 
     # check depeg state is still fine
-    assert product.getDepegState() == 0 #  enum DepegState { Active, Paused, Deactivated }
+    assert product.getDepegState() == STATE_PRODUCT['Active']
 
 
 def test_product_lifecycle_trigger(
@@ -142,7 +148,7 @@ def test_product_lifecycle_trigger(
         inject_and_update_data(product, data_provider, generate_next_data(i), productOwner)
 
     # check base line
-    assert product.getDepegState() == 0 #  enum DepegState { Active, Paused, Deactivated }
+    assert product.getDepegState() == STATE_PRODUCT['Active']
 
     price_info = product.getLatestPriceInfo().dict()
     print('priceInfo {}'.format(price_info))
@@ -158,7 +164,7 @@ def test_product_lifecycle_trigger(
     tx = inject_and_update_data(product, data_provider, above_trigger_data, productOwner)
     assert 'LogDepegPriceInfoUpdated' in tx.events
     assert 'LogDepegProductPaused' not in tx.events
-    assert product.getDepegState() == 0 #  enum DepegState { Active, Paused, Deactivated }
+    assert product.getDepegState() == STATE_PRODUCT['Active']
 
     price_info = product.getLatestPriceInfo().dict()
     print('priceInfo {}'.format(price_info))
@@ -215,7 +221,7 @@ def test_product_lifecycle_trigger(
     price_info = product.getLatestPriceInfo().dict()
     print('priceInfo {}'.format(price_info))
 
-    assert product.getDepegState() == 1 #  enum DepegState { Active, Paused, Deactivated }
+    assert product.getDepegState() == STATE_PRODUCT['Paused']
 
     # verify that it's not possible to underwrite a new policy
     with brownie.reverts('ERROR:DP-011:PRODUCT_NOT_ACTIVE'):
@@ -257,7 +263,7 @@ def test_product_lifecycle_trigger_and_recover(
         inject_and_update_data(product, data_provider, generate_next_data(i), productOwner)
 
     # check base line
-    assert product.getDepegState() == 0 #  enum DepegState { Active, Paused, Deactivated }
+    assert product.getDepegState() == STATE_PRODUCT['Active']
 
     # generate trigger data
     print('--- triggering depeg product ---')
@@ -273,7 +279,7 @@ def test_product_lifecycle_trigger_and_recover(
     assert len(tx.events) == 4
     assert 'LogPriceDataTriggered' in tx.events
 
-    assert product.getDepegState() == 1 #  enum DepegState { Active, Paused, Deactivated }
+    assert product.getDepegState() == STATE_PRODUCT['Paused']
 
     # verify that it's not possible to underwrite a new policy
     sumInsured = 10000
@@ -305,7 +311,7 @@ def test_product_lifecycle_trigger_and_recover(
     assert len(tx.events) == 1
     assert 'LogDepegPriceInfoUpdated' in tx.events
 
-    assert product.getDepegState() == 1 #  enum DepegState { Active, Paused, Deactivated }
+    assert product.getDepegState() == STATE_PRODUCT['Paused']
 
     with brownie.reverts('ERROR:DP-011:PRODUCT_NOT_ACTIVE'):
         apply_for_policy(
@@ -337,7 +343,7 @@ def test_product_lifecycle_trigger_and_recover(
     assert abs(tx.events['LogDepegProductUnpaused']['unpausedAt'] - timestamp) <= 5
 
     # check that depeg state is active again
-    assert product.getDepegState() == 0 #  enum DepegState { Active, Paused, Deactivated }
+    assert product.getDepegState() == STATE_PRODUCT['Active']
 
     price_info = product.getLatestPriceInfo().dict()
     print('priceInfo {}'.format(price_info))
@@ -394,7 +400,7 @@ def test_product_lifecycle_depeg(
         inject_and_update_data(product, data_provider, generate_next_data(i), productOwner)
 
     # check base line
-    assert product.getDepegState() == 0 #  enum DepegState { Active, Paused, Deactivated }
+    assert product.getDepegState() == STATE_PRODUCT['Active']
 
     # generate trigger data
     print('--- set price to trigger price ---')
@@ -411,7 +417,7 @@ def test_product_lifecycle_depeg(
     assert len(tx.events) == 4
     assert 'LogPriceDataTriggered' in tx.events
 
-    assert product.getDepegState() == 1 #  enum DepegState { Active, Paused, Deactivated }
+    assert product.getDepegState() == STATE_PRODUCT['Paused']
 
     print('--- keep price at trigger price ---')
     trigger_data = generate_next_data(
@@ -425,7 +431,7 @@ def test_product_lifecycle_depeg(
 
     tx = inject_and_update_data(product, data_provider, trigger_data, productOwner)
     assert len(tx.events) == 1
-    assert product.getDepegState() == 1 #  enum DepegState { Active, Paused, Deactivated }
+    assert product.getDepegState() == STATE_PRODUCT['Paused']
 
     print('--- move into depeg state (stay triggered for >= 24h) ---')
     trigger_data = generate_next_data(
@@ -439,7 +445,7 @@ def test_product_lifecycle_depeg(
     timestamp_depeg = timestamp
 
     tx = inject_and_update_data(product, data_provider, trigger_data, productOwner)
-    assert product.getDepegState() == 2 #  enum DepegState { Active, Paused, Deactivated }
+    assert product.getDepegState() == STATE_PRODUCT['Depegged']
 
     assert len(tx.events) == 3
     assert 'LogPriceDataDepegged' in tx.events
@@ -479,7 +485,7 @@ def test_product_lifecycle_depeg(
 
     tx = inject_and_update_data(product, data_provider, trigger_data, productOwner)
     # check we're still in depeg state
-    assert product.getDepegState() == 2 #  enum DepegState { Active, Paused, Deactivated }
+    assert product.getDepegState() == STATE_PRODUCT['Depegged']
 
     # check that recovered price does not mean creating policies is working again
     with brownie.reverts('ERROR:DP-011:PRODUCT_NOT_ACTIVE'):

@@ -4,6 +4,10 @@ from brownie import (
     Contract, 
 )
 
+
+def contract_from_address(contractClass, contractAddress):
+    return Contract.from_abi(contractClass._name, contractAddress, contractClass.abi)
+
 from brownie import accounts, config, project
 from brownie.convert import to_bytes
 from brownie.network.account import Account

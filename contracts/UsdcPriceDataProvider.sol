@@ -146,10 +146,10 @@ contract UsdcPriceDataProvider is
     {
         (
             uint80 roundId,
-            int256 answer,
-            uint256 startedAt,
+            , // answer not used
+            , // startedAt not used
             uint256 updatedAt,
-            uint80 answeredInRound
+             // answeredInRound not used
         ) = latestRoundData();
 
         if(roundId == _latestPriceInfo.id) {

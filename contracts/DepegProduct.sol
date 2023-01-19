@@ -17,6 +17,7 @@ contract DepegProduct is
 {
 
     enum DepegState {
+        Undefined,
         Active, // normal operation
         Paused, // stop selling policies, might recover to active
         Depegged  // stop selling policies, manual reset to active needed by owner
