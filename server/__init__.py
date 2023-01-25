@@ -1,7 +1,3 @@
-from server.setup import (
-    setup_logging,
-    setup_brownie,
-)
+from server.setup_brownie import setup_brownie
 
-setup_logging()
 setup_brownie()

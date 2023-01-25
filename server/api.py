@@ -14,11 +14,14 @@
 # 5. test api (browser)
 #    - http://localhost:8000/docs
 
-import logging
 import sched
 import time
 
 from threading import Thread
+
+from loguru import logger
+# from server.logger_setup import init_logging
+from server.setup_logging import setup_logging
 
 from fastapi import (
     FastAPI,
@@ -62,9 +65,11 @@ OPENAPI_TAGS = [
 PRIORITY = 1
 INTERVAL = 5 # seconds to wait for new data
 
+# read application settings
+settings = Settings()
 
-# setup logger
-logger = logging.getLogger(__name__)
+# setup logging
+setup_logging(settings)
 
 # the api server
 app = FastAPI(
@@ -72,7 +77,6 @@ app = FastAPI(
     openapi_tags=OPENAPI_TAGS
 )
 
-settings = Settings()
 feeder = PriceFeed()
 product = Product(
     product_contract_address = settings.product_contract_address,
@@ -89,7 +93,7 @@ events = 0
 
 
 def execute_event():
-    logger.info('events %s', events)
+    logger.info('events {}', events)
 
     if not price_data_provider:
         logger.warning('no provider')
@@ -108,7 +112,7 @@ def execute_event():
 
 @app.get('/')
 async def root():
-    return { 
+    return {
         'info': OPENAPI_TITLE,
         'openapi': OPENAPI_URL
         }
@@ -116,7 +120,7 @@ async def root():
 
 @app.get('/product', tags=['product'])
 async def get_product_status() -> ProductStatus:
-    return product.get_status()
+    return product.get_status(depeg_product)
 
 
 @app.get('/product/price_history', tags=['product'])
@@ -141,10 +145,10 @@ async def get_product_price_info() -> dict:
             detail=getattr(ex, 'message', repr(ex))) from ex
 
 
-@app.put('/product/update_price', tags=['product'])
-async def update_price_info() -> dict:
+@app.put('/product/process_price', tags=['product'])
+async def process_price_info() -> dict:
     try:
-        return product.update_price_info(
+        return product.process_latest_price_info(
             depeg_product,
             product.owner.get_account())
 
@@ -178,7 +182,7 @@ async def connect_to_product_contract() -> ProductStatus:
             settings.product_owner_id
         )
 
-        return product.get_status()
+        return product.get_status(depeg_product)
 
     except (RuntimeError, ValueError) as ex:
         raise HTTPException(
@@ -189,6 +193,11 @@ async def connect_to_product_contract() -> ProductStatus:
 @app.get('/feeder', tags=['feeder'])
 async def get_feeder_status() -> PriceFeedStatus:
     return feeder.get_status(price_data_provider)
+
+
+@app.get('/feeder/price_history', tags=['feeder'])
+async def get_feeder_price_history() -> list[str]:
+    return feeder.price_history
 
 
 @app.put('/feeder/set_state/{new_state}', tags=['feeder'])

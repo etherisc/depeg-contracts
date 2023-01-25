@@ -1,14 +1,9 @@
-import logging
-
+from loguru import logger
 from brownie import network
 from pydantic import BaseModel
 
 
 NETWORK_DEFAULT = 'ganache'
-
-
-# setup logger
-logger = logging.getLogger(__name__)
 
 
 class NodeStatus(BaseModel):
@@ -28,17 +23,17 @@ class BrownieNode(BaseModel):
 
     def connect(self) -> NodeStatus:
         if network.is_connected():
-            logger.info("already connected to network '%s'", self.network_id)
+            logger.info("already connected to network '{}'", self.network_id)
             return self.get_status()
 
-        logger.info("connecting to network '%s'", self.network_id)
+        logger.info("connecting to network '{}'", self.network_id)
         network.connect(self.network_id)
         logger.info("successfully connected")
         return self.get_status()
 
 
     def disconnect(self) -> NodeStatus:
-        logger.info("disconnecting from network '%s'", self.network_id)
+        logger.info("disconnecting from network '{}'", self.network_id)
         network.disconnect(self.network_id)
         logger.info("successfully disconnected")
         return self.get_status()

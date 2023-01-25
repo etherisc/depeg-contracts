@@ -1,8 +1,9 @@
-import logging
 import random
 
 from datetime import datetime
 from typing import Optional
+
+from loguru import logger
 from pydantic import BaseModel
 
 from brownie import network
@@ -16,7 +17,6 @@ from brownie.project.Project import (
 from server.util import get_block_time
 
 
-UNDEFINED = 'undefined'
 STABLE = 'stable'
 TRIGGERED = 'triggered'
 DEPEGGED = 'depegged'
@@ -29,16 +29,13 @@ PRICE_DEPEG = 0.93
 PRICE_MIN = 0.82
 
 TRANSITIONS = {}
-TRANSITIONS['stable -> triggered'] = [0.999,0.998,0.997,0.996,0.995]
+TRANSITIONS['stable -> triggered'] = [0.998,0.996,0.995]
 TRANSITIONS['triggered -> stable'] = [0.996,0.997,0.998]
 TRANSITIONS['triggered -> depegged'] = [0.99,0.98,0.95,0.91]
 TRANSITIONS['depegged -> stable'] = [0.9,0.95,0.99,1.0]
 
 INITIAL_ROUND_ID = 1000
-HISTORY_SIZE = 50
-
-# setup logger
-logger = logging.getLogger(__name__)
+HISTORY_SIZE = 20
 
 
 class PriceFeedStatus(BaseModel):
@@ -50,13 +47,13 @@ class PriceFeedStatus(BaseModel):
 
 class PriceFeed(BaseModel):
 
-    state: Optional[str]
+    state: Optional[str] = STABLE
     price_buffer: list[float] = []
+    price_history: list[str] = []
 
 
     def get_status(self, provider: UsdcPriceDataProvider) -> PriceFeedStatus:
         provider_address = provider.address if provider else None
-        self.state = self.get_state(provider)
 
         return PriceFeedStatus(
             state=self.state,
@@ -78,7 +75,7 @@ class PriceFeed(BaseModel):
 
 
     def reset_depeg(self, provider: UsdcPriceDataProvider, account: Account):
-        logger.info('provider %s account %s', provider, account)
+        logger.info('provider {} account {}', provider, account)
 
         if provider:
             logger.info('smart contract call: provider.resetDepeg()')
@@ -101,10 +98,7 @@ class PriceFeed(BaseModel):
 
         if transition in TRANSITIONS:
             self.price_buffer += TRANSITIONS[transition]
-            logger.info('prices added to buffer: %s', str(TRANSITIONS[transition]))
-
-            # TODO modify price info timestamp to force into depeg for
-            # state change to depegged
+            logger.info('prices added to buffer: {}', str(TRANSITIONS[transition]))
 
         else:
             raise RuntimeError(
@@ -137,25 +131,24 @@ class PriceFeed(BaseModel):
                 {'from': owner})
 
         round_id = provider.latestRound()
-        logger.info('pushed price: round_id %d price %f (%d) started_at %d',
+        logger.info('pushed price: round_id {} price {:.6f} ({}) started_at {}',
             round_id,
             price_float,
             price,
             timestamp)
 
+        # update feeder price history
+        price_data = provider.latestRoundData().dict()
+        self.price_history.append('roundId {} answer {} ({:.5f}) updatedAt {} feeder_state {}'.format(
+            price_data['roundId'],
+            price_data['answer'],
+            price_data['answer'] / 10 ** provider.decimals(),
+            price_data['updatedAt'],
+            self.state,
+        ))
 
-    def get_state(self, provider: UsdcPriceDataProvider) -> str:
-        state = UNDEFINED
-
-        if provider:
-            state = STABLE
-
-            if provider.getTriggeredAt() > 0:
-                state = TRIGGERED
-            elif provider.getDepeggedAt() > 0:
-                state = DEPEGGED
-
-        return state
+        if len(self.price_history) > HISTORY_SIZE:
+            del self.price_history[0]
 
 
     def next_price(self) -> float:
@@ -169,7 +162,7 @@ class PriceFeed(BaseModel):
             price = random.uniform(PRICE_TRIGGER, PRICE_MAX)
 
         elif self.state == TRIGGERED:
-            price = random.uniform(PRICE_DEPEG, PRICE_RECOVER)
+            price = random.uniform(PRICE_DEPEG - 0.01, PRICE_RECOVER - 0.001)
 
         else:
             price = random.uniform(PRICE_MIN, PRICE_DEPEG)

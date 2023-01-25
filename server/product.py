@@ -1,6 +1,6 @@
-import logging
-
 from typing import Optional
+
+from loguru import logger
 from pydantic import BaseModel
 
 from brownie import network
@@ -20,6 +20,13 @@ STATE_PRODUCT[1] = 'Active'
 STATE_PRODUCT[2] = 'Paused'
 STATE_PRODUCT[3] = 'Depegged'
 
+EVENT_TYPE = {}
+EVENT_TYPE[0] = 'Undefined'
+EVENT_TYPE[1] = 'Update'
+EVENT_TYPE[2] = 'TriggerEvent'
+EVENT_TYPE[3] = 'RecoveryEvent'
+EVENT_TYPE[4] = 'DepegEvent'
+
 STATE_COMPLIANCE = {}
 STATE_COMPLIANCE[0] = 'Undefined'
 STATE_COMPLIANCE[1] = 'Initializing'
@@ -35,12 +42,11 @@ STATE_STABILITY[3] = 'Triggered'
 STATE_STABILITY[4] = 'Depegged'
 
 
-# setup logger
-logger = logging.getLogger(__name__)
-
-
 class ProductStatus(BaseModel):
 
+    depeg_state:Optional[str]
+    triggered_at:Optional[int]
+    depegged_at:Optional[int]
     owner_address:Optional[str]
     product_address:Optional[str]
     provider_address:Optional[str]
@@ -54,10 +60,12 @@ class PriceInfo(BaseModel):
 
     id:int
     price:float
+    event_type:str
     compliance:str
     stability:str
     triggered_at:int
     depegged_at:int
+    created_at:int
 
 
 class Product(BaseModel):
@@ -82,7 +90,7 @@ class Product(BaseModel):
         self.owner = BrownieAccount(offset=owner_id)
 
         if self.product_address and len(self.product_address) > 0:
-            logger.info("connecting to contracts via '%s'", self.product_address)
+            logger.info("connecting to contracts via '{}'", self.product_address)
 
             product = contract_from_address(DepegProduct, self.product_address)
 
@@ -98,25 +106,29 @@ class Product(BaseModel):
         raise RuntimeError('depeg product address missing in .env file')
 
 
-    def update_price_info(self, depeg_product: DepegProduct, account: Account) -> PriceInfo:
+    def process_latest_price_info(self, depeg_product: DepegProduct, account: Account) -> PriceInfo:
         if depeg_product:
-            if depeg_product.hasNewPriceInfo().dict()['newInfoAvailable']:
-                logger.info('contract call: product.updatePriceInfo')
-                depeg_product.updatePriceInfo({'from': account})
+            logger.info(depeg_product.isNewPriceInfoEventAvailable().dict())
+            if depeg_product.isNewPriceInfoEventAvailable()[0]:
+                logger.info('contract call: product.processLatestPriceInfo')
+                depeg_product.processLatestPriceInfo({'from': account})
                 return self.get_latest_price_info(depeg_product)
 
-            logger.info('no new price info: skipping product.updatePriceInfo')
+            logger.info('no new price event: skipping product.processLatestPriceInfo')
             return self.get_latest_price_info(depeg_product)
 
         raise RuntimeError('connect product contract first')
 
 
-    def get_status(self) -> ProductStatus:
+    def get_status(self, depeg_product: DepegProduct) -> ProductStatus:
         if network.is_connected():
             product_owner = self.owner.get_account()
-            logging.info("product owner account %s", product_owner)
+            logger.info("product owner account {}", product_owner)
 
             return ProductStatus(
+                depeg_state = STATE_PRODUCT[depeg_product.getDepegState()],
+                triggered_at = depeg_product.getTriggeredAt(),
+                depegged_at = depeg_product.getDepeggedAt(),
                 owner_address = self.owner.get_account().address,
                 product_address = self.product_address,
                 provider_address = self.provider_address,
@@ -139,9 +151,13 @@ class Product(BaseModel):
         if provider:
             latest_price_info = provider.getLatestPriceInfo().dict()
             depege_price_info = provider.getDepegPriceInfo().dict()
+            new_price = provider.isNewPriceInfoEventAvailable().dict()
 
             return {
-                'has_new_price_info': provider.hasNewPriceInfo().dict(),
+                'is_new_event_available': {
+                    'new_event': new_price['newEvent'],
+                    'time_since_event': new_price['timeSinceEvent']
+                },
                 'get_latest_price_info': self.to_price_info(latest_price_info),
                 'get_depeg_price_info': self.to_price_info(depege_price_info),
                 'latest_round_data': provider.latestRoundData().dict()
@@ -164,8 +180,10 @@ class Product(BaseModel):
         return PriceInfo(
             id = price_info['id'],
             price = price_info['price'] / 10 ** self.token_decimals,
+            event_type = EVENT_TYPE[price_info['eventType']],
             compliance = STATE_COMPLIANCE[price_info['compliance']],
             stability = STATE_STABILITY[price_info['stability']],
             triggered_at = price_info['triggeredAt'],
-            depegged_at = price_info['depeggedAt']
+            depegged_at = price_info['depeggedAt'],
+            created_at = price_info['createdAt']
         )

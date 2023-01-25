@@ -1,5 +1,3 @@
-import logging
-
 from brownie.network.account import Account
 from brownie.network.account import Accounts
 from pydantic import BaseModel
