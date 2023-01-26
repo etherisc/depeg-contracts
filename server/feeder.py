@@ -85,7 +85,7 @@ class PriceFeed(BaseModel):
             raise RuntimeError('connect product contract first')
 
 
-    def set_state(self, new_state:str) -> None:
+    def set_state(self, new_state:str, provider: UsdcPriceDataProvider, owner) -> None:
 
         if new_state not in STATES:
             raise RuntimeError(
@@ -99,6 +99,10 @@ class PriceFeed(BaseModel):
         if transition in TRANSITIONS:
             self.price_buffer += TRANSITIONS[transition]
             logger.info('prices added to buffer: {}', str(TRANSITIONS[transition]))
+
+            if transition == '{} -> {}'.format(TRIGGERED, DEPEGGED):
+                logger.warning('forced depeg for next price info')
+                provider.forceDepegForNextPriceInfo({'from': owner})
 
         else:
             raise RuntimeError(

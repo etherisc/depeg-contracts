@@ -39,9 +39,10 @@ contract DepegProduct is
     event LogDepegPolicyCreated(bytes32 processId, address policyHolder, uint256 sumInsuredAmount);
     event LogDepegPolicyProcessed(bytes32 policyId);
 
-    event LogDepegPriceInfoUpdated(
+    event LogDepegPriceEvent(
         uint256 priceId,
         uint256 price,
+        IPriceDataProvider.EventType eventType,
         uint256 triggeredAt,
         uint256 depeggedAt,
         uint256 createdAt
@@ -52,11 +53,12 @@ contract DepegProduct is
     event LogDepegProductPaused(uint256 priceId, uint256 pausedAt);
     event LogDepegProductUnpaused(uint256 priceId, uint256 unpausedAt);
 
-    DepegState private _state;
     IPriceDataProvider private _priceDataProvider;
     address private _protectedToken;
+    DepegState private _state;
 
     DepegRiskpool private _riskPool;
+
     // hack to have ITreasury in brownie.interface
     TreasuryModule private _treasury;
 
@@ -165,88 +167,89 @@ contract DepegProduct is
 
     // TODO make sure return value cannot be manipulated
     // by circumventing prduct contract and directly updating usdc feed contract
-    function hasNewPriceInfo()
+    function isNewPriceInfoEventAvailable()
         external
         view
         returns(
-            bool newInfoAvailable, 
-            uint256 priceId,
-            uint256 timeSinceLastUpdate
+            bool newEvent,
+            IPriceDataProvider.PriceInfo memory priceInfo,
+            uint256 timeSinceEvent
         )
     {
-        return _priceDataProvider.hasNewPriceInfo();
+        return _priceDataProvider.isNewPriceInfoEventAvailable();
     }
 
-    function getDepegState()
-        external
-        view
-        returns(DepegState state)
-    {
+    function getDepegState() external view returns(DepegState state) {
         return _state;
     }
 
-    function getLatestPriceInfo()
-        external
-        view 
-        returns(IPriceDataProvider.PriceInfo memory priceInfo)
-    {
+    function getLatestPriceInfo() external view returns(IPriceDataProvider.PriceInfo memory priceInfo) {
         return _priceDataProvider.getLatestPriceInfo();
     }
 
-    function getDepegPriceInfo()
-        external
-        view 
-        returns(IPriceDataProvider.PriceInfo memory priceInfo)
-    {
+    function getDepegPriceInfo() external view returns(IPriceDataProvider.PriceInfo memory priceInfo) {
         return _priceDataProvider.getDepegPriceInfo();
     }
 
+    function getTriggeredAt() external view returns(uint256 triggeredAt) { 
+        return _priceDataProvider.getTriggeredAt(); 
+    }
 
-    function updatePriceInfo()
+    function getDepeggedAt() external view returns(uint256 depeggedAt) { 
+        return _priceDataProvider.getDepeggedAt(); 
+    }
+
+
+    function processLatestPriceInfo()
         external
         returns(IPriceDataProvider.PriceInfo memory priceInfo)
     {
-        IPriceDataProvider.PriceInfo memory priceInfoOld = _priceDataProvider.getLatestPriceInfo();
         priceInfo = _priceDataProvider.processLatestPriceInfo();
 
-        // no new info -> no reward
-        if(priceInfoOld.id == priceInfo.id) {
-            return priceInfo;
-        }
+        // manage depeg product state machine: active, paused, depegged
+        // TODO
+        // step 1: ensure price feed event types exactly notifies when state changes happen
+        //         - check exisiting unit necessary
+        //         - amend unit tests where necessary
+        // step 2: act on price feed events in this function
 
-        emit LogDepegPriceInfoUpdated(
+        // log confirmation of processing
+        emit LogDepegPriceEvent(
             priceInfo.id,
             priceInfo.price,
+            priceInfo.eventType,
             priceInfo.triggeredAt,
             priceInfo.depeggedAt,
             priceInfo.createdAt
         );
 
-        // when product is deactivated return and don't care about
-        // price info stability
-        if(_state == DepegState.Depegged) {
+        // price update without any effects on product state
+        if(priceInfo.eventType == IPriceDataProvider.EventType.Update) {
             return priceInfo;
-        }
-
-        // product not (yet) deactivated
-        // update product state depending on price info stability
-        if(priceInfo.stability == IPriceDataProvider.StabilityState.Depegged) {
-            _state = DepegState.Depegged;
-            emit LogDepegProductDeactivated(priceInfo.id, block.timestamp);
-        }
-        else if(priceInfo.stability == IPriceDataProvider.StabilityState.Triggered) {
-            if(_state == DepegState.Active) {
-                emit LogDepegProductPaused(priceInfo.id, block.timestamp);
-            }
-
+        
+        // product triggered
+        } else if(priceInfo.eventType == IPriceDataProvider.EventType.TriggerEvent) {
             _state = DepegState.Paused;
-        }
-        else if(priceInfo.stability == IPriceDataProvider.StabilityState.Stable) {
-            if(_state == DepegState.Paused) {
-                emit LogDepegProductUnpaused(priceInfo.id, block.timestamp);
-            }
 
+            emit LogDepegProductPaused(
+                priceInfo.id, 
+                block.timestamp);
+
+        // product recovers from triggered state
+        } else if(priceInfo.eventType == IPriceDataProvider.EventType.RecoveryEvent) {
             _state = DepegState.Active;
+
+            emit LogDepegProductUnpaused(
+                priceInfo.id, 
+                block.timestamp);
+
+        // product enters depegged state
+        } else if(priceInfo.eventType == IPriceDataProvider.EventType.DepegEvent) {
+            _state = DepegState.Depegged;
+
+            emit LogDepegProductDeactivated(
+                priceInfo.id, 
+                block.timestamp);
         }
     }
 
@@ -256,8 +259,8 @@ contract DepegProduct is
         onlyOwner()
     {
         require(_priceDataProvider.isTestnetProvider(), "ERROR:DP-040:NOT_TESTNET");
-
         _state = DepegState.Active;
+
         emit LogDepegProductReactivated(block.timestamp);
     }
 

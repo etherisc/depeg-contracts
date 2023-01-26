@@ -17,7 +17,7 @@ contract UsdcPriceDataProvider is
     uint256 public constant DEPEG_TRIGGER_PRICE = 995 * 10**CHAINLINK_USDC_DECIMALS / 1000; // USDC below 0.995 USD triggers depeg alert
     uint256 public constant DEPEG_RECOVERY_PRICE = 999 * 10**CHAINLINK_USDC_DECIMALS / 1000; // USDC at/above 0.999 USD is find and/or is considered a recovery from a depeg alert
     uint256 public constant DEPEG_RECOVERY_WINDOW = 24 * 3600;
-    
+
     uint256 public constant PRICE_INFO_HISTORY_DURATION = 7 * 24 * 3600; // keep price info for 1 week
 
     string public constant CHAINLINK_TEST_DESCRIPTION = "USDC / USD (Ganache)";
@@ -36,11 +36,9 @@ contract UsdcPriceDataProvider is
 
     IERC20Metadata private _token;
 
-    uint256 private _priceInfoHistoryIdx;
-    PriceInfo [] private _priceInfoHistory;
-
-    PriceInfo private _latestPriceInfo;
     PriceInfo private _depegPriceInfo;
+    uint256 private _triggeredAt;
+    uint256 private _depeggedAt;
 
     constructor(address tokenAddress) 
         AggregatorDataProvider(
@@ -61,12 +59,14 @@ contract UsdcPriceDataProvider is
             revert("ERROR:UPDP-010:CHAIN_NOT_SUPPORTET");
         }
 
-        _priceInfoHistoryIdx = 0;
+        _triggeredAt = 0;
+        _depeggedAt = 0;
     }
 
 
-    function processLatestPriceInfo()
+    function getLatestPriceInfo()
         public override
+        view
         returns(PriceInfo memory priceInfo)
     {
         (
@@ -78,56 +78,84 @@ contract UsdcPriceDataProvider is
         ) = latestRoundData();
 
         require(answer >= 0, "ERROR:UPDP-020:NEGATIVE_PRICE_VALUES_INVALID");
-        require(roundId >= _latestPriceInfo.id, "ERROR:UPDP-021:PRICE_ID_SEQUENCE_INVALID");
-
-        if(roundId == _latestPriceInfo.id) {
-            return _latestPriceInfo;
-        }
 
         uint256 price = uint256(answer);
-        IPriceDataProvider.ComplianceState compliance = _calculateCompliance(roundId, price, updatedAt);
-        IPriceDataProvider.StabilityState stability =_calculateStability(roundId, price, updatedAt);
 
-        priceInfo = PriceInfo(
+        IPriceDataProvider.ComplianceState compliance = getComplianceState(roundId, price, updatedAt);
+        IPriceDataProvider.StabilityState stability = getStability(roundId, price, updatedAt);
+
+        // calculate event type, triggered at and depegged at
+        IPriceDataProvider.EventType eventType = IPriceDataProvider.EventType.Update;
+        uint256 triggeredAt = _triggeredAt;
+        uint256 depeggedAt = _depeggedAt;
+        
+        // check all possible state changing transitions
+        // enter depegged state
+        if(stability == IPriceDataProvider.StabilityState.Depegged && _depeggedAt == 0) {
+            eventType = IPriceDataProvider.EventType.DepegEvent;
+            depeggedAt = updatedAt;
+        // enter triggered state
+        } else if(stability == IPriceDataProvider.StabilityState.Triggered && _triggeredAt == 0) {
+            eventType = IPriceDataProvider.EventType.TriggerEvent;
+            triggeredAt = updatedAt;
+        // recover from triggered state
+        } else if(stability == IPriceDataProvider.StabilityState.Stable && _triggeredAt > 0) {
+            eventType = IPriceDataProvider.EventType.RecoveryEvent;
+        }
+
+        return PriceInfo(
             roundId,
             price,
             compliance,
             stability,
-            _latestPriceInfo.triggeredAt,
-            _latestPriceInfo.depeggedAt,
+            eventType,
+            triggeredAt,
+            depeggedAt,
             updatedAt
         );
-
-        // update price history
-        if(_priceInfoHistoryIdx < PRICE_HISTORY_SIZE) {
-            _priceInfoHistory.push(priceInfo);
-        } else {
-            _priceInfoHistory[_priceInfoHistoryIdx % PRICE_HISTORY_SIZE] = priceInfo;
-        }
-
-        _priceInfoHistoryIdx++;
-
-        // record depeg price info
-        // the price recorded here will be used to determine payout amounts
-        if(_depegPriceInfo.depeggedAt == 0 && priceInfo.depeggedAt > 0) {
-            _depegPriceInfo = priceInfo;
-        }
-
-        _latestPriceInfo = priceInfo;
     }
 
-    function priceHistoryItems()
-        external 
-        view 
-        returns(uint256 items)
-    { return _priceInfoHistory.length; }
 
-    function getPriceHistoryItem(uint256 idx)
-        external 
-        view 
-        returns(PriceInfo memory item)
-    { return _priceInfoHistory[idx]; }
+    function processLatestPriceInfo()
+        public override
+        returns(PriceInfo memory priceInfo)
+    {
+        priceInfo = getLatestPriceInfo();
 
+        if(priceInfo.eventType == IPriceDataProvider.EventType.DepegEvent) {
+            _depegPriceInfo = priceInfo;
+            _depeggedAt = priceInfo.depeggedAt;
+
+            emit LogPriceDataDepegged(
+                priceInfo.id,
+                priceInfo.price,
+                priceInfo.triggeredAt,
+                priceInfo.depeggedAt);
+
+        } else if(priceInfo.eventType == IPriceDataProvider.EventType.TriggerEvent) {
+            _triggeredAt = priceInfo.triggeredAt;
+
+            emit LogPriceDataTriggered(
+                priceInfo.id,
+                priceInfo.price,
+                priceInfo.triggeredAt);
+
+        } else if(priceInfo.eventType == IPriceDataProvider.EventType.RecoveryEvent) {
+            _triggeredAt = 0;
+
+            emit LogPriceDataRecovered(
+                priceInfo.id,
+                priceInfo.price,
+                priceInfo.triggeredAt,
+                priceInfo.createdAt);
+        } else {
+            emit LogPriceDataProcessed(
+                priceInfo.id,
+                priceInfo.price,
+                priceInfo.createdAt);
+        }
+
+    }
 
 
     function forceDepegForNextPriceInfo()
@@ -135,10 +163,11 @@ contract UsdcPriceDataProvider is
         onlyOwner()
         onlyTestnet()
     {
-        require(_latestPriceInfo.triggeredAt > DEPEG_RECOVERY_WINDOW, "ERROR:UPDP-030:TRIGGERED_AT_TOO_SMALL");
-        _latestPriceInfo.triggeredAt -= DEPEG_RECOVERY_WINDOW;
+        require(_triggeredAt > DEPEG_RECOVERY_WINDOW, "ERROR:UPDP-030:TRIGGERED_AT_TOO_SMALL");
 
-        emit LogUsdcProviderForcedDepeg(_latestPriceInfo.triggeredAt, block.timestamp);
+        _triggeredAt -= DEPEG_RECOVERY_WINDOW;
+
+        emit LogUsdcProviderForcedDepeg(_triggeredAt, block.timestamp);
     }
 
     function resetDepeg()
@@ -146,15 +175,6 @@ contract UsdcPriceDataProvider is
         onlyOwner()
         onlyTestnet()
     {
-        // reset any info that will be copied over
-        // to next latest price info
-        // _latestPriceInfo.id = 0;
-        _latestPriceInfo.compliance = IPriceDataProvider.ComplianceState.Valid;
-        _latestPriceInfo.stability = IPriceDataProvider.StabilityState.Stable;
-        _latestPriceInfo.triggeredAt = 0;
-        _latestPriceInfo.depeggedAt = 0;
-
-        // reset depeg price info
         _depegPriceInfo.id = 0;
         _depegPriceInfo.price = 0;
         _depegPriceInfo.compliance = IPriceDataProvider.ComplianceState.Undefined;
@@ -163,134 +183,107 @@ contract UsdcPriceDataProvider is
         _depegPriceInfo.depeggedAt = 0;
         _depegPriceInfo.createdAt = 0;
 
+        _triggeredAt = 0;
+        _depeggedAt = 0;
+
         emit LogUsdcProviderResetDepeg(block.timestamp);
     }
 
-    function hasNewPriceInfo()
+
+    function isNewPriceInfoEventAvailable()
         external override
         view
         returns(
-            bool newInfoAvailable, 
-            uint256 priceId,
-            uint256 timeDelta
+            bool newEvent, 
+            PriceInfo memory priceInfo,
+            uint256 timeSinceEvent
         )
     {
-        (
-            uint80 roundId,
-            , // answer not used
-            , // startedAt not used
-            uint256 updatedAt,
-             // answeredInRound not used
-        ) = latestRoundData();
+        priceInfo = getLatestPriceInfo();
+        newEvent = !(priceInfo.eventType == IPriceDataProvider.EventType.Undefined 
+            || priceInfo.eventType == IPriceDataProvider.EventType.Update);
+        timeSinceEvent = priceInfo.createdAt == 0 ? 0 : block.timestamp - priceInfo.createdAt;
+    }
 
-        if(roundId == _latestPriceInfo.id) {
+
+    function getCompliance(
+        uint80 roundId,
+        uint256 price,
+        uint256 updatedAt
+    )
+        public view
+        returns(
+            bool priceDeviationIsValid,
+            bool heartbeetIsValid,
+            uint256 previousPrice,
+            uint256 previousUpdatedAt
+        )
+    {
+        if(roundId == 0) {
             return (
-                false,
-                roundId,
-                0
-            );
+                true,
+                true,
+                0,
+                0);
         }
+
+        (
+            , // roundId unused
+            int256 previousPriceInt,
+            , // startedAt unused
+            uint256 previousUpdatedAtUint,
+             // answeredInRound unused
+        ) = getRoundData(roundId - 1);
+
+        if(previousUpdatedAtUint == 0) {
+            return (
+                true,
+                true,
+                previousPrice,
+                previousUpdatedAtUint);
+        }
+
+        previousPrice = uint256(previousPriceInt);
 
         return (
-            true,
-            roundId,
-            updatedAt - _latestPriceInfo.createdAt
-        );
+            !isExceedingDeviation(price, previousPrice),
+            !isExceedingHeartbeat(updatedAt, previousUpdatedAtUint),
+            previousPrice,
+            previousUpdatedAtUint);
     }
 
-    function _calculateCompliance(
+
+    function getStability(
         uint256 roundId,
         uint256 price,
         uint256 updatedAt
     )
-        internal
-        returns(IPriceDataProvider.ComplianceState compliance)
-    {
-        if(_latestPriceInfo.id == 0) {
-            return IPriceDataProvider.ComplianceState.Initializing;
-        }
-
-        // check against last recored states to decide compliance state
-        bool isCompliant = true;
-
-        // check deviation
-        if(isExceedingDeviation(price, _latestPriceInfo.price)) {
-            emit LogPriceDataDeviationExceeded(
-                roundId,
-                price > _latestPriceInfo.price ? price - _latestPriceInfo.price : _latestPriceInfo.price - price,
-                price,
-                _latestPriceInfo.price);
-
-            isCompliant = false;
-        }
-
-        // check heartbeat
-        if(isExceedingHeartbeat(updatedAt, _latestPriceInfo.createdAt)) {
-            emit LogPriceDataHeartbeatExceeded(
-                roundId,
-                updatedAt - _latestPriceInfo.createdAt,
-                updatedAt,
-                _latestPriceInfo.createdAt);
-
-            isCompliant = false;
-        }
-
-        if(isCompliant) {
-            return IPriceDataProvider.ComplianceState.Valid;
-        }
-
-        if(_latestPriceInfo.compliance == IPriceDataProvider.ComplianceState.Valid
-            || _latestPriceInfo.compliance == IPriceDataProvider.ComplianceState.Initializing) 
-        {
-            return IPriceDataProvider.ComplianceState.FailedOnce;
-        }
-        
-        return IPriceDataProvider.ComplianceState.FailedMultipleTimes;
-    }
-
-
-    function _calculateStability(
-        uint256 roundId,
-        uint256 price,
-        uint256 updatedAt
-    )
-        internal
+        public
+        view
         returns(IPriceDataProvider.StabilityState stability)
     {
-        if(_latestPriceInfo.id == 0) {
+        // no price data available (yet)
+        // only expected with test setup
+        if(updatedAt == 0) {
             return IPriceDataProvider.StabilityState.Initializing;
         }
 
         // once depegged, state remains depegged
-        if(_latestPriceInfo.depeggedAt > 0) {
+        if(_depeggedAt > 0) {
             return IPriceDataProvider.StabilityState.Depegged;
         }
 
         // check triggered state:
         // triggered and not recovered within recovery window
-        if(_latestPriceInfo.triggeredAt > 0) {
+        if(_triggeredAt > 0) {
 
             // check if recovery run out of time and we have depegged
-            if(updatedAt - _latestPriceInfo.triggeredAt > DEPEG_RECOVERY_WINDOW) {
-                emit LogPriceDataDepegged (
-                    roundId,
-                    price,
-                    _latestPriceInfo.triggeredAt,
-                    updatedAt);
-
-                _latestPriceInfo.depeggedAt = updatedAt;
+            if(updatedAt - _triggeredAt > DEPEG_RECOVERY_WINDOW) {
                 return IPriceDataProvider.StabilityState.Depegged;
             }
 
-            // check for potential recovery
+            // check for recovery
             if(price >= DEPEG_RECOVERY_PRICE) {
-                emit LogPriceDataRecovered (
-                    roundId,
-                    price,
-                    _latestPriceInfo.triggeredAt,
-                    updatedAt);
-
-                _latestPriceInfo.triggeredAt = 0;
                 return IPriceDataProvider.StabilityState.Stable;
             }
 
@@ -300,12 +293,6 @@ contract UsdcPriceDataProvider is
 
         // check potential change into triggerd state
         if(price <= DEPEG_TRIGGER_PRICE) {
-            emit LogPriceDataTriggered (
-                roundId,
-                price,
-                updatedAt);
-
-            _latestPriceInfo.triggeredAt = updatedAt;
             return IPriceDataProvider.StabilityState.Triggered;
         }
 
@@ -313,12 +300,45 @@ contract UsdcPriceDataProvider is
         return IPriceDataProvider.StabilityState.Stable;
     }
 
-    function getLatestPriceInfo()
-        public override
+
+    function getComplianceState(
+        uint256 roundId,
+        uint256 price,
+        uint256 updatedAt
+    )
+        public
         view
-        returns(PriceInfo memory priceInfo)
+        returns(IPriceDataProvider.ComplianceState compliance)
     {
-        return _latestPriceInfo;
+        (
+            bool priceDeviationIsValid,
+            bool heartbeetIsValid,
+            uint256 previousPrice,
+            uint256 previousUpdatedAt
+        ) = getCompliance(uint80(roundId), price, updatedAt);
+
+        if(previousUpdatedAt == 0) {
+            return IPriceDataProvider.ComplianceState.Initializing;
+        }
+
+        if(priceDeviationIsValid && heartbeetIsValid) {
+            return IPriceDataProvider.ComplianceState.Valid;
+        }
+
+        (
+            bool previousPriceDeviationIsValid,
+            bool previousHeartbeetIsValid,
+            , // previousPrice not usedc
+            uint256 prePreviousUpdatedAt
+        ) = getCompliance(uint80(roundId-1), previousPrice, previousUpdatedAt);
+
+        if((previousPriceDeviationIsValid && previousHeartbeetIsValid)
+            || prePreviousUpdatedAt == 0)
+        {
+            return IPriceDataProvider.ComplianceState.FailedOnce;
+        }
+
+        return IPriceDataProvider.ComplianceState.FailedMultipleTimes;
     }
 
     function getDepegPriceInfo()
@@ -330,11 +350,11 @@ contract UsdcPriceDataProvider is
     }
 
     function getTriggeredAt() external override view returns(uint256 triggeredAt) {
-        return _latestPriceInfo.triggeredAt;
+        return _triggeredAt;
     }
 
     function getDepeggedAt() external override view returns(uint256 depeggedAt) {
-        return _latestPriceInfo.depeggedAt;
+        return _depeggedAt;
     }
 
     function getAggregatorAddress() external override view returns(address priceInfoSourceAddress) {

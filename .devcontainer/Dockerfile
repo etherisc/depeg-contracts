@@ -28,7 +28,11 @@ RUN pip3 install thefuck --user \
 RUN echo 'eval "$(mcfly init zsh)"' >> ~/.zshrc \
     && touch ~/.zsh_history
 
+# upgrade pip
+RUN python -m pip install --upgrade pip
+
 # install fastapi
+RUN pip install loguru
 RUN pip install fastapi
 RUN pip install "uvicorn[standard]"
 

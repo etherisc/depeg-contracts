@@ -6,6 +6,7 @@ from datetime import datetime
 
 from brownie import (
     chain,
+    history,
     UsdcPriceDataProvider,
 )
 
@@ -23,6 +24,27 @@ STATE_PRODUCT['Undefined'] = 0
 STATE_PRODUCT['Active'] = 1
 STATE_PRODUCT['Paused'] = 2
 STATE_PRODUCT['Depegged'] = 3
+
+EVENT_TYPE = {}
+EVENT_TYPE['Undefined'] = 0 
+EVENT_TYPE['Update'] = 1
+EVENT_TYPE['TriggerEvent'] = 2
+EVENT_TYPE['RecoveryEvent'] = 3
+EVENT_TYPE['DepegEvent'] = 4
+
+STATE_COMPLIANCE = {}
+STATE_COMPLIANCE['Undefined'] = 0
+STATE_COMPLIANCE['Initializing'] = 1
+STATE_COMPLIANCE['Valid'] = 2
+STATE_COMPLIANCE['FailedOnce'] = 3
+STATE_COMPLIANCE['FailedMultipleTimes'] = 4
+
+STATE_STABILITY = {}
+STATE_STABILITY['Undefined'] = 0
+STATE_STABILITY['Initializing'] = 1
+STATE_STABILITY['Stable'] = 2
+STATE_STABILITY['Triggered'] = 3
+STATE_STABILITY['Depegged'] = 4
 
 ROUND_ID_INITIAL = 36893488147419103822
 
@@ -55,7 +77,7 @@ def test_generate_data():
         price=PERFECT_PRICE+42,
         last_update=int(started_at),
         delta_time=12345)
-    
+
     (round_id_latest, answer_latest, started_at_latest) = data_latest.split()[:3]
     assert int(round_id_latest) == int(round_id) + 1 
     assert int(answer_latest) == PERFECT_PRICE+42
@@ -72,50 +94,77 @@ def test_product_lifecycle_startup(
     assert product.getDepegState() == STATE_PRODUCT['Active']
 
     # initially no new price info expected
-    info = product.hasNewPriceInfo().dict()
-    print('hasNewPriceInfo {}'.format(info))
+    event_info = product.isNewPriceInfoEventAvailable().dict()
+    print('isNewPriceInfoEventAvailable {}'.format(event_info))
 
-    assert info['newInfoAvailable'] == False
-    assert info['priceId'] == 0
-    assert info['timeSinceLastUpdate'] == 0
+    assert event_info['newEvent'] is False
+    assert event_info['timeSinceEvent'] == 0
 
     # get and check price data provider contract
-    price_data_provider = contract_from_address(UsdcPriceDataProvider, product.getPriceDataProvider())
+    price_data_provider = contract_from_address(UsdcPriceDataProvider, product.getPriceDataProvider())    
     assert price_data_provider.getToken() == usd1
+
+    # check price info from product with one from the provider
+    price_info = event_info['priceInfo'].dict()
+    price_info_feeder = price_data_provider.getLatestPriceInfo().dict()
+
+    for key in price_info.keys():
+        assert price_info[key] == price_info_feeder[key]
 
     # create initial data point and inject to pr
     data = generate_next_data(0)
     inject_data(price_data_provider, data, productOwner)
 
     # check again
-    info = product.hasNewPriceInfo().dict()
-    print('hasNewPriceInfo {}'.format(info))
+    event_info = product.isNewPriceInfoEventAvailable().dict()
+    print('isNewPriceInfoEventAvailable {}'.format(event_info))
 
     (price_id, price, timestamp) = data.split()[:3]
-    assert info['newInfoAvailable'] == True
-    assert info['priceId'] == price_id
-    assert info['timeSinceLastUpdate'] > 0
+    assert event_info['newEvent'] is False
+    assert event_info['timeSinceEvent'] <= 1
 
-    # process new price info
-    tx = product.updatePriceInfo()
-
-    # check price update log entry
-    assert len(tx.events) == 1
-    assert 'LogDepegPriceInfoUpdated' in tx.events
-    assert tx.events['LogDepegPriceInfoUpdated']['priceId'] == price_id
-    assert tx.events['LogDepegPriceInfoUpdated']['price'] == price
-
-    # check return value of price info getter
-    price_info = product.getLatestPriceInfo().dict()
-    print('priceInfo {}'.format(price_info))
-
-    compliance_initializing = 1
+    price_info = event_info['priceInfo'].dict()
     assert price_info['id'] == price_id
     assert price_info['price'] == price
-    assert price_info['compliance'] == compliance_initializing
+    assert price_info['eventType'] == EVENT_TYPE['Update']
+    assert price_info['compliance'] == STATE_COMPLIANCE['Initializing']
+    assert price_info['stability'] == STATE_STABILITY['Stable']
     assert price_info['triggeredAt'] == 0
     assert price_info['depeggedAt'] == 0
     assert price_info['createdAt'] == timestamp
+
+    # process new price info
+    tx = product.processLatestPriceInfo()
+
+    # check price update log entry (no new event case)
+    assert len(tx.events) == 2
+    assert 'LogDepegPriceEvent' in tx.events
+    assert 'LogPriceDataProcessed' in tx.events
+    assert tx.events['LogPriceDataProcessed']['priceId'] == price_id
+    assert tx.events['LogPriceDataProcessed']['price'] == price
+    assert tx.events['LogPriceDataProcessed']['createdAt'] == timestamp
+
+    # create 2nd data point and inject to pr
+    data = generate_next_data(1)
+    inject_data(price_data_provider, data, productOwner)
+
+    # check again
+    event_info = product.isNewPriceInfoEventAvailable().dict()
+    print('isNewPriceInfoEventAvailable {}'.format(event_info))
+
+    (price_id2, price2, timestamp2) = data.split()[:3]
+    assert event_info['newEvent'] is False
+    assert event_info['timeSinceEvent'] <= 1
+
+    price_info = event_info['priceInfo'].dict()
+    assert price_info['id'] == price_id2
+    assert price_info['price'] == price2
+    assert price_info['eventType'] == EVENT_TYPE['Update']
+    assert price_info['compliance'] == STATE_COMPLIANCE['Valid']
+    assert price_info['stability'] == STATE_STABILITY['Stable']
+    assert price_info['triggeredAt'] == 0
+    assert price_info['depeggedAt'] == 0
+    assert price_info['createdAt'] == timestamp2
 
     # check depeg state is still fine
     assert product.getDepegState() == STATE_PRODUCT['Active']
@@ -140,12 +189,12 @@ def test_product_lifecycle_trigger(
 
     # obtain data provider contract from product
     data_provider = contract_from_address(
-        UsdcPriceDataProvider, 
+        UsdcPriceDataProvider,
         product.getPriceDataProvider())
 
     # inject some initial price data
     for i in range(5):
-        inject_and_update_data(product, data_provider, generate_next_data(i), productOwner)
+        inject_and_process_data(product, data_provider, generate_next_data(i), productOwner)
 
     # check base line
     assert product.getDepegState() == STATE_PRODUCT['Active']
@@ -161,13 +210,23 @@ def test_product_lifecycle_trigger(
         delta_time = 12 * 3600
         )
 
-    tx = inject_and_update_data(product, data_provider, above_trigger_data, productOwner)
-    assert 'LogDepegPriceInfoUpdated' in tx.events
+    tx = inject_and_process_data(product, data_provider, above_trigger_data, productOwner)
+    assert 'LogPriceDataProcessed' in tx.events
     assert 'LogDepegProductPaused' not in tx.events
     assert product.getDepegState() == STATE_PRODUCT['Active']
 
+    (price_id, price, timestamp) = above_trigger_data.split()[:3]
     price_info = product.getLatestPriceInfo().dict()
     print('priceInfo {}'.format(price_info))
+
+    assert price_info['id'] == price_id
+    assert price_info['price'] == price
+    assert price_info['eventType'] == EVENT_TYPE['Update']
+    assert price_info['compliance'] in [STATE_COMPLIANCE['FailedOnce'], STATE_COMPLIANCE['FailedMultipleTimes']]
+    assert price_info['stability'] == STATE_STABILITY['Stable']
+    assert price_info['triggeredAt'] == 0
+    assert price_info['depeggedAt'] == 0
+    assert price_info['createdAt'] == timestamp
 
     # verify that it's still possible to underwrite a new policy
     sumInsured = 10000
@@ -204,15 +263,16 @@ def test_product_lifecycle_trigger(
     (round_id, price, timestamp) = trigger_data.split()[:3]
     timestamp = int(timestamp)
 
-    tx = inject_and_update_data(product, data_provider, trigger_data, productOwner)
+    tx = inject_and_process_data(product, data_provider, trigger_data, productOwner)
     assert len(tx.events) == 3
     assert 'LogPriceDataTriggered' in tx.events
-    assert 'LogDepegPriceInfoUpdated' in tx.events
-    assert tx.events['LogDepegPriceInfoUpdated']['priceId'] == round_id
-    assert tx.events['LogDepegPriceInfoUpdated']['price'] == price
-    assert tx.events['LogDepegPriceInfoUpdated']['triggeredAt'] == timestamp
-    assert tx.events['LogDepegPriceInfoUpdated']['depeggedAt'] == 0
-    assert tx.events['LogDepegPriceInfoUpdated']['createdAt'] == timestamp
+    assert 'LogDepegPriceEvent' in tx.events
+    assert tx.events['LogDepegPriceEvent']['priceId'] == round_id
+    assert tx.events['LogDepegPriceEvent']['price'] == price
+    assert tx.events['LogDepegPriceEvent']['eventType'] == EVENT_TYPE['TriggerEvent']
+    assert tx.events['LogDepegPriceEvent']['triggeredAt'] == timestamp
+    assert tx.events['LogDepegPriceEvent']['depeggedAt'] == 0
+    assert tx.events['LogDepegPriceEvent']['createdAt'] == timestamp
 
     assert 'LogDepegProductPaused' in tx.events
     assert tx.events['LogDepegProductPaused']['priceId'] == round_id
@@ -260,9 +320,11 @@ def test_product_lifecycle_trigger_and_recover(
 
     # inject some initial price data
     for i in range(5):
-        inject_and_update_data(product, data_provider, generate_next_data(i), productOwner)
+        inject_and_process_data(product, data_provider, generate_next_data(i), productOwner)
 
     # check base line
+    assert product.getTriggeredAt() == 0
+    assert product.getDepeggedAt() == 0
     assert product.getDepegState() == STATE_PRODUCT['Active']
 
     # generate trigger data
@@ -274,11 +336,16 @@ def test_product_lifecycle_trigger_and_recover(
 
     (round_id, price, timestamp) = trigger_data.split()[:3]
     timestamp = int(timestamp)
+    timestamp_triggered = timestamp
+    assert timestamp_triggered > 0
 
-    tx = inject_and_update_data(product, data_provider, trigger_data, productOwner)
-    assert len(tx.events) == 4
+    tx = inject_and_process_data(product, data_provider, trigger_data, productOwner)
+    assert len(tx.events) == 3
     assert 'LogPriceDataTriggered' in tx.events
+    assert 'LogDepegProductPaused' in tx.events
 
+    assert product.getTriggeredAt() == timestamp_triggered
+    assert product.getDepeggedAt() == 0
     assert product.getDepegState() == STATE_PRODUCT['Paused']
 
     # verify that it's not possible to underwrite a new policy
@@ -307,10 +374,13 @@ def test_product_lifecycle_trigger_and_recover(
     (round_id, price, timestamp) = trigger_data.split()[:3]
     timestamp = int(timestamp)
 
-    tx = inject_and_update_data(product, data_provider, trigger_data, productOwner)
-    assert len(tx.events) == 1
-    assert 'LogDepegPriceInfoUpdated' in tx.events
+    tx = inject_and_process_data(product, data_provider, trigger_data, productOwner)
+    assert len(tx.events) == 2
+    assert 'LogPriceDataProcessed' in tx.events
+    assert 'LogDepegPriceEvent' in tx.events
 
+    assert product.getTriggeredAt() == timestamp_triggered
+    assert product.getDepeggedAt() == 0
     assert product.getDepegState() == STATE_PRODUCT['Paused']
 
     with brownie.reverts('ERROR:DP-011:PRODUCT_NOT_ACTIVE'):
@@ -324,7 +394,7 @@ def test_product_lifecycle_trigger_and_recover(
             durationDays,
             maxPremium)
 
-    # new data (recover triggered state)
+    # new data (recover from triggered state)
     trigger_data = generate_next_data(
         7,
         price = RECOVERY_PRICE,
@@ -334,15 +404,17 @@ def test_product_lifecycle_trigger_and_recover(
     (round_id, price, timestamp) = trigger_data.split()[:3]
     timestamp = int(timestamp)
 
-    tx = inject_and_update_data(product, data_provider, trigger_data, productOwner)
-    assert len(tx.events) == 4
+    tx = inject_and_process_data(product, data_provider, trigger_data, productOwner)
+    assert len(tx.events) == 3
     assert 'LogPriceDataRecovered' in tx.events
-    assert 'LogDepegPriceInfoUpdated' in tx.events
+    assert 'LogDepegPriceEvent' in tx.events
     assert 'LogDepegProductUnpaused' in tx.events
     assert tx.events['LogDepegProductUnpaused']['priceId'] == round_id
     assert abs(tx.events['LogDepegProductUnpaused']['unpausedAt'] - timestamp) <= 5
 
     # check that depeg state is active again
+    assert product.getTriggeredAt() == 0
+    assert product.getDepeggedAt() == 0
     assert product.getDepegState() == STATE_PRODUCT['Active']
 
     price_info = product.getLatestPriceInfo().dict()
@@ -373,7 +445,7 @@ def test_product_lifecycle_trigger_and_recover(
     assert policy['createdAt'] == application['createdAt']
 
 
-def test_product_lifecycle_depeg(
+def test_product_lifecycle_depeg_and_reactivate(
     instance,
     instanceOperator,
     investor,
@@ -392,14 +464,16 @@ def test_product_lifecycle_depeg(
 
     # obtain data provider contract from product
     data_provider = contract_from_address(
-        UsdcPriceDataProvider, 
+        UsdcPriceDataProvider,
         product.getPriceDataProvider())
 
     # inject some initial price data
     for i in range(5):
-        inject_and_update_data(product, data_provider, generate_next_data(i), productOwner)
+        inject_and_process_data(product, data_provider, generate_next_data(i), productOwner)
 
     # check base line
+    assert product.getTriggeredAt() == 0
+    assert product.getDepeggedAt() == 0
     assert product.getDepegState() == STATE_PRODUCT['Active']
 
     # generate trigger data
@@ -411,12 +485,16 @@ def test_product_lifecycle_depeg(
 
     (round_id, price, timestamp) = trigger_data.split()[:3]
     timestamp = int(timestamp)
-    timestemp_trigger = timestamp
+    timestamp_trigger = timestamp
 
-    tx = inject_and_update_data(product, data_provider, trigger_data, productOwner)
-    assert len(tx.events) == 4
+    tx = inject_and_process_data(product, data_provider, trigger_data, productOwner)
+    assert len(tx.events) == 3
     assert 'LogPriceDataTriggered' in tx.events
+    assert 'LogDepegPriceEvent' in tx.events
+    assert 'LogDepegProductPaused' in tx.events
 
+    assert product.getTriggeredAt() == timestamp_trigger
+    assert product.getDepeggedAt() == 0
     assert product.getDepegState() == STATE_PRODUCT['Paused']
 
     print('--- keep price at trigger price ---')
@@ -429,32 +507,44 @@ def test_product_lifecycle_depeg(
     (round_id, price, timestamp) = trigger_data.split()[:3]
     timestamp = int(timestamp)
 
-    tx = inject_and_update_data(product, data_provider, trigger_data, productOwner)
-    assert len(tx.events) == 1
+    assert timestamp > timestamp_trigger
+
+    tx = inject_and_process_data(product, data_provider, trigger_data, productOwner)
+    assert len(tx.events) == 2
+    assert 'LogPriceDataProcessed' in tx.events
+    assert 'LogDepegPriceEvent' in tx.events
+
+    assert product.getTriggeredAt() == timestamp_trigger
+    assert product.getDepeggedAt() == 0
     assert product.getDepegState() == STATE_PRODUCT['Paused']
 
     print('--- move into depeg state (stay triggered for >= 24h) ---')
-    trigger_data = generate_next_data(
+    depeg_data = generate_next_data(
         7,
         price = TRIGGER_PRICE,
         last_update=timestamp,
         delta_time = 2 * 3600)
 
-    (round_id, price, timestamp) = trigger_data.split()[:3]
+    (round_id, price, timestamp) = depeg_data.split()[:3]
     timestamp = int(timestamp)
     timestamp_depeg = timestamp
 
-    tx = inject_and_update_data(product, data_provider, trigger_data, productOwner)
+    tx = inject_and_process_data(product, data_provider, depeg_data, productOwner)
+
+    # check that we're depegged now
+    assert product.getTriggeredAt() == timestamp_trigger
+    assert product.getDepeggedAt() == timestamp_depeg
     assert product.getDepegState() == STATE_PRODUCT['Depegged']
 
     assert len(tx.events) == 3
     assert 'LogPriceDataDepegged' in tx.events
-    assert 'LogDepegPriceInfoUpdated' in tx.events
-    assert tx.events['LogDepegPriceInfoUpdated']['priceId'] == round_id
-    assert tx.events['LogDepegPriceInfoUpdated']['price'] == TRIGGER_PRICE
-    assert tx.events['LogDepegPriceInfoUpdated']['triggeredAt'] == timestemp_trigger
-    assert tx.events['LogDepegPriceInfoUpdated']['depeggedAt'] == timestamp_depeg
-    assert tx.events['LogDepegPriceInfoUpdated']['createdAt'] == timestamp
+    assert 'LogDepegPriceEvent' in tx.events
+
+    assert tx.events['LogDepegPriceEvent']['priceId'] == round_id
+    assert tx.events['LogDepegPriceEvent']['price'] == TRIGGER_PRICE
+    assert tx.events['LogDepegPriceEvent']['triggeredAt'] == timestamp_trigger
+    assert tx.events['LogDepegPriceEvent']['depeggedAt'] == timestamp_depeg
+    assert tx.events['LogDepegPriceEvent']['createdAt'] == timestamp
 
     assert 'LogDepegProductDeactivated' in tx.events
     assert tx.events['LogDepegProductDeactivated']['priceId'] == round_id
@@ -477,14 +567,17 @@ def test_product_lifecycle_depeg(
             maxPremium)
 
     print('--- remain in depeg state (with recovered price) ---')
-    trigger_data = generate_next_data(
+    recovered_data = generate_next_data(
         8,
         price = RECOVERY_PRICE + 10,
         last_update=timestamp,
         delta_time = 10 * 3600)
 
-    tx = inject_and_update_data(product, data_provider, trigger_data, productOwner)
+    tx = inject_and_process_data(product, data_provider, recovered_data, productOwner)
+
     # check we're still in depeg state
+    assert product.getTriggeredAt() == timestamp_trigger
+    assert product.getDepeggedAt() == timestamp_depeg
     assert product.getDepegState() == STATE_PRODUCT['Depegged']
 
     # check that recovered price does not mean creating policies is working again
@@ -499,10 +592,48 @@ def test_product_lifecycle_depeg(
             durationDays,
             maxPremium)
 
+    # reactivate price feed
+    # verify that calling price feed reset is only allowed for owner
+    with brownie.reverts('Ownable: caller is not the owner'):
+        data_provider.resetDepeg({'from': instanceOperator})
 
-def inject_and_update_data(product, usdc_feeder, data, owner):
+    # check that owner can reset price feed
+    tx = data_provider.resetDepeg({'from': productOwner})
+    assert 'LogUsdcProviderResetDepeg' in tx.events
+
+    # reactivate product
+    # verify that calling reactivation is only allowed for owner
+    with brownie.reverts('Ownable: caller is not the owner'):
+        product.reactivateProduct({'from': instanceOperator})
+
+    # check that owner can reactivate
+    tx = product.reactivateProduct({'from': productOwner})
+    assert 'LogDepegProductReactivated' in tx.events
+
+    # check we're active and well again
+    assert product.getTriggeredAt() == 0
+    assert product.getDepeggedAt() == 0
+    assert product.getDepegState() == STATE_PRODUCT['Active']
+
+    # check that policies can be bought again
+    process_id = apply_for_policy(
+        instance,
+        instanceOperator,
+        product,
+        customer,
+        protectedWallet,
+        sumInsured,
+        durationDays,
+        maxPremium)
+
+    tx = history[-1]
+    assert 'LogDepegPolicyCreated' in tx.events
+    assert tx.events['LogDepegPolicyCreated']['processId'] == process_id
+
+
+def inject_and_process_data(product, usdc_feeder, data, owner):
     inject_data(usdc_feeder, data, owner)
-    return product.updatePriceInfo()
+    return product.processLatestPriceInfo()
 
 
 def inject_data(usdc_feeder, data, owner):

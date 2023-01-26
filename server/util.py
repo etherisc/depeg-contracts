@@ -8,7 +8,12 @@ def s2b(text: str):
     return '{:0<66}'.format(Web3.toHex(text.encode('ascii')))[:66]
 
 
-def get_block_time():
+def get_block_time() -> int:
+    return get_unix_time()
+
+
+def get_unix_time() -> int:
+    """get current unix time (in seconds)"""
     dt = datetime.now()
     return int(dt.timestamp())
 

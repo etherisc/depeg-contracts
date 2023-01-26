@@ -19,6 +19,14 @@ interface IPriceDataProvider {
         Depegged
     }
 
+    enum EventType {
+        Undefined,
+        Update,
+        TriggerEvent,
+        RecoveryEvent,
+        DepegEvent
+    }
+
     event LogPriceDataDeviationExceeded (
         uint256 priceId,
         uint256 priceDeviation,
@@ -48,6 +56,11 @@ interface IPriceDataProvider {
         uint256 triggeredAt,
         uint256 depeggedAt);
 
+    event LogPriceDataProcessed (
+        uint256 priceId,
+        uint256 price,
+        uint256 createdAt);
+
     event LogUsdcProviderForcedDepeg (
         uint256 updatedTriggeredAt,
         uint256 forcedDepegAt);
@@ -60,6 +73,7 @@ interface IPriceDataProvider {
         uint256 price;
         ComplianceState compliance;
         StabilityState stability;
+        EventType eventType;
         uint256 triggeredAt;
         uint256 depeggedAt;
         uint256 createdAt;
@@ -77,13 +91,13 @@ interface IPriceDataProvider {
     function resetDepeg()
         external;
 
-    function hasNewPriceInfo()
+    function isNewPriceInfoEventAvailable()
         external
         view
         returns(
-            bool newInfoAvailable, 
-            uint256 priceId,
-            uint256 timeSinceLastUpdate);
+            bool newEvent, 
+            PriceInfo memory priceInfo,
+            uint256 timeSinceEvent);
 
     function getLatestPriceInfo()
         external

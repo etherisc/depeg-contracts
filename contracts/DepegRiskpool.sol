@@ -432,7 +432,6 @@ contract DepegRiskpool is
         if(application.sumInsuredAmount < minSumInsured) { sumInsuredOk = false; }
         if(application.sumInsuredAmount > maxSumInsured) { sumInsuredOk = false; }
 
-        // TODO add restriction in webui only: replace in ui to only show understaked bundles/riskpools
         // commented code below to indicate how to enforce hard link to stking in this contract
         // if(getSupportedCapitalAmount(bundle.id) < bundle.lockedCapital + application.sumInsuredAmount) {
         //     sumInsuredOk = false;

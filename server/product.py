@@ -106,18 +106,31 @@ class Product(BaseModel):
         raise RuntimeError('depeg product address missing in .env file')
 
 
+    def reactivate(self, depeg_product: DepegProduct, account: Account) -> ProductStatus:
+        if depeg_product:
+            logger.info('contract call: product.reactivateProduct')
+            depeg_product.reactivateProduct({'from': account})
+
+        else:
+            logger.warning('no product')
+
+        return self.get_status(depeg_product)
+
+
     def process_latest_price_info(self, depeg_product: DepegProduct, account: Account) -> PriceInfo:
         if depeg_product:
-            logger.info(depeg_product.isNewPriceInfoEventAvailable().dict())
+            logger.debug(depeg_product.isNewPriceInfoEventAvailable().dict())
+
             if depeg_product.isNewPriceInfoEventAvailable()[0]:
                 logger.info('contract call: product.processLatestPriceInfo')
                 depeg_product.processLatestPriceInfo({'from': account})
                 return self.get_latest_price_info(depeg_product)
 
-            logger.info('no new price event: skipping product.processLatestPriceInfo')
+            logger.info('no new price event: skipping processing')
             return self.get_latest_price_info(depeg_product)
 
-        raise RuntimeError('connect product contract first')
+        else:
+            logger.warning('no product')
 
 
     def get_status(self, depeg_product: DepegProduct) -> ProductStatus:
