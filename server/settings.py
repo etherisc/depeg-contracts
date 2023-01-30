@@ -24,6 +24,7 @@ class Settings(BaseSettings):
 
     product_contract_address: str = ''
     product_owner_id: int = -1
+    product_owner_mnemonic: str = ''
 
     scheduler_interval: int = SCHEDULER_INTERVAL
     feeder_interval: int = FEEDER_INTERVAL

@@ -154,7 +154,8 @@ async def connect_to_product_contract() -> ProductStatus:
             token
         ) = product.connect_to_contract(
             settings.product_contract_address,
-            settings.product_owner_id
+            settings.product_owner_id,
+            settings.product_owner_mnemonic
         )
 
         return product.get_status(depeg_product)
