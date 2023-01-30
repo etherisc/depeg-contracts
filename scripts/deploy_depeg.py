@@ -975,6 +975,16 @@ def inspect_applications(d):
     usd1 = d[ERC20_PROTECTED_TOKEN]
     usd2 = d[ERC20_TOKEN]
 
+    inspect_applications(instanceService, product, riskpool, usd1, usd2)
+
+
+def inspect_applications(instanceService, product, riskpool, usd1, usd2):
+    instanceService = d[INSTANCE_SERVICE]
+    product = d[PRODUCT]
+    riskpool = d[RISKPOOL]
+    usd1 = d[ERC20_PROTECTED_TOKEN]
+    usd2 = d[ERC20_TOKEN]
+
     mul_usd1 = 10**usd1.decimals()
     mul_usd2 = 10**usd2.decimals()
 
@@ -1030,9 +1040,9 @@ def get_bundle_data(
     instanceService,
     riskpool
 ):
+    bundle_nft = contract_from_address(interface.IERC721, instanceService.getBundleToken())
     riskpoolId = riskpool.getId()
     activeBundleIds = riskpool.getActiveBundleIds()
-
     bundleData = []
 
     for idx in range(len(activeBundleIds)):
@@ -1058,6 +1068,7 @@ def get_bundle_data(
 
         bundleData.append({
             'idx':idx,
+            'owner':bundle_nft.ownerOf(bundle['tokenId']),
             'riskpoolId':riskpoolId,
             'bundleId':bundleId,
             'apr':apr,
@@ -1082,12 +1093,16 @@ def inspect_bundles(d):
     usd1 = d[ERC20_PROTECTED_TOKEN]
     usd2 = d[ERC20_TOKEN]
 
+    inspect_bundles(instanceService, riskpoo, usd1, usd2)
+
+
+def inspect_bundles(instanceService, riskpool, usd1, usd2):
     mul_usd1 = 10**usd1.decimals()
     mul_usd2 = 10**usd2.decimals()
     bundleData = get_bundle_data(instanceService, riskpool)
 
     # print header row
-    print('i riskpool bundle name apr token1 minsuminsured maxsuminsured lifetime minduration maxduration token2 capital locked capacity staking policies')
+    print('i owner riskpool bundle name apr token1 minsuminsured maxsuminsured lifetime minduration maxduration token2 capital locked capacity staking policies')
 
     # print individual rows
     for idx in range(len(bundleData)):
@@ -1097,8 +1112,9 @@ def inspect_bundles(d):
         if b['name'] == '':
             b['name'] = None
 
-        print('{} {} {} {} {:.3f} {} {:.1f} {:.1f} {} {} {} {} {:.1f} {:.1f} {:.1f} {:.1f} {}'.format(
+        print('{} {} {} {} {} {:.3f} {} {:.1f} {:.1f} {} {} {} {} {:.1f} {:.1f} {:.1f} {:.1f} {}'.format(
             b['idx'],
+            _shortenAddress(b['owner']),
             b['riskpoolId'],
             b['bundleId'],
             b['name'],
