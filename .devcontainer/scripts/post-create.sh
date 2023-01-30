@@ -8,6 +8,11 @@ echo "" > .env
 rm -rf build/
 brownie compile --all 
 
+if [ -f "/workspace/gif_instance_address.txt" ]; then
+    echo ">>>> gif_instance_address.txt exists. No Depeg deployment"
+    exit 0
+fi
+
 # deploy USD1, USD2, USD3, DIP and save addresses
 echo "Deploying USD contracts to ganache ..."
 brownie console --network=ganache <<EOF
