@@ -1,13 +1,22 @@
 import brownie
 import pytest
-import random
-
-from datetime import datetime
 
 from brownie import (
     chain,
     history,
     UsdcPriceDataProvider,
+)
+
+from scripts.price_data import (
+    STATE_PRODUCT,
+    EVENT_TYPE,
+    STATE_COMPLIANCE,
+    STATE_STABILITY,
+    PERFECT_PRICE,
+    TRIGGER_PRICE,
+    RECOVERY_PRICE,
+    generate_next_data,
+    inject_data,
 )
 
 from scripts.setup import (
@@ -18,39 +27,6 @@ from scripts.setup import (
 from scripts.util import (
     contract_from_address
 )
-
-STATE_PRODUCT = {}
-STATE_PRODUCT['Undefined'] = 0 
-STATE_PRODUCT['Active'] = 1
-STATE_PRODUCT['Paused'] = 2
-STATE_PRODUCT['Depegged'] = 3
-
-EVENT_TYPE = {}
-EVENT_TYPE['Undefined'] = 0 
-EVENT_TYPE['Update'] = 1
-EVENT_TYPE['TriggerEvent'] = 2
-EVENT_TYPE['RecoveryEvent'] = 3
-EVENT_TYPE['DepegEvent'] = 4
-
-STATE_COMPLIANCE = {}
-STATE_COMPLIANCE['Undefined'] = 0
-STATE_COMPLIANCE['Initializing'] = 1
-STATE_COMPLIANCE['Valid'] = 2
-STATE_COMPLIANCE['FailedOnce'] = 3
-STATE_COMPLIANCE['FailedMultipleTimes'] = 4
-
-STATE_STABILITY = {}
-STATE_STABILITY['Undefined'] = 0
-STATE_STABILITY['Initializing'] = 1
-STATE_STABILITY['Stable'] = 2
-STATE_STABILITY['Triggered'] = 3
-STATE_STABILITY['Depegged'] = 4
-
-ROUND_ID_INITIAL = 36893488147419103822
-
-PERFECT_PRICE = 10**8 # == 10**usdc.decimals()
-TRIGGER_PRICE = int(0.995 * PERFECT_PRICE)
-RECOVERY_PRICE = int(0.999 * PERFECT_PRICE)
 
 # enforce function isolation for tests below
 @pytest.fixture(autouse=True)
@@ -113,7 +89,7 @@ def test_product_lifecycle_startup(
 
     # create initial data point and inject to pr
     data = generate_next_data(0)
-    inject_data(price_data_provider, data, productOwner)
+    inject_data(price_data_provider, data, productOwner, sleep=True)
 
     # check again
     event_info = product.isNewPriceInfoEventAvailable().dict()
@@ -146,7 +122,7 @@ def test_product_lifecycle_startup(
 
     # create 2nd data point and inject to pr
     data = generate_next_data(1)
-    inject_data(price_data_provider, data, productOwner)
+    inject_data(price_data_provider, data, productOwner, sleep=True)
 
     # check again
     event_info = product.isNewPriceInfoEventAvailable().dict()
@@ -632,82 +608,5 @@ def test_product_lifecycle_depeg_and_reactivate(
 
 
 def inject_and_process_data(product, usdc_feeder, data, owner):
-    inject_data(usdc_feeder, data, owner)
+    inject_data(usdc_feeder, data, owner, sleep=True)
     return product.processLatestPriceInfo()
-
-
-def inject_data(usdc_feeder, data, owner):
-    (
-        round_id,
-        answer,
-        started_at,
-        updated_at,
-        answered_in_round
-    ) = data_to_round_data(data)
-
-    # advance chain clock to updated_at
-    sleep_time = updated_at - chain.time()
-    assert sleep_time >= 0
-
-    chain.sleep(sleep_time)
-    chain.mine(1)
-
-    usdc_feeder.setRoundData(
-        round_id,
-        answer,
-        started_at,
-        updated_at,
-        answered_in_round,
-        {'from': owner}
-    )
-
-
-def generate_next_data(
-    i,
-    price=None,
-    last_update=None,
-    delta_time=None
-):
-    round_id = ROUND_ID_INITIAL + i
-    now = datetime.now()
-    timestamp = int(datetime.timestamp(now))
-
-    if price is None:
-        price = PERFECT_PRICE + random.randint(-10, 10)
-
-    if last_update is None:
-        last_update = timestamp if i == 0 else timestamp + (i - 1) * 24 * 3600
-    
-    if delta_time is None:
-        delta_time = 24 * 3600 + random.randint(-120, 120)
-
-    startedAt = last_update if i == 0 else last_update + delta_time
-    
-    data = '{} {} {} {} {}'.format(
-            round_id, # roundId
-            price, # answer
-            startedAt, # startedAt
-            startedAt, # updatedAt
-            round_id # answeredInRound
-    )
-
-    print('next_data[{}] {} - {}'.format(i, data, datetime.fromtimestamp(startedAt)))
-
-    return data
-
-
-def data_to_round_data(data):
-    round_data = data.split()
-    round_id = int(round_data[0])
-    answer = int(round_data[1])
-    started_at = int(round_data[2])
-    updated_at = int(round_data[3])
-    answered_in_round = int(round_data[4])
-
-    return (
-        round_id,
-        answer,
-        started_at,
-        updated_at,
-        answered_in_round
-    )
