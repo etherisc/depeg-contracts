@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.2;
 
-import "@etherisc/gif-interface/contracts/modules/IPolicy.sol";
+import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
 import "@etherisc/gif-interface/contracts/components/IComponent.sol";
 import "@etherisc/gif-interface/contracts/components/Product.sol";
+import "@etherisc/gif-interface/contracts/modules/IPolicy.sol";
 import "@etherisc/gif-interface/contracts/modules/ITreasury.sol";
 import "@etherisc/gif-contracts/contracts/modules/TreasuryModule.sol";
 
@@ -15,6 +16,7 @@ import "./DepegRiskpool.sol";
 contract DepegProduct is 
     Product
 {
+    using EnumerableSet for EnumerableSet.Bytes32Set;
 
     enum DepegState {
         Undefined,
@@ -30,14 +32,32 @@ contract DepegProduct is
     bytes32 public constant VERSION = "0.1";
     bytes32 public constant POLICY_FLOW = "PolicyDefaultFlow";
 
-    bytes32 [] private _applications; // useful for debugging, might need to get rid of this
+    // constant as each policy has max 1 claim
+    uint256 public constant CLAIM_ID = 0;
+
+    bytes32 [] private _applications;
     bytes32 [] private _policies;
 
+    // holds policies that created a depeg claim
+    EnumerableSet.Bytes32Set private _policiesToProcess;
+
+    IPriceDataProvider private _priceDataProvider;
+    address private _protectedToken;
+    DepegState private _state;
+
+    DepegRiskpool private _riskPool;
+    TreasuryModule private _treasury;
+
     mapping(address /* policyHolder */ => bytes32 [] /* processIds */) private _processIdsForHolder;
+    mapping(bytes32 /* processId */ => address /* protected wallet */) private _protectedWalletForProcessId;
 
     event LogDepegApplicationCreated(bytes32 processId, address policyHolder, address protectedWallet, uint256 sumInsuredAmount, uint256 premiumAmount, uint256 netPremiumAmount);
     event LogDepegPolicyCreated(bytes32 processId, address policyHolder, uint256 sumInsuredAmount);
-    event LogDepegPolicyProcessed(bytes32 policyId);
+    event LogDepegClaimCreated(bytes32 processId, uint256 claimId, uint256 claimAmount);
+    event LogDepegClaimConfirmed(bytes32 processId, uint256 claimId, uint256 claimAmount, uint256 accountBalance, uint256 payoutAmount);
+    event LogDepegPayoutProcessed(bytes32 processId, uint256 claimId, uint256 payoutId, uint256 payoutAmount);
+    event LogDepegPolicyExpired(bytes32 processId);
+    event LogDepegPolicyClosed(bytes32 processId);
 
     event LogDepegPriceEvent(
         uint256 priceId,
@@ -53,14 +73,23 @@ contract DepegProduct is
     event LogDepegProductPaused(uint256 priceId, uint256 pausedAt);
     event LogDepegProductUnpaused(uint256 priceId, uint256 unpausedAt);
 
-    IPriceDataProvider private _priceDataProvider;
-    address private _protectedToken;
-    DepegState private _state;
+    modifier onlyMatchingPolicy(bytes32 processId) {
+        require(
+            this.getId() == _instanceService.getMetadata(processId).productId, 
+            "ERROR:PRD-001:POLICY_PRODUCT_MISMATCH"
+        );
+        _;
+    }
 
-    DepegRiskpool private _riskPool;
 
-    // hack to have ITreasury in brownie.interface
-    TreasuryModule private _treasury;
+    modifier onlyProtectedWallet(bytes32 processId) {
+        require(
+            msg.sender == _protectedWalletForProcessId[processId], 
+            "ERROR:PRD-002:NOT_INSURED_WALLET"
+        );
+        _;
+    }
+
 
     constructor(
         bytes32 productName,
@@ -126,6 +155,7 @@ contract DepegProduct is
 
         _applications.push(processId);
         _processIdsForHolder[policyHolder].push(processId);
+        _protectedWalletForProcessId[processId] = wallet;
 
         emit LogDepegApplicationCreated(
             processId, 
@@ -148,6 +178,193 @@ contract DepegProduct is
     }
 
 
+    function getPolicyExpirationData(bytes32 processId)
+        public 
+        view
+        onlyMatchingPolicy(processId)
+        returns(
+            bool isExpired,
+            uint256 expiredAt
+        ) 
+    {
+        // reverts if policy doesn't exist
+        IPolicy.Policy memory policy = _getPolicy(processId);
+
+        isExpired = (policy.state == IPolicy.PolicyState.Expired
+            || policy.state == IPolicy.PolicyState.Closed);
+
+        IPolicy.Application memory application = _getApplication(processId);
+
+        (
+            , // don't need wallet address
+            uint256 duration,
+            // don't need maxNetPremium
+        ) = _riskPool.decodeApplicationParameterFromData(application.data);
+
+        expiredAt = policy.createdAt + duration;
+        isExpired = isExpired || block.timestamp >= expiredAt;
+    }
+
+
+
+    function hasDepegClaim(bytes32 processId)
+        public
+        view
+        onlyMatchingPolicy(processId)
+        returns(bool hasClaim)
+    {
+        return _instanceService.claims(processId) > 0;
+    }
+
+
+    function getDepegClaim(bytes32 processId)
+        external 
+        view 
+        onlyMatchingPolicy(processId)
+        returns(IPolicy.Claim memory claim)
+    {
+        return _getClaim(processId, 0);
+    }
+
+
+    function policyIsAllowedToClaim(bytes32 processId)
+        external 
+        view 
+        onlyMatchingPolicy(processId)
+        returns(bool mayClaim)
+    {
+        // product not depegged
+        if(_state != DepegState.Depegged) {
+            return false;
+        }
+
+        (
+            bool isExpired,
+            uint256 expiredAt
+        ) = getPolicyExpirationData(processId);
+
+        // policy expired alread
+        if(isExpired) {
+            return false;
+        }
+
+        // policy expired prior to depeg event
+        if(expiredAt < _priceDataProvider.getDepeggedAt()) {
+            return false;
+        }
+
+        // policy alread has claim
+        if(hasDepegClaim(processId)) {
+            return false;
+        }
+
+        return true;
+    }
+
+
+    // onlyInsuredWallet modifier
+    // sets policy to expired
+    // creates claim if allowed
+    // reverts if not allowed
+    function createDepegClaim(bytes32 processId)
+        external 
+        onlyMatchingPolicy(processId)
+        onlyProtectedWallet(processId)
+    {
+        require(this.policyIsAllowedToClaim(processId), "ERROR:DP-030:CLAIM_CONDITION_FAILURE");
+
+        // calculate claim attributes
+        IPriceDataProvider.PriceInfo memory depegInfo = _priceDataProvider.getDepegPriceInfo();
+        uint256 protectedAmount = _getApplication(processId).sumInsuredAmount;
+        uint256 claimAmount = calculateClaimAmount(protectedAmount, depegInfo.price);
+
+        // create the depeg claim for this policy
+        bytes memory claimData = encodeClaimInfoAsData(depegInfo.price, depegInfo.depeggedAt);
+        uint256 claimId = _newClaim(processId, claimAmount, claimData);
+        emit LogDepegClaimCreated(processId, claimId, claimAmount);
+
+        // expire policy and add it to list of policies to be processed
+        _expire(processId);
+        _policiesToProcess.add(processId);
+
+        // create log entry
+        emit LogDepegPolicyExpired(processId);
+    }
+
+
+    function policiesToProcess() public view returns(uint256 numberOfPolicies) {
+        return _policiesToProcess.length();
+    }
+
+    function getPolicyToProcess(uint256 idx) public view returns(bytes32 processId) {
+        require(idx < _policiesToProcess.length(), "ERROR:DP-040:INDEX_TOO_LARGE");
+        return _policiesToProcess.at(idx);
+    }
+
+
+    function processPolicy(
+        bytes32 processId,
+        uint256 depeggedAtBalance
+    )
+        public
+        onlyOwner
+    {
+        require(_policiesToProcess.contains(processId), "ERROR:DP-041:NOT_IN_PROCESS_SET");
+        _policiesToProcess.remove(processId);
+
+        IPolicy.Claim memory claim = _getClaim(processId, CLAIM_ID);
+
+        // confirm claim
+        uint256 payoutAmount = claim.claimAmount <= depeggedAtBalance ? claim.claimAmount : depeggedAtBalance;
+        _confirmClaim(processId, CLAIM_ID, payoutAmount);
+        emit LogDepegClaimConfirmed(processId, CLAIM_ID, claim.claimAmount, depeggedAtBalance, payoutAmount);
+
+        // create and process payout
+        uint256 payoutId = _newPayout(processId, CLAIM_ID, payoutAmount, "");
+        _processPayout(processId, payoutId);
+        emit LogDepegPayoutProcessed(processId, CLAIM_ID, payoutId, payoutAmount);
+
+        // close policy
+        _close(processId);
+        emit LogDepegPolicyClosed(processId);
+    }
+
+
+    function encodeClaimInfoAsData(
+        uint256 depegPrice,
+        uint256 depeggedAt
+    )
+        public pure
+        returns (bytes memory data)
+    {
+        data = abi.encode(
+            depegPrice,
+            depeggedAt
+        );
+    }
+
+
+    function decodeClaimInfoFromData(bytes memory data)
+        public pure
+        returns (
+            uint256 depegPrice,
+            uint256 depeggedAt
+        )
+    {
+        (
+            depegPrice,
+            depeggedAt
+        ) = abi.decode(data, (uint256,uint256));
+    }
+
+
+
+    function calculateClaimAmount(uint256 sumInsuredAmount, uint256 depegPrice) public view returns(uint256 claimAmount) {
+        uint256 targetPrice = 10 ** _priceDataProvider.getDecimals();
+        claimAmount = (sumInsuredAmount * (targetPrice - depegPrice)) / targetPrice;
+    }
+
+
     function requestPayout(bytes32 processId)
         external
         returns(
@@ -157,7 +374,7 @@ contract DepegProduct is
         )
     {
         // ensure that we are depegged
-        require(_state == DepegState.Depegged, "ERROR:DP-020:STATE_NOT_DEPEGGED");
+        require(_state == DepegState.Depegged, "ERROR:DP-050:STATE_NOT_DEPEGGED");
 
         // TODO map walletAddress -> latestProcessId
         // require eine wallet address kann max eine aktive policy haben
@@ -199,19 +416,15 @@ contract DepegProduct is
         return _priceDataProvider.getDepeggedAt(); 
     }
 
-
+    function getTargetPrice() external view returns(uint256 targetPrice) {
+        return _priceDataProvider.getTargetPrice();
+    }
+    // manage depeg product state machine: active, paused, depegged
     function processLatestPriceInfo()
         external
         returns(IPriceDataProvider.PriceInfo memory priceInfo)
     {
         priceInfo = _priceDataProvider.processLatestPriceInfo();
-
-        // manage depeg product state machine: active, paused, depegged
-        // TODO
-        // step 1: ensure price feed event types exactly notifies when state changes happen
-        //         - check exisiting unit necessary
-        //         - amend unit tests where necessary
-        // step 2: act on price feed events in this function
 
         // log confirmation of processing
         emit LogDepegPriceEvent(
@@ -344,15 +557,6 @@ contract DepegProduct is
         require(_processIdsForHolder[policyHolder].length > 0, "ERROR:DP-051:NO_POLICIES");
         require(idx < _processIdsForHolder[policyHolder].length, "ERROR:DP-052:POLICY_INDEX_TOO_LARGE");
         return _processIdsForHolder[policyHolder][idx];
-    }
-
-    function processPolicy(bytes32 processId)
-        public
-    {
-        _expire(processId);
-        _close(processId);
-
-        emit LogDepegPolicyProcessed(processId);
     }
 
     function getPriceDataProvider() external view returns(address priceDataProvider) {

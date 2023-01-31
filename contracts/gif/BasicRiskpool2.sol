@@ -8,7 +8,8 @@ import "@etherisc/gif-interface/contracts/modules/IPolicy.sol";
 // basic riskpool always collateralizes one application using exactly one bundle
 abstract contract BasicRiskpool2 is Riskpool2 {
 
-    event LogBasicRiskpoolBundlesAndPolicies(uint256 activeBundles, uint256 policies);
+    event LogBasicRiskpoolCapitalCheck(uint256 activeBundles, uint256 policies);
+    event LogBasicRiskpoolCapitalization(uint256 activeBundles, uint256 capital, uint256 lockedCapital, uint256 collateralAmount, bool capacityIsAvailable);
     event LogBasicRiskpoolCandidateBundleAmountCheck(uint256 index, uint256 bundleId, uint256 maxAmount, uint256 collateralAmount);
 
     // remember bundleId for each processId
@@ -46,39 +47,50 @@ abstract contract BasicRiskpool2 is Riskpool2 {
         internal override
         returns(bool success) 
     {
+        require(_activeBundleIds.length > 0, "ERROR:BRP-001:NO_ACTIVE_BUNDLES");
+
         uint256 capital = getCapital();
         uint256 lockedCapital = getTotalValueLocked();
+        bool capacityIsAvailable = capital > lockedCapital + collateralAmount;
 
-        emit LogBasicRiskpoolBundlesAndPolicies(_activeBundleIds.length, _policiesCounter);
-        require(_activeBundleIds.length > 0, "ERROR:BRP-001:NO_ACTIVE_BUNDLES");
-        require(capital > lockedCapital, "ERROR:BRP-002:NO_FREE_CAPITAL");
+        emit LogBasicRiskpoolCapitalization(
+            _activeBundleIds.length,
+            capital,
+            lockedCapital, 
+            collateralAmount,
+            capacityIsAvailable);
 
         // ensure there is a chance to find the collateral
-        if(capital >= lockedCapital + collateralAmount) {
-            IPolicy.Application memory application = _instanceService.getApplication(processId);
-            
-            // basic riskpool implementation: policy coverage by single bundle only/
-            // active bundle arrays with the most attractive bundle at the first place
-            for (uint256 i = 0; i < _activeBundleIds.length && !success; i++) {
-                uint256 bundleId = _activeBundleIds[i];
-                // uint256 bundleId = getActiveBundleId(bundleIdx);
-                IBundle.Bundle memory bundle = _instanceService.getBundle(bundleId);
-                bool isMatching = bundleMatchesApplication2(bundle, application);
-                // emit LogRiskpoolBundleMatchesPolicy(bundleId, isMatching);
+        if(!capacityIsAvailable) {
+            return false;
+        }
 
-                if (isMatching) {
-                    uint256 maxAmount = bundle.capital - bundle.lockedCapital;
-                    emit LogBasicRiskpoolCandidateBundleAmountCheck(i, bundleId, maxAmount, collateralAmount);
+        // set default outcome
+        success = false;
 
-                    if (maxAmount >= collateralAmount) {
-                        _riskpoolService.collateralizePolicy(bundleId, processId, collateralAmount);
-                        _collateralizedBy[processId] = bundleId;
-                        success = true;
-                        _policiesCounter++;
+        IPolicy.Application memory application = _instanceService.getApplication(processId);
+        
+        // basic riskpool implementation: policy coverage by single bundle only/
+        // active bundle arrays with the most attractive bundle at the first place
+        for (uint256 i = 0; i < _activeBundleIds.length && !success; i++) {
+            uint256 bundleId = _activeBundleIds[i];
+            // uint256 bundleId = getActiveBundleId(bundleIdx);
+            IBundle.Bundle memory bundle = _instanceService.getBundle(bundleId);
+            bool isMatching = bundleMatchesApplication2(bundle, application);
+            emit LogRiskpoolBundleMatchesPolicy(bundleId, isMatching);
 
-                        // update active policies counter
-                        _activePoliciesForBundle[bundleId]++;
-                    }
+            if (isMatching) {
+                uint256 maxAmount = bundle.capital - bundle.lockedCapital;
+                emit LogBasicRiskpoolCandidateBundleAmountCheck(i, bundleId, maxAmount, collateralAmount);
+
+                if (maxAmount >= collateralAmount) {
+                    _riskpoolService.collateralizePolicy(bundleId, processId, collateralAmount);
+                    _collateralizedBy[processId] = bundleId;
+                    success = true;
+                    _policiesCounter++;
+
+                    // update active policies counter
+                    _activePoliciesForBundle[bundleId]++;
                 }
             }
         }
@@ -89,7 +101,7 @@ abstract contract BasicRiskpool2 is Riskpool2 {
         IBundle.Bundle memory bundle, 
         IPolicy.Application memory application
     ) 
-        public virtual returns(bool isMatching);   
+        public virtual returns(bool isMatching);
 
     // manage sorted list of active bundle ids
     function _afterCreateBundle(uint256 bundleId, bytes memory filter, uint256 initialAmount) internal override virtual {

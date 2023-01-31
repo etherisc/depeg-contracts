@@ -36,6 +36,7 @@ contract DepegRiskpool is
     }
 
     event LogBundleMatchesApplication(uint256 bundleId, bool sumInsuredOk, bool durationOk, bool premiumOk);
+    event LogBundleExpired(uint256 bundleId, uint256 createdAt, uint256 lifetime);
 
     uint256 public constant USD_CAPITAL_CAP = 1 * 10**6;
 
@@ -416,6 +417,7 @@ contract DepegRiskpool is
             // - lockBundle does not work as riskpool is not owner of bundle
             // - remove from active list would modify list that is iterateed over right now...
 
+            emit LogBundleExpired(bundle.id, bundle.createdAt, lifetime);
             return false;
         }
 

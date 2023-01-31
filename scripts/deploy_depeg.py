@@ -890,11 +890,29 @@ def best_quote(
     durationDays
 ):
     token = contract_from_address(USD2, d[ERC20_PROTECTED_TOKEN])
-    return best_premium(
+
+    return best_quote(
         d[INSTANCE_SERVICE],
-        d[RISKPOOL],
         d[PRODUCT],
-        sumInsured * 10**token.decimals(),
+        d[RISKPOOL],
+        token,
+        sumInsured,
+        durationDays)
+
+
+def best_quote(
+    instanceService,
+    product,
+    riskpool,
+    token,
+    sumInsured,
+    durationDays
+):
+    return best_premium(
+        instanceService,
+        riskpool,
+        product,
+        sumInsured * 10 ** token.decimals(),
         durationDays)
 
 
@@ -979,12 +997,6 @@ def inspect_applications(d):
 
 
 def inspect_applications(instanceService, product, riskpool, usd1, usd2):
-    instanceService = d[INSTANCE_SERVICE]
-    product = d[PRODUCT]
-    riskpool = d[RISKPOOL]
-    usd1 = d[ERC20_PROTECTED_TOKEN]
-    usd2 = d[ERC20_TOKEN]
-
     mul_usd1 = 10**usd1.decimals()
     mul_usd2 = 10**usd2.decimals()
 

@@ -109,6 +109,8 @@ interface IPriceDataProvider {
         view 
         returns(PriceInfo memory priceInfo);
 
+    function getTargetPrice() external view returns(uint256 targetPrice);
+    
     function getTriggeredAt() external view returns(uint256 triggeredAt);
     function getDepeggedAt() external view returns(uint256 depeggedAt);
 

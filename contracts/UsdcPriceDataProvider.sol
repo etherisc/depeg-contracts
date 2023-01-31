@@ -349,6 +349,10 @@ contract UsdcPriceDataProvider is
         return _depegPriceInfo;
     }
 
+    function getTargetPrice() external override view returns(uint256 targetPrice) {
+        return 10 ** decimals();
+    }
+
     function getTriggeredAt() external override view returns(uint256 triggeredAt) {
         return _triggeredAt;
     }

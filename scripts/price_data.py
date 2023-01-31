@@ -174,6 +174,11 @@ def generate_next_data(
     return data
 
 
+def inject_and_process_data(product, usdc_feeder, data, owner):
+    inject_data(usdc_feeder, data, owner, sleep=True)
+    return product.processLatestPriceInfo()
+
+
 def inject_data(
     usdc_feeder,
     data,

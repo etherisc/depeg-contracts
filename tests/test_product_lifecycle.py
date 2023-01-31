@@ -15,6 +15,7 @@ from scripts.price_data import (
     PERFECT_PRICE,
     TRIGGER_PRICE,
     RECOVERY_PRICE,
+    inject_and_process_data,
     generate_next_data,
     inject_data,
 )
@@ -605,8 +606,3 @@ def test_product_lifecycle_depeg_and_reactivate(
     tx = history[-1]
     assert 'LogDepegPolicyCreated' in tx.events
     assert tx.events['LogDepegPolicyCreated']['processId'] == process_id
-
-
-def inject_and_process_data(product, usdc_feeder, data, owner):
-    inject_data(usdc_feeder, data, owner, sleep=True)
-    return product.processLatestPriceInfo()
