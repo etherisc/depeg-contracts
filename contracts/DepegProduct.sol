@@ -471,7 +471,7 @@ contract DepegProduct is
         external
         onlyOwner()
     {
-        require(_priceDataProvider.isTestnetProvider(), "ERROR:DP-040:NOT_TESTNET");
+        require(_priceDataProvider.isTestnetProvider(), "ERROR:DP-060:NOT_TESTNET");
         _state = DepegState.Active;
 
         emit LogDepegProductReactivated(block.timestamp);
@@ -554,8 +554,8 @@ contract DepegProduct is
         view
         returns(bytes32 processId)
     {
-        require(_processIdsForHolder[policyHolder].length > 0, "ERROR:DP-051:NO_POLICIES");
-        require(idx < _processIdsForHolder[policyHolder].length, "ERROR:DP-052:POLICY_INDEX_TOO_LARGE");
+        require(_processIdsForHolder[policyHolder].length > 0, "ERROR:DP-070:NO_POLICIES");
+        require(idx < _processIdsForHolder[policyHolder].length, "ERROR:DP-071:POLICY_INDEX_TOO_LARGE");
         return _processIdsForHolder[policyHolder][idx];
     }
 
