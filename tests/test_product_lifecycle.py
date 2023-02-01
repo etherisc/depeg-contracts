@@ -137,7 +137,9 @@ def test_product_lifecycle_startup(
     assert price_info['id'] == price_id2
     assert price_info['price'] == price2
     assert price_info['eventType'] == EVENT_TYPE['Update']
-    assert price_info['compliance'] == STATE_COMPLIANCE['Valid']
+    # depending on the randomness of the generated price the price deviation
+    # violates the promised compliance at times
+    assert price_info['compliance'] in [STATE_COMPLIANCE['Valid'], STATE_COMPLIANCE['FailedOnce']]
     assert price_info['stability'] == STATE_STABILITY['Stable']
     assert price_info['triggeredAt'] == 0
     assert price_info['depeggedAt'] == 0
