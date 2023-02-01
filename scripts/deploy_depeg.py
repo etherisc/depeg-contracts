@@ -82,14 +82,14 @@ REQUIRED_FUNDS = {
 
 
 def help():
-    print('from scripts.deploy_depeg import all_in_1, verify_deploy, new_bundle, best_quote, new_policy, inspect_bundle, inspect_bundles, inspect_applications, help')
+    print('from scripts.deploy_depeg import all_in_1, verify_deploy, new_bundle, best_quote, new_policy, inspect_bundle, inspect_bundles_d, inspect_applications_d, help')
     print('(customer, customer2, product, riskpool, riskpoolWallet, investor, bundleRegistry, staking, staker, dip, usd1, usd2, instanceService, instanceOperator, processId, d) = all_in_1(deploy_all=True)')
     print('verify_deploy(d, usd1, usd2, dip, product)')
     print('instanceService.getPolicy(processId).dict()')
     print('instanceService.getBundle(1).dict()')
     print('inspect_bundle(d, 1)')
-    print('inspect_bundles(d)')
-    print('inspect_applications(d)')
+    print('inspect_bundles_d(d)')
+    print('inspect_applications_d(d)')
     print('best_quote(d, 5000, 29)')
 
 
@@ -796,8 +796,8 @@ def all_in_1(
         duration,
         max_premium)
 
-    inspect_bundles(deployment)
-    inspect_applications(deployment)
+    inspect_bundles_d(deployment)
+    inspect_applications_d(deployment)
 
     deployment[BUNDLE_REGISTRY] = bundle_registry
     deployment[STAKING] = staking
@@ -986,7 +986,7 @@ def new_policy(
     return processId
 
 
-def inspect_applications(d):
+def inspect_applications_d(d):
     instanceService = d[INSTANCE_SERVICE]
     product = d[PRODUCT]
     riskpool = d[RISKPOOL]
@@ -1099,13 +1099,13 @@ def get_bundle_data(
     return bundleData
 
 
-def inspect_bundles(d):
+def inspect_bundles_d(d):
     instanceService = d[INSTANCE_SERVICE]
     riskpool = d[RISKPOOL]
     usd1 = d[ERC20_PROTECTED_TOKEN]
     usd2 = d[ERC20_TOKEN]
 
-    inspect_bundles(instanceService, riskpoo, usd1, usd2)
+    inspect_bundles(instanceService, riskpool, usd1, usd2)
 
 
 def inspect_bundles(instanceService, riskpool, usd1, usd2):
