@@ -261,7 +261,7 @@ def test_product_lifecycle_trigger(
     assert product.getDepegState() == STATE_PRODUCT['Paused']
 
     # verify that it's not possible to underwrite a new policy
-    with brownie.reverts('ERROR:DP-011:PRODUCT_NOT_ACTIVE'):
+    with brownie.reverts('ERROR:DP-010:PRODUCT_NOT_ACTIVE'):
         apply_for_policy(
             instance,
             instanceOperator,
@@ -330,7 +330,7 @@ def test_product_lifecycle_trigger_and_recover(
     durationDays = 60
     maxPremium = 750
 
-    with brownie.reverts('ERROR:DP-011:PRODUCT_NOT_ACTIVE'):
+    with brownie.reverts('ERROR:DP-010:PRODUCT_NOT_ACTIVE'):
         apply_for_policy(
             instance,
             instanceOperator,
@@ -360,7 +360,7 @@ def test_product_lifecycle_trigger_and_recover(
     assert product.getDepeggedAt() == 0
     assert product.getDepegState() == STATE_PRODUCT['Paused']
 
-    with brownie.reverts('ERROR:DP-011:PRODUCT_NOT_ACTIVE'):
+    with brownie.reverts('ERROR:DP-010:PRODUCT_NOT_ACTIVE'):
         apply_for_policy(
             instance,
             instanceOperator,
@@ -532,7 +532,7 @@ def test_product_lifecycle_depeg_and_reactivate(
     durationDays = 60
     maxPremium = 750
 
-    with brownie.reverts('ERROR:DP-011:PRODUCT_NOT_ACTIVE'):
+    with brownie.reverts('ERROR:DP-010:PRODUCT_NOT_ACTIVE'):
         apply_for_policy(
             instance,
             instanceOperator,
@@ -558,7 +558,7 @@ def test_product_lifecycle_depeg_and_reactivate(
     assert product.getDepegState() == STATE_PRODUCT['Depegged']
 
     # check that recovered price does not mean creating policies is working again
-    with brownie.reverts('ERROR:DP-011:PRODUCT_NOT_ACTIVE'):
+    with brownie.reverts('ERROR:DP-010:PRODUCT_NOT_ACTIVE'):
         apply_for_policy(
             instance,
             instanceOperator,

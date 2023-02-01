@@ -205,11 +205,13 @@ def test_happy_path(
     (
         wallet,
         application_duration,
+        application_bundle_id,
         application_max_net_premium
     ) = riskpool.decodeApplicationParameterFromData(application['data'])
 
     assert wallet == protectedWallet
     assert application_duration == duration_days * 24 * 3600
+    assert application_bundle_id == 0
     assert application_max_net_premium == net_premium
 
     # check wallet balances against premium payment

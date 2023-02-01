@@ -35,8 +35,9 @@ contract DepegRiskpool is
         uint256 createdAt;
     }
 
-    event LogBundleMatchesApplication(uint256 bundleId, bool sumInsuredOk, bool durationOk, bool premiumOk);
     event LogBundleExpired(uint256 bundleId, uint256 createdAt, uint256 lifetime);
+    event LogBundleMismatch(uint256 bundleId, uint256 bundleIdRequested);
+    event LogBundleMatchesApplication(uint256 bundleId, bool sumInsuredOk, bool durationOk, bool premiumOk);
 
     uint256 public constant USD_CAPITAL_CAP = 1 * 10**6;
 
@@ -321,6 +322,7 @@ contract DepegRiskpool is
     function encodeApplicationParameterAsData(
         address wallet,
         uint256 duration,
+        uint256 bundleId,
         uint256 maxPremium
     )
         public pure
@@ -329,6 +331,7 @@ contract DepegRiskpool is
         data = abi.encode(
             wallet,
             duration,
+            bundleId,
             maxPremium
         );
     }
@@ -341,14 +344,16 @@ contract DepegRiskpool is
         returns (
             address wallet,
             uint256 duration,
+            uint256 bundleId,
             uint256 maxPremium
         )
     {
         (
             wallet,
             duration,
+            bundleId,
             maxPremium
-        ) = abi.decode(data, (address, uint256, uint256));
+        ) = abi.decode(data, (address, uint256, uint256, uint256));
     }
 
     function getBundleFilter(uint256 bundleId) public view returns (bytes memory filter) {
@@ -421,11 +426,42 @@ contract DepegRiskpool is
             return false;
         }
 
+        // detailed match check
+        return detailedBundleApplicationMatch(
+            bundle.id,
+            minSumInsured,
+            maxSumInsured,
+            minDuration,
+            maxDuration,
+            annualPercentageReturn,
+            application
+        );
+    }
+
+    function detailedBundleApplicationMatch(
+        uint256 bundleId,
+        uint256 minSumInsured,
+        uint256 maxSumInsured,
+        uint256 minDuration,
+        uint256 maxDuration,
+        uint256 annualPercentageReturn,
+        IPolicy.Application memory application
+    )
+        public
+        returns(bool isMatching)
+    {
         (
             , // we don't care about the wallet address here
             uint256 duration,
+            uint256 applicationBundleId,
             uint256 maxPremium
         ) = decodeApplicationParameterFromData(application.data);
+
+        // if bundle id specified a match is required
+        if(applicationBundleId > 0 && bundleId != applicationBundleId) {
+            emit LogBundleMismatch(bundleId, applicationBundleId);
+            return false;
+        }
 
         bool sumInsuredOk = true;
         bool durationOk = true;
@@ -445,9 +481,8 @@ contract DepegRiskpool is
         uint256 premium = calculatePremium(application.sumInsuredAmount, duration, annualPercentageReturn);
         if(premium > maxPremium) { premiumOk = false; }
 
-        isMatching = (sumInsuredOk && durationOk && premiumOk);
-
-        emit LogBundleMatchesApplication(bundle.id, sumInsuredOk, durationOk, premiumOk);
+        emit LogBundleMatchesApplication(bundleId, sumInsuredOk, durationOk, premiumOk);
+        return (sumInsuredOk && durationOk && premiumOk);
     }
 
 

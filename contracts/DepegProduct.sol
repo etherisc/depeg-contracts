@@ -118,6 +118,26 @@ contract DepegProduct is
     }
 
 
+
+    function applyForPolicyWithBundle(
+        address wallet,
+        uint256 sumInsured,
+        uint256 duration,
+        uint256 bundleId
+    ) 
+        external 
+        returns(bytes32 processId)
+    {
+        return applyForPolicyInternal(
+            wallet,
+            sumInsured,
+            duration,
+            bundleId,
+            0
+        );
+    }
+
+
     function applyForPolicy(
         address wallet,
         uint256 sumInsured,
@@ -127,22 +147,61 @@ contract DepegProduct is
         external 
         returns(bytes32 processId)
     {
-        require(wallet != address(0), "ERROR:DP-010:WALLET_ADDRESS_ZERO");
+        return applyForPolicyInternal(
+            wallet,
+            sumInsured,
+            duration,
+            0,
+            maxPremium
+        );
+    }
 
+
+    // either bundle id or max premium needs to be defined (> 0)
+    function applyForPolicyInternal(
+        address wallet,
+        uint256 sumInsured,
+        uint256 duration,
+        uint256 bundleId,
+        uint256 maxPremium
+    ) 
+        internal 
+        returns(bytes32 processId)
+    {
         // block policy creation when protected stable coin
         // is triggered or depegged
-        require(_state == DepegState.Active, "ERROR:DP-011:PRODUCT_NOT_ACTIVE");
+        require(_state == DepegState.Active, "ERROR:DP-010:PRODUCT_NOT_ACTIVE");
+        require(wallet != address(0), "ERROR:DP-011:WALLET_ADDRESS_ZERO");
+        require(bundleId > 0 || maxPremium > 0, "ERROR:DP-012:PREMIUM_AND_BUNDLE_ID_ZERO");
 
-        (
-            uint256 feeAmount, 
-            uint256 maxNetPremium
-        ) = _treasury.calculateFee(getId(), maxPremium);
+        uint256 feeAmount = 0;
+        uint256 maxNetPremium = 0;
+
+        // bundle id validation
+        if(bundleId > 0) {
+            IBundle.Bundle memory bundle = _instanceService.getBundle(bundleId);
+            require(
+                bundle.riskpoolId == _riskPool.getId(),
+                "ERROR:DP-013:BUNDLE_RISKPOOL_MISMATCH"
+            );
+
+            // calculate premium for specified bundle
+            (,,,,,,uint256 annualPercentageReturn) = _riskPool.decodeBundleParamsFromFilter(bundle.filter);
+            maxNetPremium = _riskPool.calculatePremium(sumInsured, duration, annualPercentageReturn);
+            maxPremium = calculatePremium(maxNetPremium);
+        } else {
+            (
+                feeAmount, 
+                maxNetPremium
+            ) = _treasury.calculateFee(getId(), maxPremium);
+        }
 
         address policyHolder = msg.sender;
         bytes memory metaData = "";
         bytes memory applicationData = _riskPool.encodeApplicationParameterAsData(
             wallet,
             duration,
+            bundleId,
             maxNetPremium
         );
 
@@ -198,6 +257,7 @@ contract DepegProduct is
         (
             , // don't need wallet address
             uint256 duration,
+            , // don't need bundle id info
             // don't need maxNetPremium
         ) = _riskPool.decodeApplicationParameterFromData(application.data);
 
@@ -498,7 +558,7 @@ contract DepegProduct is
         view
         returns(uint256 feeAmount, uint256 totalAmount)
     {
-        ITreasury.FeeSpecification memory feeSpec = getFeeSpecification();
+        ITreasury.FeeSpecification memory feeSpec = getFeeSpecification(getId());
 
         // start with fixed fee
         feeAmount = feeSpec.fixedFee;
@@ -513,12 +573,12 @@ contract DepegProduct is
 
 
     // TODO make this available via instance service
-    function getFeeSpecification()
+    function getFeeSpecification(uint256 componentId)
         public
         view
         returns(ITreasury.FeeSpecification memory feeSpecification)
     {
-        feeSpecification = _treasury.getFeeSpecification(getId());
+        feeSpecification = _treasury.getFeeSpecification(componentId);
     }
 
     function getFeeFractionFullUnit()
@@ -530,8 +590,9 @@ contract DepegProduct is
     }
 
 
+    // TODO this functionality should be provided by GIF (TreasuryModule)
     function calculatePremium(uint256 netPremium) public view returns(uint256 premiumAmount) {
-        ITreasury.FeeSpecification memory feeSpec = getFeeSpecification();
+        ITreasury.FeeSpecification memory feeSpec = getFeeSpecification(getId());
         uint256 fractionFullUnit = _treasury.getFractionFullUnit();
         uint256 fraction = feeSpec.fractionalFee;
         uint256 fixedFee = feeSpec.fixedFee;
