@@ -122,7 +122,7 @@ def verify_deploy(
         product,
         riskpool
     ) = from_component(
-        product.address, 
+        product.address,
         productId=product_id,
         riskpoolId=riskpool_id
     )
@@ -159,8 +159,8 @@ def verify_deploy(
     print('RiskpoolBundles {}'.format(riskpool.bundles()))
     print('ProductApplications {}'.format(product.applications()))
 
-    inspect_bundles(stakeholder_accounts)
-    inspect_applications(stakeholder_accounts)
+    inspect_bundles_d(stakeholder_accounts)
+    inspect_applications_d(stakeholder_accounts)
 
     verify_element('PriceDataProviderToken', price_data_provider.getToken(), erc20_protected_token.address)
     verify_element('PriceDataProviderOwner', price_data_provider.getOwner(), productOwner)
@@ -1003,7 +1003,7 @@ def inspect_applications(instanceService, product, riskpool, usd1, usd2):
     processIds = product.applications()
 
     # print header row
-    print('i customer product id type state wallet premium suminsured duration maxpremium')
+    print('i customer product id type state wallet premium suminsured duration bundle maxpremium')
 
     # print individual rows
     for idx in range(processIds):
@@ -1017,7 +1017,7 @@ def inspect_applications(instanceService, product, riskpool, usd1, usd2):
         premium = application[1]
         suminsured = application[2]
         appdata = application[3]
-        (wallet, duration, maxpremium) = riskpool.decodeApplicationParameterFromData(appdata)
+        (wallet, duration, bundle_id, maxpremium) = riskpool.decodeApplicationParameterFromData(appdata)
 
         if state == 2:
             policy = instanceService.getPolicy(processId)
@@ -1027,7 +1027,7 @@ def inspect_applications(instanceService, product, riskpool, usd1, usd2):
             policy = None
             kind = 'application'
 
-        print('{} {} {} {} {} {} {} {:.1f} {:.1f} {} {:.1f}'.format(
+        print('{} {} {} {} {} {} {} {:.1f} {:.1f} {} {} {:.1f}'.format(
             idx,
             _shortenAddress(customer),
             productId,
@@ -1038,7 +1038,8 @@ def inspect_applications(instanceService, product, riskpool, usd1, usd2):
             premium/mul_usd2,
             suminsured/mul_usd1,
             duration/(24*3600),
-            maxpremium/mul_usd2
+            str(bundle_id) if bundle_id > 0 else 'n/a',
+            maxpremium/mul_usd2,
         ))
 
 
