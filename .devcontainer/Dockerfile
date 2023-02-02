@@ -39,6 +39,9 @@ RUN pip install "uvicorn[standard]"
 # install brownie
 RUN pip install eth-brownie
 
+# install moralis
+RUN pip install moralis
+
 # [Optional] Uncomment this line to install global node packages.
 RUN npm install -g ganache@7.6.0 solhint prettier prettier-plugin-solidity solhint-plugin-prettier
 

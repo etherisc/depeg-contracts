@@ -1,5 +1,8 @@
 import pytest
 
+from os import getenv
+from dotenv import load_dotenv
+
 from brownie import (
     interface,
     Wei,
@@ -20,7 +23,10 @@ from brownie import (
 from brownie.network import accounts
 from brownie.network.account import Account
 
-from scripts.const import ACCOUNTS_MNEMONIC
+from scripts.const import (
+    ACCOUNTS_MNEMONIC,
+    MORALIS_API_KEY
+)
 
 from scripts.util import (
     get_account,
@@ -37,6 +43,7 @@ from scripts.depeg_product import (
     GifDepegRiskpool,
     GifDepegProductComplete,
 )
+
 
 def get_filled_account(accounts, account_no, funding) -> Account:
     owner = get_account(ACCOUNTS_MNEMONIC, account_no)
@@ -56,6 +63,13 @@ def run_around_tests():
         accounts[8].transfer(accounts[9], 1)
         # dummy_account = get_account(ACCOUNTS_MNEMONIC, 999)
         # execute_simple_incrementer_trx(dummy_account)
+
+#=== moralis api  ======================================================#
+
+@pytest.fixture(scope="module")
+def moralis_api_key() -> str:
+    load_dotenv()
+    return getenv(MORALIS_API_KEY)
 
 #=== actor account fixtures  ===========================================#
 

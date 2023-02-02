@@ -1,3 +1,10 @@
+
+# === env variables (.env file) ============================================= #
+
+WEB3_INFURA_PROJECT_ID = 'WEB3_INFURA_PROJECT_ID'
+POLYGONSCAN_TOKEN = 'POLYGONSCAN_TOKEN'
+MORALIS_API_KEY = 'MORALIS_API_KEY'
+
 # === GIF platform ========================================================== #
 
 # GIF release

@@ -12,6 +12,8 @@ contract USD1 is ERC20 {
 
     uint256 public constant INITIAL_SUPPLY = 10**24;
 
+    event LogUsd1Transfer(address from, address to, uint256 amount, uint256 time, uint256 blockNumber);
+    event LogUsd1TransferFrom(address from, address to, uint256 amount, uint256 time, uint256 blockNumber);
     constructor()
         ERC20(NAME, SYMBOL)
     {
@@ -24,6 +26,19 @@ contract USD1 is ERC20 {
     function decimals() public pure override returns(uint8) {
         return DECIMALS;
     }
+
+    function transfer(address to, uint256 amount) public virtual override returns (bool) {
+        address from = _msgSender();
+        emit LogUsd1TransferFrom(from, to, amount, block.timestamp, block.number);
+        return super.transfer(to, amount);
+    }
+    
+    function transferFrom(address from, address to, uint256 amount) 
+        public virtual override returns (bool) 
+    {
+        emit LogUsd1TransferFrom(from, to, amount, block.timestamp, block.number);
+        return super.transferFrom(from, to, amount);
+    }    
 }
 
 
