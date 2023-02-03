@@ -40,4 +40,6 @@ pip install packaging==21.3
 echo "packaging 21.3 installed"
 pipx install eth-brownie
 echo "eth-brownie installed"
+pipx install moralis
+echo "eth-brownie installed"
 
