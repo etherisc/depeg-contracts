@@ -18,6 +18,12 @@ echo ">>>> Compiling GIF contracts..."
 brownie compile --all
 echo "" > .env
 
+if [ -f "/workspace/gif_instance_address.txt" ]; then
+    echo ">>>> gif_instance_address.txt exists. No GIF deployment"
+    exit 0
+fi
+
+
 # deploy gif and save registry address
 echo "Deploying GIF contracts to ganache ..."
 brownie console --network=ganache <<EOF

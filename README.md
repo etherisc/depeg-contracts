@@ -248,3 +248,23 @@ Now shutdown above started Ganache chain (ctrl+c) and commit the new files to gi
 
 Also save the values for registry and erc20 in `scripts/test_deployment.py`. 
 
+## Depeg monitor
+
+The code for the depeg monitor is in `server`. It exposes a FastAPI api at `/docs`.
+
+### Deployment
+
+The Dockerfile to run the depeg monitor is `Dockerfile.depeg-monitor`. It requires these environment variables to be set:
+
+```
+product_contract_address=
+product_owner_id=
+product_owner_mnemonic=
+feeder_interval=60
+checker_interval=30
+application_title=depegmonitor
+application_version=0.1
+NODE__NETWORK_ID=
+WEB3_INFURA_PROJECT_ID=
+```
+

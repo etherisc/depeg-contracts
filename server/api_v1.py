@@ -154,7 +154,8 @@ async def connect_to_product_contract() -> ProductStatus:
             token
         ) = product.connect_to_contract(
             settings.product_contract_address,
-            settings.product_owner_id
+            settings.product_owner_id,
+            settings.product_owner_mnemonic
         )
 
         return product.get_status(depeg_product)
@@ -239,8 +240,8 @@ def shutdown_event():
 def start_scheduler():
     global next_event
 
-    queue.add(Job(name='feeder', method_to_run=inject_price, interval=15))
-    queue.add(Job(name='checker', method_to_run=check_new_price, interval=5))
+    queue.add(Job(name='feeder', method_to_run=inject_price, interval=settings.feeder_interval))
+    queue.add(Job(name='checker', method_to_run=check_new_price, interval=settings.checker_interval))
 
     next_event = schedule.enter(settings.scheduler_interval, PRIORITY, schedule_event, (schedule,))
     logger.info('scheduler started')

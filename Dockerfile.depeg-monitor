@@ -1,0 +1,30 @@
+FROM python:3.9
+
+EXPOSE 8000
+
+# upgrade pip
+RUN python -m pip install --upgrade pip
+
+# install fastapi
+RUN pip install loguru
+RUN pip install fastapi
+RUN pip install "uvicorn[standard]"
+
+# install brownie
+RUN pip install eth-brownie
+
+COPY .github/workflows/scripts/prepare_environment.sh /tmp/prepare_environment.sh
+RUN chmod a+x /tmp/prepare_environment.sh 
+RUN bash /tmp/prepare_environment.sh
+
+WORKDIR /app
+
+COPY brownie-config.yaml ./brownie-config.yaml
+COPY contracts/ ./contracts/
+
+RUN touch .env
+RUN brownie compile --all
+
+COPY server/ ./server/
+
+CMD ["uvicorn", "server.main:app", "--host", "0.0.0.0", "--port", "8000"]

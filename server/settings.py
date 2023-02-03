@@ -9,6 +9,7 @@ from server.node import BrownieNode
 ENV_FILE = 'server/.env'
 SCHEDULER_INTERVAL = 5
 
+CHECKER_INTERVAL = 10
 FEEDER_INTERVAL = 15
 
 class Settings(BaseSettings):
@@ -24,8 +25,10 @@ class Settings(BaseSettings):
 
     product_contract_address: str = ''
     product_owner_id: int = -1
+    product_owner_mnemonic: str = ''
 
     scheduler_interval: int = SCHEDULER_INTERVAL
+    checker_interval: int = CHECKER_INTERVAL
     feeder_interval: int = FEEDER_INTERVAL
 
     def __init__(self, *args, **kwargs):

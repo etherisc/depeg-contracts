@@ -81,13 +81,14 @@ class Product(BaseModel):
     def connect_to_contract(
         self,
         contract_address:str,
-        owner_id:int
+        owner_id:int,
+        owner_mnemonic:str
     ) -> (DepegProduct, UsdcPriceDataProvider, USD1):
         if not network.is_connected():
             raise RuntimeError('connect to network first')
         
         self.product_address = contract_address
-        self.owner = BrownieAccount(offset=owner_id)
+        self.owner = BrownieAccount(offset=owner_id, mnemonic=owner_mnemonic)
 
         if self.product_address and len(self.product_address) > 0:
             logger.info("connecting to contracts via '{}'", self.product_address)
