@@ -25,6 +25,12 @@ contract DepegProduct is
         Depegged  // stop selling policies, manual reset to active needed by owner
     }
 
+    struct DepegBalance {
+        address wallet;
+        uint256 blockNumber;
+        uint256 balance;
+    }
+
     uint256 public constant MAINNET = 1;
     uint256 public constant GANACHE = 1337;
 
@@ -39,7 +45,8 @@ contract DepegProduct is
     bytes32 [] private _policies;
 
     // holds policies that created a depeg claim
-    EnumerableSet.Bytes32Set private _policiesToProcess;
+    EnumerableSet.Bytes32Set private _policiesWithOpenClaims;
+    EnumerableSet.Bytes32Set private _policiesWithConfirmedClaims;
 
     IPriceDataProvider private _priceDataProvider;
     address private _protectedToken;
@@ -47,9 +54,13 @@ contract DepegProduct is
 
     DepegRiskpool private _riskPool;
     TreasuryModule private _treasury;
+    uint256 private _depeggedBlockNumber;
 
+    // hold list of applications/policies for address
     mapping(address /* policyHolder */ => bytes32 [] /* processIds */) private _processIdsForHolder;
-    mapping(bytes32 /* processId */ => address /* protected wallet */) private _protectedWalletForProcessId;
+
+    // actual wallet balances at depeg time
+    mapping(address /* wallet */ => DepegBalance /* balance */) private _depegBalance;
 
     event LogDepegApplicationCreated(bytes32 processId, address policyHolder, address protectedWallet, uint256 sumInsuredAmount, uint256 premiumAmount, uint256 netPremiumAmount);
     event LogDepegPolicyCreated(bytes32 processId, address policyHolder, uint256 sumInsuredAmount);
@@ -72,6 +83,10 @@ contract DepegProduct is
     event LogDepegProductReactivated(uint256 reactivatedAt);
     event LogDepegProductPaused(uint256 priceId, uint256 pausedAt);
     event LogDepegProductUnpaused(uint256 priceId, uint256 unpausedAt);
+    event LogDepegBlockNumberSet(uint256 blockNumber, string comment);
+    event LogDepegDepegBalanceAdded(address wallet, uint256 blockNumber, uint256 balance);
+    event LogDepegDepegBalanceError(address wallet, uint256 blockNumber, uint256 balance, uint256 depeggedBlockNumber);
+
 
     modifier onlyMatchingPolicy(bytes32 processId) {
         require(
@@ -84,7 +99,7 @@ contract DepegProduct is
 
     modifier onlyProtectedWallet(bytes32 processId) {
         require(
-            msg.sender == _protectedWalletForProcessId[processId], 
+            msg.sender == getProtectedWallet(processId), 
             "ERROR:PRD-002:NOT_INSURED_WALLET"
         );
         _;
@@ -115,6 +130,7 @@ contract DepegProduct is
 
         _riskPool = DepegRiskpool(poolAddress);
         _treasury = TreasuryModule(_instanceService.getTreasuryAddress());
+        _depeggedBlockNumber = 0;
     }
 
 
@@ -213,8 +229,11 @@ contract DepegProduct is
             applicationData);
 
         _applications.push(processId);
+
+        // remember for which policy holder and protected wallets 
+        // we have applications / policies
         _processIdsForHolder[policyHolder].push(processId);
-        _protectedWalletForProcessId[processId] = wallet;
+        _processIdsForHolder[wallet].push(processId);
 
         emit LogDepegApplicationCreated(
             processId, 
@@ -266,6 +285,91 @@ contract DepegProduct is
     }
 
 
+    function getDepeggedBlockNumber() public view returns(uint256 blockNumber) {
+        return _depeggedBlockNumber;
+    }
+
+
+    function setDepeggedBlockNumber(
+        uint256 blockNumber,
+        string memory comment
+    ) 
+        external
+        onlyOwner
+    {
+        require(_state == DepegState.Depegged, "ERROR:DP-020:NOT_DEPEGGED");
+        _depeggedBlockNumber = blockNumber;
+
+        emit LogDepegBlockNumberSet(blockNumber, comment);
+    }
+
+
+    function createDepegBalance(
+        address wallet,
+        uint256 blockNumber,
+        uint256 balance
+    )
+        public 
+        view 
+        returns(DepegBalance memory depegBalance)
+    {
+        require(wallet != address(0), "ERROR:DP-021:WALLET_ADDRESS_ZERO");
+        require(_depeggedBlockNumber > 0, "ERROR:DP-022:DEPEGGED_BLOCKNUMBER_ZERO");
+        require(blockNumber == _depeggedBlockNumber, "ERROR:DP-023:BLOCKNUMBER_MISMATCH");
+
+        depegBalance.wallet = wallet;
+        depegBalance.blockNumber = _depeggedBlockNumber;
+        depegBalance.balance = balance;
+    }
+
+
+    function addDepegBalances(DepegBalance [] memory depegBalances)
+        external
+        onlyOwner
+        returns(
+            uint256 balanceOkCases,
+            uint256 balanceErrorCases
+        )
+    {
+        require(_depeggedBlockNumber > 0, "ERROR:DP-024:DEPEGGED_BLOCKNUMBER_ZERO");
+    
+        balanceOkCases = 0;
+        balanceErrorCases = 0;
+
+        for (uint256 i; i < depegBalances.length; i++) {
+            DepegBalance memory depegBalance = depegBalances[i];
+
+            if(depegBalance.wallet != address(0) && depegBalance.blockNumber == _depeggedBlockNumber) {
+                _depegBalance[depegBalance.wallet] = depegBalance;
+                balanceOkCases += 1;
+
+                emit LogDepegDepegBalanceAdded(
+                    depegBalance.wallet, 
+                    depegBalance.blockNumber, 
+                    depegBalance.balance);
+            } else {
+                balanceErrorCases += 1;
+
+                emit LogDepegDepegBalanceError(
+                    depegBalance.wallet, 
+                    depegBalance.blockNumber, 
+                    depegBalance.balance, 
+                    _depeggedBlockNumber);
+            }
+        }
+
+        assert(balanceOkCases + balanceErrorCases == depegBalances.length);
+    }    
+
+
+    function getDepegBalance(address protectedWallet)
+        public
+        view
+        returns(DepegBalance memory depegBalance)
+    {
+        return _depegBalance[protectedWallet];
+    }
+
 
     function hasDepegClaim(bytes32 processId)
         public
@@ -278,12 +382,12 @@ contract DepegProduct is
 
 
     function getDepegClaim(bytes32 processId)
-        external 
+        public 
         view 
         onlyMatchingPolicy(processId)
         returns(IPolicy.Claim memory claim)
     {
-        return _getClaim(processId, 0);
+        return _getClaim(processId, CLAIM_ID);
     }
 
 
@@ -334,18 +438,18 @@ contract DepegProduct is
         require(this.policyIsAllowedToClaim(processId), "ERROR:DP-030:CLAIM_CONDITION_FAILURE");
 
         // calculate claim attributes
-        IPriceDataProvider.PriceInfo memory depegInfo = _priceDataProvider.getDepegPriceInfo();
         uint256 protectedAmount = _getApplication(processId).sumInsuredAmount;
-        uint256 claimAmount = calculateClaimAmount(protectedAmount, depegInfo.price);
+        uint256 claimAmount = calculateClaimAmount(protectedAmount);
 
         // create the depeg claim for this policy
+        IPriceDataProvider.PriceInfo memory depegInfo = _priceDataProvider.getDepegPriceInfo();
         bytes memory claimData = encodeClaimInfoAsData(depegInfo.price, depegInfo.depeggedAt);
         uint256 claimId = _newClaim(processId, claimAmount, claimData);
         emit LogDepegClaimCreated(processId, claimId, claimAmount);
 
         // expire policy and add it to list of policies to be processed
         _expire(processId);
-        _policiesToProcess.add(processId);
+        _policiesWithOpenClaims.add(processId);
 
         // create log entry
         emit LogDepegPolicyExpired(processId);
@@ -353,31 +457,101 @@ contract DepegProduct is
 
 
     function policiesToProcess() public view returns(uint256 numberOfPolicies) {
-        return _policiesToProcess.length();
+        return _policiesWithOpenClaims.length();
     }
 
-    function getPolicyToProcess(uint256 idx) public view returns(bytes32 processId) {
-        require(idx < _policiesToProcess.length(), "ERROR:DP-040:INDEX_TOO_LARGE");
-        return _policiesToProcess.at(idx);
-    }
-
-
-    function processPolicy(
-        bytes32 processId,
-        uint256 depeggedAtBalance
-    )
-        public
-        onlyOwner
+    function getPolicyToProcess(uint256 idx) 
+        public 
+        view 
+        returns(
+            bytes32 processId,
+            address wallet
+        )
     {
-        require(_policiesToProcess.contains(processId), "ERROR:DP-041:NOT_IN_PROCESS_SET");
-        _policiesToProcess.remove(processId);
+        require(idx < _policiesWithOpenClaims.length(), "ERROR:DP-040:INDEX_TOO_LARGE");
+
+        processId = _policiesWithOpenClaims.at(idx);
+        wallet = getProtectedWallet(processId);        
+    }
+
+    // convencience function for frontend, api, ...
+    function getClaimData(bytes32 processId)
+        external 
+        view 
+        onlyMatchingPolicy(processId)
+        returns(
+            address wallet,
+            uint256 protectedAmount, // = protected amount
+            uint256 actualAmount,
+            bool hasClaim,
+            uint256 claimId,
+            IPolicy.ClaimState claimState,
+            uint256 claimAmount,
+            uint256 claimCreatedAt
+        ) 
+    {
+        wallet = getProtectedWallet(processId);
+        protectedAmount = _getApplication(processId).sumInsuredAmount;
+        actualAmount = getDepegBalance(wallet).balance;
+        IPolicy.Claim memory claim = _getClaim(processId, CLAIM_ID);
+        hasClaim = claim.createdAt > 0;
+
+        return (
+            wallet,
+            protectedAmount,
+            actualAmount,
+            hasClaim, // hasClaim
+            CLAIM_ID,
+            claim.state,
+            claim.claimAmount,
+            claim.createdAt
+        );
+    }
+
+
+    // convenience function to speed up processing
+    function processPolicies(bytes32 [] memory _processIds)
+        external
+    {
+        for(uint256 i = 0; i < _processIds.length; i++) {
+            processPolicy(_processIds[i]);
+        }
+    }
+
+
+    // claim confirmation and payout handling for a single policy
+    // payout will be made to policy holder (not to protected wallet)
+    // this is a current limitation of the gif framework
+    function processPolicy(bytes32 processId)
+        public
+    {
+        require(_policiesWithOpenClaims.contains(processId), "ERROR:DP-042:NOT_IN_PROCESS_SET");
+        _policiesWithOpenClaims.remove(processId);
+        _policiesWithConfirmedClaims.add(processId);
+
+
+        // determine final payout amount based on both protected amount
+        // and actual balance at time of the depeg event
+        // TODO fix existing tests
+        // TODO add new test
+        // TODO add more payout testing
+        address wallet = getProtectedWallet(processId);
+        require(_depegBalance[wallet].blockNumber > 0, "ERROR:DP-043:DEPEG_BALANCE_MISSING");
+
+        uint256 depegBalance = _depegBalance[wallet].balance;
 
         IPolicy.Claim memory claim = _getClaim(processId, CLAIM_ID);
+        uint256 payoutAmount = claim.claimAmount;
+        uint256 depegPayoutAmount = calculateClaimAmount(depegBalance);
+
+        // down-adjust payout amount based on actual balance at depeg time
+        if(depegPayoutAmount < payoutAmount) {
+            payoutAmount = depegPayoutAmount;
+        }
 
         // confirm claim
-        uint256 payoutAmount = claim.claimAmount <= depeggedAtBalance ? claim.claimAmount : depeggedAtBalance;
         _confirmClaim(processId, CLAIM_ID, payoutAmount);
-        emit LogDepegClaimConfirmed(processId, CLAIM_ID, claim.claimAmount, depeggedAtBalance, payoutAmount);
+        emit LogDepegClaimConfirmed(processId, CLAIM_ID, claim.claimAmount, depegBalance, payoutAmount);
 
         // create and process payout
         uint256 payoutId = _newPayout(processId, CLAIM_ID, payoutAmount, "");
@@ -418,10 +592,10 @@ contract DepegProduct is
     }
 
 
-
-    function calculateClaimAmount(uint256 sumInsuredAmount, uint256 depegPrice) public view returns(uint256 claimAmount) {
+    function calculateClaimAmount(uint256 tokenAmount) public view returns(uint256 claimAmount) {
         uint256 targetPrice = 10 ** _priceDataProvider.getDecimals();
-        claimAmount = (sumInsuredAmount * (targetPrice - depegPrice)) / targetPrice;
+        uint256 depegPrice = _priceDataProvider.getDepegPriceInfo().price;
+        claimAmount = (tokenAmount * (targetPrice - depegPrice)) / targetPrice;
     }
 
 
@@ -620,6 +794,13 @@ contract DepegProduct is
         return _processIdsForHolder[policyHolder][idx];
     }
 
+
+    function getProtectedWallet(bytes32 processId) public view returns(address wallet) {
+        bytes memory applicationData = _getApplication(processId).data;
+        (wallet,,,) = _riskPool.decodeApplicationParameterFromData(applicationData);        
+    }
+
+
     function getPriceDataProvider() external view returns(address priceDataProvider) {
         return address(_priceDataProvider);
     }
@@ -646,6 +827,6 @@ contract DepegProduct is
     }
 
     function getApplicationDataStructure() external override pure returns(string memory dataStructure) {
-        return "(uint256 duration,uint256 maxPremium)";
+        return "(uint256 duration,uint256 bundleId,uint256 maxPremium)";
     }
 }

@@ -243,7 +243,7 @@ def test_happy_path(
     claim_amount_expected = int(sum_insured * (target_price - depeg_price) / target_price)
 
     # check product claim amaount calculation
-    assert product.calculateClaimAmount(sum_insured, depeg_price) == claim_amount_expected
+    assert product.calculateClaimAmount(sum_insured) == claim_amount_expected
 
     # create claim from protected wallet
     tx = product.createDepegClaim(
@@ -274,7 +274,9 @@ def test_happy_path(
 
     # one policy to process now
     assert product.policiesToProcess() == 1
-    assert product.getPolicyToProcess(0) == process_id
+    (pid, wallet) = product.getPolicyToProcess(0)
+    assert pid == process_id
+    assert wallet == protectedWallet
     assert instanceService.claims(process_id) == 1
     assert instanceService.payouts(process_id) == 0
 
@@ -306,10 +308,41 @@ def test_happy_path(
     assert protected_token.balanceOf(protectedWallet) == depegged_at_balance
     assert token.balanceOf(protectedWallet) == 0
 
-    tx = product.processPolicy(
-        process_id,
-        depegged_at_balance,
+    # this number needs to be determined via moralis using the depeg timestamp via getDepeggedAt()
+    depeg_block_number = 1000
+    depeg_block_number_comment = "block number for timsteamp xyz"
+
+    assert product.getDepeggedBlockNumber() == 0
+
+    # needs to be protected
+    tx = product.setDepeggedBlockNumber(
+        depeg_block_number,
+        depeg_block_number_comment,
         {'from': productOwner})
+
+    assert 'LogDepegBlockNumberSet' in tx.events
+    assert tx.events['LogDepegBlockNumberSet']['blockNumber'] == depeg_block_number
+    assert tx.events['LogDepegBlockNumberSet']['comment'] == depeg_block_number_comment
+
+    assert product.getDepeggedBlockNumber() == depeg_block_number
+
+    # inject balance data for depegged time for protected wallet
+    depeg_balance = product.createDepegBalance(
+        protectedWallet,
+        depeg_block_number,
+        depegged_at_balance)
+
+    # needs to be protected
+    tx = product.addDepegBalances(
+        [depeg_balance],
+        {'from': productOwner})
+
+    assert 'LogDepegDepegBalanceAdded' in tx.events
+    assert tx.events['LogDepegDepegBalanceAdded']['wallet'] == protectedWallet
+    assert tx.events['LogDepegDepegBalanceAdded']['blockNumber'] == depeg_block_number
+    assert tx.events['LogDepegDepegBalanceAdded']['balance'] == depegged_at_balance
+
+    tx = product.processPolicies([process_id])
 
     # check logs and info in logs
     assert 'LogDepegClaimConfirmed' in tx.events

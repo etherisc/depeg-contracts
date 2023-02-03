@@ -39,6 +39,7 @@ contract UsdcPriceDataProvider is
     PriceInfo private _depegPriceInfo;
     uint256 private _triggeredAt;
     uint256 private _depeggedAt;
+    uint256 private _depeggedBlockNumber;
 
     constructor(address tokenAddress) 
         AggregatorDataProvider(
@@ -61,6 +62,7 @@ contract UsdcPriceDataProvider is
 
         _triggeredAt = 0;
         _depeggedAt = 0;
+        _depeggedBlockNumber = 0;
     }
 
 
