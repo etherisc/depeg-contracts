@@ -38,7 +38,7 @@ python3 -m pipx ensurepath
 echo "ensurepath finished"
 pip install packaging==21.3
 echo "packaging 21.3 installed"
-pipx install eth-brownie
+pip install eth-brownie
 echo "eth-brownie installed"
 pip install moralis
 echo "moralis installed"
