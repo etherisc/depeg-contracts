@@ -29,15 +29,13 @@ tar xvfz /tmp/v${VERSION_CHAINLINK}.tar.gz
 mv chainlink-${VERSION_CHAINLINK} chainlink@${VERSION_CHAINLINK}
 
 # Install ganache
-npm install --global ganache@7.6.0
+npm install --global ganache
 
 # Install brownie
 python3 -m pip install --user pipx
 echo "pipx installed"
 python3 -m pipx ensurepath 
 echo "ensurepath finished"
-pip install packaging==21.3
-echo "packaging 21.3 installed"
 pip install eth-brownie
 echo "eth-brownie installed"
 pip install moralis
