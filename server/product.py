@@ -88,7 +88,10 @@ class Product(BaseModel):
             raise RuntimeError('connect to network first')
         
         self.product_address = contract_address
-        self.owner = BrownieAccount(offset=owner_id, mnemonic=owner_mnemonic)
+        if owner_mnemonic: 
+            self.owner = BrownieAccount(offset=owner_id, mnemonic=owner_mnemonic) 
+        else: 
+            self.owner = BrownieAccount(offset=owner_id)
 
         if self.product_address and len(self.product_address) > 0:
             logger.info("connecting to contracts via '{}'", self.product_address)
