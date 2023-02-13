@@ -18,7 +18,7 @@ echo ">>>> Compiling GIF contracts..."
 brownie compile --all
 echo "" > .env
 
-if [ -f "/workspace/gif_instance_address.txt" ]; then
+if grep -q "registry=" "/workspace/gif_instance_address.txt"; then
     echo ">>>> gif_instance_address.txt exists. No GIF deployment"
     exit 0
 fi
