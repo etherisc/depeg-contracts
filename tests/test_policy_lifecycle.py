@@ -434,6 +434,8 @@ def test_happy_path(
     assert token.balanceOf(customer) == payout_amount_expected
     assert token.balanceOf(investor) == bundle_balance_remaining
 
+    tx = riskpool.getBundleInfo(bundle_id, {'from': investor})
+
 
 def force_product_into_depegged_state(product, productOwner, depeg_price):
 
