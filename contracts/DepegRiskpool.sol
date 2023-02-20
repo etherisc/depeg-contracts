@@ -243,6 +243,7 @@ contract DepegRiskpool is
             uint256 annualPercentageReturn
         ) = decodeBundleParamsFromFilter(bundle.filter);
 
+        address tokenOwner = token.burned(bundle.tokenId) ? address(0) : token.ownerOf(bundle.tokenId);
         uint256 capitalSupportedByStaking = getSupportedCapitalAmount(bundleId);
 
         info = BundleInfo(
@@ -250,7 +251,7 @@ contract DepegRiskpool is
             name,
             bundle.state,
             bundle.tokenId,
-            token.ownerOf(bundle.tokenId),
+            tokenOwner,
             lifetime,
             minSumInsured,
             maxSumInsured,

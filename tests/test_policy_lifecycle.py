@@ -416,6 +416,13 @@ def test_happy_path(
     assert token.balanceOf(customer) == payout_amount_expected
     assert token.balanceOf(investor) == 0
 
+    info_closed = riskpool.getBundleInfo(bundle_id).dict()
+    assert info_closed['bundleId'] == bundle_id
+    assert info_closed['owner'] == investor
+    assert info_closed['state'] == 2 # enum BundleState { Active, Locked, Closed, Burned }
+    assert info_closed['lockedCapital'] == 0
+    assert info_closed['balance'] == bundle_balance_remaining
+
     tx = riskpool.burnBundle(bundle_id, {'from': investor})
 
     assert 'LogTreasuryWithdrawalTransferred' in tx.events
@@ -434,7 +441,12 @@ def test_happy_path(
     assert token.balanceOf(customer) == payout_amount_expected
     assert token.balanceOf(investor) == bundle_balance_remaining
 
-    tx = riskpool.getBundleInfo(bundle_id, {'from': investor})
+    info_burned = riskpool.getBundleInfo(bundle_id).dict()
+    assert info_burned['bundleId'] == bundle_id
+    assert info_burned['owner'] == '0x0000000000000000000000000000000000000000'
+    assert info_burned['state'] == 3 # enum BundleState { Active, Locked, Closed, Burned }
+    assert info_burned['lockedCapital'] == 0
+    assert info_burned['balance'] == 0
 
 
 def force_product_into_depegged_state(product, productOwner, depeg_price):
