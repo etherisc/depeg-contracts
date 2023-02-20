@@ -119,3 +119,5 @@ object type
 - instance (has operator) 0..n per chain
 - component (has owner) 2..n per instance (2: at least 1 product, 1 riskpool)
 - bundle (has investor, via nft) 1..n per rikspool
+
+---
