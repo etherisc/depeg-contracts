@@ -26,8 +26,7 @@ from scripts.const import (
 )
 
 from scripts.util import (
-    get_account,
-    encode_function_data,
+    wait_for_confirmations,
     # s2h,
     s2b32,
     deployGifModule,
@@ -77,14 +76,20 @@ class GifTestRiskpool(object):
             publish_source=publishSource)
 
         # 3) riskpool keeperproposes oracle to instance
-        componentOwnerService.propose(
+        tx = componentOwnerService.propose(
             self.riskpool,
             {'from': riskpoolKeeper})
+        
+        # allow sufficient time before next step
+        wait_for_confirmations(tx)
 
         # 4) instance operator approves riskpool
-        operatorService.approve(
+        tx = operatorService.approve(
             self.riskpool.getId(),
             {'from': instance.getOwner()})
+        
+        # allow sufficient time before next step
+        wait_for_confirmations(tx)
 
         # 5) instance operator assigns riskpool wallet
         if setRiskpoolWallet:
@@ -142,14 +147,20 @@ class GifTestOracle(object):
             publish_source=publishSource)
 
         # 3) oracle owner proposes oracle to instance
-        componentOwnerService.propose(
+        tx = componentOwnerService.propose(
             self.oracle,
             {'from': oracleOwner})
 
+        # allow sufficient time before next step
+        wait_for_confirmations(tx)
+
         # 4) instance operator approves oracle
-        operatorService.approve(
+        tx = operatorService.approve(
             self.oracle.getId(),
             {'from': instance.getOwner()})
+
+        # allow sufficient time before next step
+        wait_for_confirmations(tx)
     
     def getId(self) -> int:
         return self.oracle.getId()
@@ -198,14 +209,20 @@ class GifTestProduct(object):
             publish_source=publishSource)
 
         # 3) product owner proposes product to instance
-        componentOwnerService.propose(
+        tx = componentOwnerService.propose(
             self.product,
             {'from': productOwner})
+        
+        # allow sufficient time before next step
+        wait_for_confirmations(tx)
 
         # 4) instance operator approves product
-        operatorService.approve(
+        tx = operatorService.approve(
             self.product.getId(),
             {'from': instance.getOwner()})
+        
+        # allow sufficient time before next step
+        wait_for_confirmations(tx)
 
         # 5) instance owner sets token in treasury
         operatorService.setProductToken(
