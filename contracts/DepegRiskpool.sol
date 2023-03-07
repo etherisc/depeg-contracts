@@ -9,8 +9,8 @@ import "@etherisc/gif-interface/contracts/modules/IPolicy.sol";
 import "@etherisc/gif-interface/contracts/tokens/IBundleToken.sol";
 
 import "./gif/BasicRiskpool2.sol";
-import "./registry/IBundleRegistry.sol";
-import "./staking/IStaking.sol";
+import "./registry/IChainRegistryFacade.sol";
+import "./registry/IStakingFacade.sol";
 
 
 contract DepegRiskpool is 
@@ -53,9 +53,8 @@ contract DepegRiskpool is
 
     mapping(string /* bundle name */ => uint256 /* bundle id */) _bundleIdForBundleName;
 
-    IBundleRegistry private _bundleRegistry;
-    IComponentDataProvider private _componentDataProvider;
-    IStaking private _staking;
+    IChainRegistryFacade private _chainRegistry;
+    IStakingFacade private _staking;
 
     uint256 private _poolCapitalCap;
     uint256 private _bundleCapitalCap;
@@ -80,8 +79,8 @@ contract DepegRiskpool is
         require(sumOfSumInsuredCap <= _poolCapitalCap, "ERROR:DRP-010:SUM_OF_SUM_INSURED_CAP_TOO_LARGE");
         require(sumOfSumInsuredCap > 0, "ERROR:DRP-011:SUM_OF_SUM_INSURED_CAP_ZERO");
 
-        _staking = IStaking(address(0));
-        _bundleRegistry = IBundleRegistry(address(0));
+        _staking = IStakingFacade(address(0));
+        _chainRegistry = IChainRegistryFacade(address(0));
     }
 
 
@@ -89,16 +88,15 @@ contract DepegRiskpool is
         external
         onlyOwner
     {
-        _staking = IStaking(stakingAddress);
-        _bundleRegistry = IBundleRegistry(_staking.getBundleRegistry());
-        _componentDataProvider = IComponentDataProvider(_staking .getBundleRegistry());
+        _staking = IStakingFacade(stakingAddress);
+        _chainRegistry = IChainRegistryFacade(_staking.getRegistry());
     }
 
 
     function getStaking()
         external
         view
-        returns(IStaking staking)
+        returns(IStakingFacade)
     {
         return _staking;
     }
@@ -170,9 +168,8 @@ contract DepegRiskpool is
         // so if one is present, its safe to assume the other is too.
         IBundle.Bundle memory bundle = _instanceService.getBundle(bundleId);
 
-        if (address(_bundleRegistry) != address(0) && isComponentRegistered(bundle.riskpoolId)) { 
+        if (address(_chainRegistry) != address(0) && isComponentRegistered(bundle.riskpoolId)) { 
             registerBundleInRegistry(bundle, name, lifetime);
-            registerBundleForStaking(bundle);
         }
     }
 
@@ -182,7 +179,8 @@ contract DepegRiskpool is
         returns(bool)
     {
         bytes32 instanceId = _instanceService.getInstanceId();
-        return _componentDataProvider.isRegisteredComponent(instanceId, componentId);
+        uint256 componentNftId = _chainRegistry.getComponentNftId(instanceId, componentId);
+        return _chainRegistry.exists(componentNftId);
     }
 
     /**
@@ -197,32 +195,13 @@ contract DepegRiskpool is
     {
         bytes32 instanceId = _instanceService.getInstanceId();
         uint256 expiration = bundle.createdAt + lifetime;
-        _bundleRegistry.registerBundle(
+        _chainRegistry.registerBundle(
             instanceId,
             bundle.riskpoolId,
             bundle.id,
             name,
             expiration
         );
-    }
-
-    /**
-     * @dev Register the bundle with given id for staking (must be registered in bundle registry before).
-     */
-    function registerBundleForStaking(
-        IBundle.Bundle memory bundle
-    )
-        private
-    {
-        bytes32 instanceId = _instanceService.getInstanceId();
-        (bytes32 targetId, IStakingDataProvider.Target memory target) = 
-            _staking.toTarget(
-                IStakingDataProvider.TargetType.Bundle, 
-                instanceId, 
-                bundle.riskpoolId, 
-                bundle.id, 
-                "");
-        _staking.register(targetId, target);
     }
 
     function getBundleInfo(uint256 bundleId)
@@ -497,12 +476,11 @@ contract DepegRiskpool is
         }
 
         // otherwise: get amount supported by staking
-        bytes32 targetId = _staking.toBundleTargetId(
+        uint256 bundleNftId = _chainRegistry.getBundleNftId(
             _instanceService.getInstanceId(),
-            getId(),
             bundleId);
 
-        return _staking.capitalSupport(targetId);
+        return _staking.capitalSupport(bundleNftId);
     }
 
 
