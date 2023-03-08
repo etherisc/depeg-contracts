@@ -19,7 +19,7 @@ class GifDepegRiskpool(object):
 
     def __init__(self, 
         instance: GifInstance, 
-        erc20Token: Account,
+        erc20Token,
         riskpoolKeeper: Account, 
         riskpoolWallet: Account,
         investor: Account,
@@ -47,7 +47,7 @@ class GifDepegRiskpool(object):
         print('2) deploy riskpool {} by riskpool keeper {}'.format(
             name, riskpoolKeeper))
 
-        sumOfSumInsuredCap = 1000000 * 10 ** 6
+        sumOfSumInsuredCap = 1000000 * 10 ** erc20Token.decimals()
         self.riskpool = DepegRiskpool.deploy(
             s2b(name),
             sumOfSumInsuredCap,
@@ -74,9 +74,14 @@ class GifDepegRiskpool(object):
         maxActiveBundles = 10
         print('5) set max number of bundles to {} by riskpool keeper {}'.format(
             maxActiveBundles, riskpoolKeeper))
-        
+
         self.riskpool.setMaximumNumberOfActiveBundles(
             maxActiveBundles,
+            {'from': riskpoolKeeper})
+
+        self.riskpool.setCapitalCaps(
+            sumOfSumInsuredCap,
+            int(sumOfSumInsuredCap / maxActiveBundles),
             {'from': riskpoolKeeper})
 
         print('6) riskpool wallet {} set for riskpool id {} by instance operator {}'.format(

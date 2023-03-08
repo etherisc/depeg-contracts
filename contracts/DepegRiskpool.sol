@@ -35,6 +35,9 @@ contract DepegRiskpool is
         uint256 createdAt;
     }
 
+    event LogRiskpoolCapitalSet(uint256 poolCapitalNew, uint256 poolCapitalOld);
+    event LogBundleCapitalSet(uint256 bundleCapitalNew, uint256 bundleCapitalOld);
+
     event LogBundleExpired(uint256 bundleId, uint256 createdAt, uint256 lifetime);
     event LogBundleMismatch(uint256 bundleId, uint256 bundleIdRequested);
     event LogBundleMatchesApplication(uint256 bundleId, bool sumInsuredOk, bool durationOk, bool premiumOk);
@@ -57,7 +60,7 @@ contract DepegRiskpool is
     IComponentDataProvider private _componentDataProvider;
     IStaking private _staking;
 
-    uint256 private _poolCapitalCap;
+    uint256 private _riskpoolCapitalCap;
     uint256 private _bundleCapitalCap;
 
     constructor(
@@ -69,19 +72,35 @@ contract DepegRiskpool is
     )
         BasicRiskpool2(name, getFullCollateralizationLevel(), sumOfSumInsuredCap, erc20Token, wallet, registry)
     {
-        ERC20 token = ERC20(erc20Token);
-        _poolCapitalCap = USD_CAPITAL_CAP * 10 ** token.decimals();
+        require(sumOfSumInsuredCap > 0, "ERROR:DRP-010:SUM_OF_SUM_INSURED_CAP_ZERO");
 
-        // HACK this needs to be determined according to max active bundles
-        // setMaxActiveBundles in Riskpool needs to become virtual. alternatively 
-        // Riskpool could call a virtual postprocessing hook
-        _bundleCapitalCap = _poolCapitalCap / 10;
-
-        require(sumOfSumInsuredCap <= _poolCapitalCap, "ERROR:DRP-010:SUM_OF_SUM_INSURED_CAP_TOO_LARGE");
-        require(sumOfSumInsuredCap > 0, "ERROR:DRP-011:SUM_OF_SUM_INSURED_CAP_ZERO");
+        _riskpoolCapitalCap = sumOfSumInsuredCap;
+        _bundleCapitalCap = sumOfSumInsuredCap / 10;
 
         _staking = IStaking(address(0));
         _bundleRegistry = IBundleRegistry(address(0));
+    }
+
+
+    function setCapitalCaps(
+        uint256 poolCapitalCap,
+        uint256 bundleCapitalCap
+    )
+        public
+        onlyOwner
+    {
+        require(poolCapitalCap <= getSumOfSumInsuredCap(), "ERROR:DRP-011:POOL_CAPITAL_CAP_TOO_LARGE");
+        require(bundleCapitalCap < poolCapitalCap, "ERROR:DRP-012:BUNDLE_CAPITAL_CAP_TOO_LARGE");
+        require(bundleCapitalCap > 0, "ERROR:DRP-013:BUNDLE_CAPITAL_CAP_ZERO");
+
+        uint256 poolCapOld = _riskpoolCapitalCap;
+        uint256 bundleCapOld = _bundleCapitalCap;
+
+        _riskpoolCapitalCap = poolCapitalCap;
+        _bundleCapitalCap = bundleCapitalCap;
+
+        emit LogRiskpoolCapitalSet(_riskpoolCapitalCap, poolCapOld);
+        emit LogBundleCapitalSet(_bundleCapitalCap, bundleCapOld);
     }
 
 
@@ -148,6 +167,9 @@ contract DepegRiskpool is
             initialAmount > 0
             && initialAmount <= _bundleCapitalCap, 
             "ERROR:DRP-027:RISK_CAPITAL_INVALID");
+        require(
+            getCapital() + initialAmount <= _riskpoolCapitalCap,
+            "ERROR:DRP-028:POOL_CAPITAL_CAP_EXCEEDED");
 
         bytes memory filter = encodeBundleParamsAsFilter(
             name,
@@ -373,21 +395,6 @@ contract DepegRiskpool is
         firstBundleIsHigherPriority = (firstApr < secondApr);
     }
 
-    function _getBundleApr(uint256 bundleId) internal view returns (uint256 apr) {
-        bytes memory filter = getBundleFilter(bundleId);
-        (
-            string memory name,
-            uint256 lifetime,
-            uint256 minSumInsured,
-            uint256 maxSumInsured,
-            uint256 minDuration,
-            uint256 maxDuration,
-            uint256 annualPercentageReturn
-        ) = decodeBundleParamsFromFilter(filter);
-
-        apr = annualPercentageReturn;
-    }
-
 
     function bundleMatchesApplication(
         IBundle.Bundle memory bundle, 
@@ -396,6 +403,7 @@ contract DepegRiskpool is
         public view override
         returns(bool isMatching) 
     {}
+
 
     function bundleMatchesApplication2(
         IBundle.Bundle memory bundle, 
@@ -518,6 +526,10 @@ contract DepegRiskpool is
         premiumAmount = sumInsured * policyDurationReturn / APR_100_PERCENTAGE;
     }
 
+    function getRiskpoolCapitalCap() public view returns (uint256 poolCapitalCap) {
+        return _riskpoolCapitalCap;
+    }
+
     function getBundleCapitalCap() public view returns (uint256 bundleCapitalCap) {
         return _bundleCapitalCap;
     }
@@ -526,11 +538,44 @@ contract DepegRiskpool is
         return MAX_BUNDLE_LIFETIME;
     }
 
+
     function getOneYearDuration() public pure returns(uint256 yearDuration) { 
         return ONE_YEAR_DURATION;
     }
 
+
     function getApr100PercentLevel() public pure returns(uint256 apr100PercentLevel) { 
         return APR_100_PERCENTAGE;
+    }
+
+
+    function _afterFundBundle(uint256 bundleId, uint256 amount)
+        internal
+        override
+        view
+    {
+        require(
+            _instanceService.getBundle(bundleId).capital <= _bundleCapitalCap, 
+            "ERROR:DRP-100:FUNDING_EXCEEDS_BUNDLE_CAPITAL_CAP");
+
+        require(
+            getCapital() <= _riskpoolCapitalCap, 
+            "ERROR:DRP-101:FUNDING_EXCEEDS_RISKPOOL_CAPITAL_CAP");
+    }
+
+
+    function _getBundleApr(uint256 bundleId) internal view returns (uint256 apr) {
+        bytes memory filter = getBundleFilter(bundleId);
+        (
+            string memory name,
+            uint256 lifetime,
+            uint256 minSumInsured,
+            uint256 maxSumInsured,
+            uint256 minDuration,
+            uint256 maxDuration,
+            uint256 annualPercentageReturn
+        ) = decodeBundleParamsFromFilter(filter);
+
+        apr = annualPercentageReturn;
     }
 }
