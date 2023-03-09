@@ -10,8 +10,11 @@ contract UsdcPriceDataProvider is
     AggregatorDataProvider, 
     IPriceDataProvider
 {
-    address public constant USDC_CONTACT_ADDRESS = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
+    address public constant USDC_CONTACT_ADDRESS_MAINNET = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
+    address public constant USDC_CONTACT_ADDRESS_GOERLI = 0x07865c6E87B9F70255377e024ace6630C1Eaa37F;
+
     address public constant CHAINLINK_USDC_USD_FEED_MAINNET = 0x8fFfFfd4AfB6115b954Bd326cbe7B4BA576818f6;
+    address public constant CHAINLINK_USDC_USD_FEED_GOERLI = 0xAb5c49580294Aff77670F839ea425f5b78ab3Ae7;
     uint8 public constant CHAINLINK_USDC_DECIMALS = 8;
 
     uint256 public constant DEPEG_TRIGGER_PRICE = 995 * 10**CHAINLINK_USDC_DECIMALS / 1000; // USDC below 0.995 USD triggers depeg alert
@@ -44,6 +47,7 @@ contract UsdcPriceDataProvider is
     constructor(address tokenAddress) 
         AggregatorDataProvider(
             CHAINLINK_USDC_USD_FEED_MAINNET, 
+            CHAINLINK_USDC_USD_FEED_GOERLI, 
             CHAINLINK_USDC_USD_DEVIATION,
             CHAINLINK_USDC_USD_HEARTBEAT,
             CHAINLINK_HEARTBEAT_MARGIN,
@@ -53,11 +57,17 @@ contract UsdcPriceDataProvider is
         )
     {
         if(isMainnet()) {
-            _token = IERC20Metadata(USDC_CONTACT_ADDRESS);
+            if(block.chainid == 1) {
+                _token = IERC20Metadata(USDC_CONTACT_ADDRESS_MAINNET);
+            } else if(block.chainid == 5) {
+                _token = IERC20Metadata(USDC_CONTACT_ADDRESS_GOERLI);
+            } else {
+                revert("ERROR:UPDP-010:CHAIN_NOT_SUPPORTET");
+            }
         } else if(isTestnet()) {
             _token = IERC20Metadata(tokenAddress);
         } else {
-            revert("ERROR:UPDP-010:CHAIN_NOT_SUPPORTET");
+            revert("ERROR:UPDP-011:CHAIN_NOT_SUPPORTET");
         }
 
         _triggeredAt = 0;

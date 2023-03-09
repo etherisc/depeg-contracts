@@ -20,6 +20,8 @@ contract AggregatorDataProvider is
     }
 
     uint256 public constant MAINNET = 1;
+    uint256 public constant GOERLI = 5;
+
     uint256 public constant GANACHE = 1337;
     uint256 public constant GANACHE2 = 1234;
     uint256 public constant MUMBAI = 80001;
@@ -44,7 +46,8 @@ contract AggregatorDataProvider is
     }
 
     constructor(
-        address aggregatorAddress,
+        address aggregatorAddressMainnet,
+        address aggregatorAddressGoerli,
         uint256 deviationLevel, // 10**decimals() corresponding to 100%
         uint256 heartbeatSeconds,
         uint256 heartbeatMarginSeconds,
@@ -55,7 +58,11 @@ contract AggregatorDataProvider is
         Ownable()
     {
         if(isMainnet()) {
-            _aggregator = AggregatorV2V3Interface(aggregatorAddress);
+            if(block.chainid == 1) {
+                _aggregator = AggregatorV2V3Interface(aggregatorAddressMainnet);
+            } else if(block.chainid == 5) {
+                _aggregator = AggregatorV2V3Interface(aggregatorAddressGoerli);
+            }
         } else if(isTestnet()) {
             _aggregator = AggregatorV2V3Interface(address(this));
         } else {
@@ -279,7 +286,8 @@ contract AggregatorDataProvider is
         view
         returns(bool)
     {
-        return block.chainid == MAINNET;
+        return (block.chainid == MAINNET)
+            || (block.chainid == GOERLI);
     }    
 
     function isTestnet()
