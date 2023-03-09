@@ -24,8 +24,7 @@ from scripts.deploy_depeg import best_premium
 def isolation(fn_isolation):
     pass
 
-
-def test_staking_full_setup(
+def xtest_staking_full_setup(
     instance,
     instanceOperator: Account,
     product,

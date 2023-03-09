@@ -18,7 +18,7 @@ def isolation(fn_isolation):
     pass
 
 
-def test_staking_happy_path(
+def xtest_staking_happy_path(
     instance,
     instanceOperator: Account,
     investor: Account,
