@@ -38,6 +38,9 @@ contract DepegRiskpool is
     event LogRiskpoolCapitalSet(uint256 poolCapitalNew, uint256 poolCapitalOld);
     event LogBundleCapitalSet(uint256 bundleCapitalNew, uint256 bundleCapitalOld);
 
+    event LogAllowAllAccountsSet(bool allowAllAccounts);
+    event LogAllowAccountSet(address account, bool allowAccount);
+
     event LogBundleExpired(uint256 bundleId, uint256 createdAt, uint256 lifetime);
     event LogBundleMismatch(uint256 bundleId, uint256 bundleIdRequested);
     event LogBundleMatchesApplication(uint256 bundleId, bool sumInsuredOk, bool durationOk, bool premiumOk);
@@ -59,8 +62,20 @@ contract DepegRiskpool is
     IChainRegistryFacade private _chainRegistry;
     IStakingFacade private _staking;
 
+    // capital caps
     uint256 private _riskpoolCapitalCap;
     uint256 private _bundleCapitalCap;
+
+    // bundle creation whitelisting
+    mapping(address /* potential bundle owner */ => bool /* is allowed to create bundle*/) _allowedAccount;
+    bool private _allowAllAccounts;
+
+
+    modifier onlyAllowedAccount {
+        require(isAllowed(_msgSender()), "ERROR:DRP-001:ACCOUNT_NOT_ALLOWED_FOR_BUNDLE_CREATION");
+        _;
+    }
+
 
     constructor(
         bytes32 name,
@@ -75,6 +90,7 @@ contract DepegRiskpool is
 
         _riskpoolCapitalCap = sumOfSumInsuredCap;
         _bundleCapitalCap = sumOfSumInsuredCap / 10;
+        _allowAllAccounts = true;
 
         _staking = IStakingFacade(address(0));
         _chainRegistry = IChainRegistryFacade(address(0));
@@ -100,6 +116,42 @@ contract DepegRiskpool is
 
         emit LogRiskpoolCapitalSet(_riskpoolCapitalCap, poolCapOld);
         emit LogBundleCapitalSet(_bundleCapitalCap, bundleCapOld);
+    }
+
+
+    function setAllowAllAccounts(bool allowAllAccounts)
+        external
+        onlyOwner
+    {
+        _allowAllAccounts = allowAllAccounts;
+        emit LogAllowAllAccountsSet(_allowAllAccounts);
+    }
+
+
+    function isAllowAllAccountsEnabled()
+        external
+        view
+        returns(bool allowAllAccounts)
+    {
+        return _allowAllAccounts;
+    }
+
+
+    function setAllowAccount(address account, bool allowAccount)
+        external
+        onlyOwner
+    {
+        _allowedAccount[account] = allowAccount;
+        emit LogAllowAccountSet(account, _allowedAccount[account]);
+    }
+
+
+    function isAllowed(address account)
+        public
+        view
+        returns(bool allowed)
+    {
+        return _allowAllAccounts || _allowedAccount[account];
     }
 
 
@@ -132,6 +184,7 @@ contract DepegRiskpool is
         uint256 initialAmount
     ) 
         public
+        onlyAllowedAccount
         returns(uint256 bundleId)
     {
         require(
