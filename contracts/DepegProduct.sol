@@ -134,7 +134,12 @@ contract DepegProduct is
     }
 
 
-
+    // TODO discuss: instead of sumInsured use sumProtected
+    // internally we could calulate with sumInsured = 0.25 * sumProtected (or whatever)
+    // this percentage (25% in the example above) needs to be used to 
+    // cap claim amount should price feed fall below 1 - %value at depeggedAt
+    // TODO add unit test for applyForPolicyWithBundle
+    // TODO adapt setup.py/deploy_depeg.py to applyForPolicyWithBundle
     function applyForPolicyWithBundle(
         address wallet,
         uint256 sumInsured,
@@ -153,7 +158,8 @@ contract DepegProduct is
         );
     }
 
-
+    // TODO cleanup, check if this can be removed
+    // yes after adaptation of setup.py/deploy_depeg.py to applyForPolicyWithBundle
     function applyForPolicy(
         address wallet,
         uint256 sumInsured,
@@ -426,7 +432,7 @@ contract DepegProduct is
     }
 
 
-    // onlyInsuredWallet modifier
+    // onlyProtectedWallet modifier
     // sets policy to expired
     // creates claim if allowed
     // reverts if not allowed
@@ -481,7 +487,7 @@ contract DepegProduct is
         onlyMatchingPolicy(processId)
         returns(
             address wallet,
-            uint256 protectedAmount, // = protected amount
+            uint256 protectedAmount,
             uint256 actualAmount,
             bool hasClaim,
             uint256 claimId,
@@ -532,9 +538,6 @@ contract DepegProduct is
 
         // determine final payout amount based on both protected amount
         // and actual balance at time of the depeg event
-        // TODO fix existing tests
-        // TODO add new test
-        // TODO add more payout testing
         address wallet = getProtectedWallet(processId);
         require(_depegBalance[wallet].blockNumber > 0, "ERROR:DP-043:DEPEG_BALANCE_MISSING");
 
@@ -592,27 +595,14 @@ contract DepegProduct is
     }
 
 
-    function calculateClaimAmount(uint256 tokenAmount) public view returns(uint256 claimAmount) {
+    function calculateClaimAmount(uint256 tokenAmount)
+        public
+        view 
+        returns(uint256 claimAmount)
+    {
         uint256 targetPrice = 10 ** _priceDataProvider.getDecimals();
         uint256 depegPrice = _priceDataProvider.getDepegPriceInfo().price;
         claimAmount = (tokenAmount * (targetPrice - depegPrice)) / targetPrice;
-    }
-
-
-    function requestPayout(bytes32 processId)
-        external
-        returns(
-            uint256 claimId,
-            uint256 payoutId,
-            uint256 payoutAmount
-        )
-    {
-        // ensure that we are depegged
-        require(_state == DepegState.Depegged, "ERROR:DP-050:STATE_NOT_DEPEGGED");
-
-        // TODO map walletAddress -> latestProcessId
-        // require eine wallet address kann max eine aktive policy haben
-        address protectedWallet = msg.sender;
     }
 
 
