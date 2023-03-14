@@ -30,7 +30,7 @@ from scripts.price_data import (
 
 from scripts.setup import (
     create_bundle, 
-    apply_for_policy,
+    apply_for_policy_with_bundle,
 )
 
 # enforce function isolation for tests below
@@ -125,11 +125,12 @@ def test_happy_path(
     assert instanceService.getCapital(riskpool_id) == bundle_funding
     assert instanceService.getTotalValueLocked(riskpool_id) == 0
 
-    process_id = apply_for_policy(
+    process_id = apply_for_policy_with_bundle(
         instance,
         instanceOperator,
         product,
         customer,
+        bundle_id,
         protectedWallet,
         sum_insured,
         duration_days,
@@ -141,14 +142,15 @@ def test_happy_path(
 
     net_premium = tx.events['LogTreasuryPremiumTransferred']['amount']
     premium_fee = tx.events['LogTreasuryFeesTransferred']['amount']
-    assert net_premium + premium_fee == max_premium
+    premium = net_premium + premium_fee
+    assert net_premium + premium_fee <= max_premium
 
     # check actual balances of riskpool, protected wallet and policy holder
     assert protected_token.balanceOf(protectedWallet) == wallet_balance
     assert token.balanceOf(instanceWallet) == premium_fee # some fee for premium payment
     assert token.balanceOf(riskpoolWallet) == bundle_funding + net_premium
     assert token.balanceOf(protectedWallet) == 0
-    assert token.balanceOf(customer) == 0
+    assert token.balanceOf(customer) == max_premium - premium
     assert token.balanceOf(investor) == 0
 
     # check effect on riskpoool status
@@ -165,7 +167,7 @@ def test_happy_path(
     assert tx.events['LogDepegApplicationCreated']['policyHolder'] == customer
     assert tx.events['LogDepegApplicationCreated']['protectedWallet'] == protectedWallet
     assert tx.events['LogDepegApplicationCreated']['sumInsuredAmount'] == sum_insured
-    assert tx.events['LogDepegApplicationCreated']['premiumAmount'] == max_premium
+    assert tx.events['LogDepegApplicationCreated']['premiumAmount'] == premium
 
     assert 'LogDepegPolicyCreated' in tx.events
     assert tx.events['LogDepegPolicyCreated']['processId'] == process_id
@@ -186,21 +188,22 @@ def test_happy_path(
     assert metadata['productId'] == product.getId()
 
     # check application
-    assert application['premiumAmount'] == max_premium
+    assert application['premiumAmount'] == premium
     assert application['sumInsuredAmount'] == sum_insured
 
     # check policy
-    assert policy['premiumExpectedAmount'] == max_premium
-    assert policy['premiumPaidAmount'] == max_premium
+    assert policy['premiumExpectedAmount'] == premium
+    assert policy['premiumPaidAmount'] == premium
     assert policy['payoutMaxAmount'] == sum_insured
-    assert policy['payoutAmount'] == 0 # payout amount
-    assert policy['claimsCount'] == 0 # claims count
-    assert policy['openClaimsCount'] == 0 # open claims count
+    assert policy['payoutAmount'] == 0
+    assert policy['claimsCount'] == 0
+    assert policy['openClaimsCount'] == 0
 
     fixed_fee = 0
     fractional_fee = 0.1
-    premium_fees = fractional_fee * max_premium + fixed_fee
-    net_premium = max_premium - premium_fees
+
+    assert int(fractional_fee * premium + fixed_fee) == premium_fee
+    assert net_premium == premium - premium_fee
 
     (
         wallet,
@@ -211,12 +214,12 @@ def test_happy_path(
 
     assert wallet == protectedWallet
     assert application_duration == duration_days * 24 * 3600
-    assert application_bundle_id == 0
+    assert application_bundle_id == 1
     assert application_max_net_premium == net_premium
 
     # check wallet balances against premium payment
     assert riskpool_balance_after == riskpool_balance_before + net_premium
-    assert instance_balance_after == instance_balance_before + premium_fees
+    assert instance_balance_after == instance_balance_before + premium_fee
 
     # create depeg situation
     assert product.getDepegState() == STATE_PRODUCT['Active']
@@ -255,7 +258,7 @@ def test_happy_path(
     assert token.balanceOf(instanceWallet) == premium_fee # some fee for premium payment
     assert token.balanceOf(riskpoolWallet) == bundle_funding + net_premium
     assert token.balanceOf(protectedWallet) == 0
-    assert token.balanceOf(customer) == 0
+    assert token.balanceOf(customer) == max_premium - premium
     assert token.balanceOf(investor) == 0
 
     # check zero effect on riskpoool status
@@ -399,7 +402,7 @@ def test_happy_path(
     assert token.balanceOf(instanceWallet) == premium_fee # some fee for premium payment
     assert token.balanceOf(riskpoolWallet) == bundle_funding + net_premium - payout_amount_expected
     assert token.balanceOf(protectedWallet) == 0
-    assert token.balanceOf(customer) == payout_amount_expected
+    assert token.balanceOf(customer) == payout_amount_expected + max_premium - premium
     assert token.balanceOf(investor) == 0
 
     # investor may now burn bundle and claim the remaining balance
@@ -413,7 +416,7 @@ def test_happy_path(
     assert token.balanceOf(instanceWallet) == premium_fee # some fee for premium payment
     assert token.balanceOf(riskpoolWallet) == bundle_balance_remaining
     assert token.balanceOf(protectedWallet) == 0
-    assert token.balanceOf(customer) == payout_amount_expected
+    assert token.balanceOf(customer) == payout_amount_expected + max_premium - premium
     assert token.balanceOf(investor) == 0
 
     info_closed = riskpool.getBundleInfo(bundle_id).dict()
@@ -438,7 +441,7 @@ def test_happy_path(
     assert token.balanceOf(instanceWallet) == premium_fee # some fee for premium payment
     assert token.balanceOf(riskpoolWallet) == 0
     assert token.balanceOf(protectedWallet) == 0
-    assert token.balanceOf(customer) == payout_amount_expected
+    assert token.balanceOf(customer) == payout_amount_expected + max_premium - premium
     assert token.balanceOf(investor) == bundle_balance_remaining
 
     info_burned = riskpool.getBundleInfo(bundle_id).dict()

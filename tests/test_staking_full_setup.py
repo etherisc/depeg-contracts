@@ -13,7 +13,7 @@ from brownie import (
 from scripts.setup import (
     FUNDING,
     new_bundle,
-    apply_for_policy
+    apply_for_policy_with_bundle
 )
 
 from scripts.deploy_depeg import best_premium
@@ -127,11 +127,12 @@ def xtest_staking_full_setup(
     assert staking.capitalSupport(bundle_target_id) == 0
     assert sum_insured > staking.capitalSupport(bundle_target_id) == 0
 
-    process_id1 = apply_for_policy(
+    process_id1 = apply_for_policy_with_bundle(
         instance,
         instanceOperator,
         product,
         customer,
+        bundle_id,
         protectedWallet,
         sum_insured,
         duration_days,
@@ -158,11 +159,12 @@ def xtest_staking_full_setup(
     assert staking.capitalSupport(bundle_target_id) == target_usd2_support
     assert sum_insured <= bundle['capital'] - bundle['lockedCapital']
 
-    process_id2 = apply_for_policy(
+    process_id2 = apply_for_policy_with_bundle(
         instance,
         instanceOperator,
         product,
         customer,
+        bundle_id,
         protectedWallet2,
         sum_insured,
         duration_days,

@@ -22,7 +22,7 @@ from scripts.price_data import (
 
 from scripts.setup import (
     create_bundle, 
-    apply_for_policy,
+    apply_for_policy_with_bundle
 )
 
 from scripts.util import (
@@ -160,7 +160,7 @@ def test_product_lifecycle_trigger(
     protectedWallet,
 ):
     # fund riskpool
-    create_bundle(
+    bundle_id = create_bundle(
         instance,
         instanceOperator,
         investor,
@@ -212,11 +212,12 @@ def test_product_lifecycle_trigger(
     durationDays = 60
     maxPremium = 750
 
-    process_id_1 = apply_for_policy(
+    process_id_1 = apply_for_policy_with_bundle(
         instance,
         instanceOperator,
         product,
         customer,
+        bundle_id,
         protectedWallet,
         sumInsured,
         durationDays,
@@ -264,11 +265,12 @@ def test_product_lifecycle_trigger(
 
     # verify that it's not possible to underwrite a new policy
     with brownie.reverts('ERROR:DP-010:PRODUCT_NOT_ACTIVE'):
-        apply_for_policy(
+        apply_for_policy_with_bundle(
             instance,
             instanceOperator,
             product,
             customer,
+            bundle_id,
             protectedWallet,
             sumInsured,
             durationDays,
@@ -286,7 +288,7 @@ def test_product_lifecycle_trigger_and_recover(
     protectedWallet,
 ):
     # fund riskpool
-    create_bundle(
+    bundle_id = create_bundle(
         instance,
         instanceOperator,
         investor,
@@ -333,11 +335,12 @@ def test_product_lifecycle_trigger_and_recover(
     maxPremium = 750
 
     with brownie.reverts('ERROR:DP-010:PRODUCT_NOT_ACTIVE'):
-        apply_for_policy(
+        apply_for_policy_with_bundle(
             instance,
             instanceOperator,
             product,
             customer,
+            bundle_id,
             protectedWallet,
             sumInsured,
             durationDays,
@@ -363,11 +366,12 @@ def test_product_lifecycle_trigger_and_recover(
     assert product.getDepegState() == STATE_PRODUCT['Paused']
 
     with brownie.reverts('ERROR:DP-010:PRODUCT_NOT_ACTIVE'):
-        apply_for_policy(
+        apply_for_policy_with_bundle(
             instance,
             instanceOperator,
             product,
             customer,
+            bundle_id,
             protectedWallet,
             sumInsured,
             durationDays,
@@ -404,11 +408,12 @@ def test_product_lifecycle_trigger_and_recover(
     durationDays = 60
     maxPremium = 750
 
-    process_id_1 = apply_for_policy(
+    process_id_1 = apply_for_policy_with_bundle(
         instance,
         instanceOperator,
         product,
         customer,
+        bundle_id,
         protectedWallet,
         sumInsured,
         durationDays,
@@ -435,7 +440,7 @@ def test_product_lifecycle_depeg_and_reactivate(
     protectedWallet,
 ):
     # fund riskpool
-    create_bundle(
+    bundle_id = create_bundle(
         instance,
         instanceOperator,
         investor,
@@ -535,11 +540,12 @@ def test_product_lifecycle_depeg_and_reactivate(
     maxPremium = 750
 
     with brownie.reverts('ERROR:DP-010:PRODUCT_NOT_ACTIVE'):
-        apply_for_policy(
+        apply_for_policy_with_bundle(
             instance,
             instanceOperator,
             product,
             customer,
+            bundle_id,
             protectedWallet,
             sumInsured,
             durationDays,
@@ -561,11 +567,12 @@ def test_product_lifecycle_depeg_and_reactivate(
 
     # check that recovered price does not mean creating policies is working again
     with brownie.reverts('ERROR:DP-010:PRODUCT_NOT_ACTIVE'):
-        apply_for_policy(
+        apply_for_policy_with_bundle(
             instance,
             instanceOperator,
             product,
             customer,
+            bundle_id,
             protectedWallet,
             sumInsured,
             durationDays,
@@ -595,11 +602,12 @@ def test_product_lifecycle_depeg_and_reactivate(
     assert product.getDepegState() == STATE_PRODUCT['Active']
 
     # check that policies can be bought again
-    process_id = apply_for_policy(
+    process_id = apply_for_policy_with_bundle(
         instance,
         instanceOperator,
         product,
         customer,
+        bundle_id,
         protectedWallet,
         sumInsured,
         durationDays,

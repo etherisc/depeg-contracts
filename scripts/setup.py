@@ -102,11 +102,12 @@ def create_bundle(
     return tx.events['LogRiskpoolBundleCreated']['bundleId']
 
 
-def apply_for_policy(
+def apply_for_policy_with_bundle(
     instance: GifInstance, 
     instanceOperator: Account,
     product: DepegProduct, 
     customer: Account,
+    bundleId: int,
     wallet: Account = None,
     sumInsured: int = DEFAULT_SUM_INSURED,
     durationDays: int = DEFAULT_DURATION_DAYS,
@@ -122,11 +123,11 @@ def apply_for_policy(
     if not wallet:
         wallet = customer
 
-    tx = product.applyForPolicy(
+    tx = product.applyForPolicyWithBundle(
         wallet,
         sumInsured,
         durationDays * 24 * 3600,
-        maxPremium, 
+        bundleId, 
         {'from': customer})
 
     return tx.events['LogApplicationCreated']['processId']

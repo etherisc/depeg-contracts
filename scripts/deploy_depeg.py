@@ -794,7 +794,7 @@ def all_in_1(
         wallet,
         sum_insured,
         duration,
-        max_premium)
+        bundle_id1)
 
     inspect_bundles_d(deployment)
     inspect_applications_d(deployment)
@@ -963,12 +963,12 @@ def new_policy(
     wallet,
     sumInsured,
     durationDays,
-    maxPremium  
+    bundleId  
 ) -> str:
     product = d[PRODUCT]
     customer = d[CUSTOMER1]
     duration = durationDays*24*3600
-    tx = product.applyForPolicy(wallet, sumInsured, duration, maxPremium, {'from': customer})
+    tx = product.applyForPolicyWithBundle(wallet, sumInsured, duration, bundleId, {'from': customer})
 
     if 'LogDepegApplicationCreated' in tx.events:
         processId = tx.events['LogDepegApplicationCreated']['processId']

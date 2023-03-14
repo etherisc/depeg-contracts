@@ -9,9 +9,9 @@ import "@etherisc/gif-interface/contracts/modules/IPolicy.sol";
 import "@etherisc/gif-interface/contracts/modules/ITreasury.sol";
 import "@etherisc/gif-contracts/contracts/modules/TreasuryModule.sol";
 
-
 import "./IPriceDataProvider.sol";
 import "./DepegRiskpool.sol";
+
 
 contract DepegProduct is 
     Product
@@ -138,8 +138,6 @@ contract DepegProduct is
     // internally we could calulate with sumInsured = 0.25 * sumProtected (or whatever)
     // this percentage (25% in the example above) needs to be used to 
     // cap claim amount should price feed fall below 1 - %value at depeggedAt
-    // TODO add unit test for applyForPolicyWithBundle
-    // TODO adapt setup.py/deploy_depeg.py to applyForPolicyWithBundle
     function applyForPolicyWithBundle(
         address wallet,
         uint256 sumInsured,
@@ -149,76 +147,27 @@ contract DepegProduct is
         external 
         returns(bytes32 processId)
     {
-        return applyForPolicyInternal(
-            wallet,
-            sumInsured,
-            duration,
-            bundleId,
-            0
-        );
-    }
-
-    // TODO cleanup, check if this can be removed
-    // yes after adaptation of setup.py/deploy_depeg.py to applyForPolicyWithBundle
-    function applyForPolicy(
-        address wallet,
-        uint256 sumInsured,
-        uint256 duration,
-        uint256 maxPremium
-    ) 
-        external 
-        returns(bytes32 processId)
-    {
-        return applyForPolicyInternal(
-            wallet,
-            sumInsured,
-            duration,
-            0,
-            maxPremium
-        );
-    }
-
-
-    // either bundle id or max premium needs to be defined (> 0)
-    function applyForPolicyInternal(
-        address wallet,
-        uint256 sumInsured,
-        uint256 duration,
-        uint256 bundleId,
-        uint256 maxPremium
-    ) 
-        internal 
-        returns(bytes32 processId)
-    {
         // block policy creation when protected stable coin
         // is triggered or depegged
         require(_state == DepegState.Active, "ERROR:DP-010:PRODUCT_NOT_ACTIVE");
         require(wallet != address(0), "ERROR:DP-011:WALLET_ADDRESS_ZERO");
-        require(bundleId > 0 || maxPremium > 0, "ERROR:DP-012:PREMIUM_AND_BUNDLE_ID_ZERO");
-
-        uint256 feeAmount = 0;
-        uint256 maxNetPremium = 0;
-
-        // bundle id validation
-        if(bundleId > 0) {
-            IBundle.Bundle memory bundle = _instanceService.getBundle(bundleId);
-            require(
-                bundle.riskpoolId == _riskPool.getId(),
-                "ERROR:DP-013:BUNDLE_RISKPOOL_MISMATCH"
-            );
-
-            // calculate premium for specified bundle
-            (,,,,,,uint256 annualPercentageReturn) = _riskPool.decodeBundleParamsFromFilter(bundle.filter);
-            maxNetPremium = _riskPool.calculatePremium(sumInsured, duration, annualPercentageReturn);
-            maxPremium = calculatePremium(maxNetPremium);
-        } else {
-            (
-                feeAmount, 
-                maxNetPremium
-            ) = _treasury.calculateFee(getId(), maxPremium);
-        }
+        require(bundleId > 0, "ERROR:DP-012:BUNDLE_ID_ZERO");
 
         address policyHolder = msg.sender;
+        uint256 maxPremium = 0;
+        uint256 maxNetPremium = 0;
+
+        IBundle.Bundle memory bundle = _instanceService.getBundle(bundleId);
+        require(
+            bundle.riskpoolId == _riskPool.getId(),
+            "ERROR:DP-013:BUNDLE_RISKPOOL_MISMATCH"
+        );
+
+        // calculate premium for specified bundle
+        (,,,,,,uint256 annualPercentageReturn) = _riskPool.decodeBundleParamsFromFilter(bundle.filter);
+        maxNetPremium = _riskPool.calculatePremium(sumInsured, duration, annualPercentageReturn);
+        maxPremium = calculatePremium(maxNetPremium);
+
         bytes memory metaData = "";
         bytes memory applicationData = _riskPool.encodeApplicationParameterAsData(
             wallet,
@@ -466,6 +415,7 @@ contract DepegProduct is
         return _policiesWithOpenClaims.length();
     }
 
+
     function getPolicyToProcess(uint256 idx) 
         public 
         view 
@@ -479,6 +429,7 @@ contract DepegProduct is
         processId = _policiesWithOpenClaims.at(idx);
         wallet = getProtectedWallet(processId);        
     }
+
 
     // convencience function for frontend, api, ...
     function getClaimData(bytes32 processId)
@@ -534,7 +485,6 @@ contract DepegProduct is
         require(_policiesWithOpenClaims.contains(processId), "ERROR:DP-042:NOT_IN_PROCESS_SET");
         _policiesWithOpenClaims.remove(processId);
         _policiesWithConfirmedClaims.add(processId);
-
 
         // determine final payout amount based on both protected amount
         // and actual balance at time of the depeg event
@@ -606,7 +556,6 @@ contract DepegProduct is
     }
 
 
-    // TODO make sure return value cannot be manipulated
     // by circumventing prduct contract and directly updating usdc feed contract
     function isNewPriceInfoEventAvailable()
         external
@@ -619,6 +568,7 @@ contract DepegProduct is
     {
         return _priceDataProvider.isNewPriceInfoEventAvailable();
     }
+
 
     function getDepegState() external view returns(DepegState state) {
         return _state;
@@ -643,6 +593,8 @@ contract DepegProduct is
     function getTargetPrice() external view returns(uint256 targetPrice) {
         return _priceDataProvider.getTargetPrice();
     }
+
+
     // manage depeg product state machine: active, paused, depegged
     function processLatestPriceInfo()
         external
@@ -716,6 +668,7 @@ contract DepegProduct is
         netPremium = _riskPool.calculatePremium(sumInsured, duration, annualPercentageReturn);
     }
 
+
     // TODO make this (well: TreasuryModule._calculateFee actually) available via instance service
     function calculateFee(uint256 amount)
         public
@@ -744,6 +697,7 @@ contract DepegProduct is
     {
         feeSpecification = _treasury.getFeeSpecification(componentId);
     }
+
 
     function getFeeFractionFullUnit()
         public
@@ -774,6 +728,7 @@ contract DepegProduct is
         return _processIdsForHolder[policyHolder].length;
     }
 
+
     function getProcessId(address policyHolder, uint256 idx)
         external 
         view
@@ -798,7 +753,6 @@ contract DepegProduct is
     function getProtectedToken() external view returns(address protectedToken) {
         return _protectedToken;
     }
-
 
     function applications() external view returns(uint256 applicationCount) {
         return _applications.length;
