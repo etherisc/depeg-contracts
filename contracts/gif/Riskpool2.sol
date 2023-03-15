@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.2;
 
+import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+
 import "@etherisc/gif-interface/contracts/components/IRiskpool.sol";
 import "@etherisc/gif-interface/contracts/components/Component.sol";
 
@@ -9,7 +12,6 @@ import "@etherisc/gif-interface/contracts/modules/IPolicy.sol";
 import "@etherisc/gif-interface/contracts/services/IInstanceService.sol";
 import "@etherisc/gif-interface/contracts/services/IRiskpoolService.sol";
 
-import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
 abstract contract Riskpool2 is 
     IRiskpool, 
@@ -67,7 +69,7 @@ abstract contract Riskpool2 is
     constructor(
         bytes32 name,
         uint256 collateralization,
-        uint256 sumOfSumInsuredCap,
+        uint256 sumOfSumInsuredCap, // in full token units, eg 1 for 1 usdc
         address erc20Token,
         address wallet,
         address registry
@@ -76,8 +78,10 @@ abstract contract Riskpool2 is
     { 
         _collateralization = collateralization;
 
+        IERC20Metadata token = IERC20Metadata(erc20Token);
+
         require(sumOfSumInsuredCap != 0, "ERROR:RPL-003:SUM_OF_SUM_INSURED_CAP_ZERO");
-        _sumOfSumInsuredCap = sumOfSumInsuredCap;
+        _sumOfSumInsuredCap = sumOfSumInsuredCap * 10 ** token.decimals();
 
         require(erc20Token != address(0), "ERROR:RPL-005:ERC20_ADDRESS_ZERO");
         _erc20Token = erc20Token;

@@ -61,18 +61,19 @@ def test_happy_path(
 
     protected_token_address = product.getProtectedToken()
     protected_token = interface.IERC20Metadata(protected_token_address)
+    tf = 10 ** protected_token.decimals()
 
     # create token allowance for payouts
-    max_payout_amount = 100000 * 10 ** protected_token.decimals()
+    max_payout_amount = 100000
     token.approve(
         instanceService.getTreasuryAddress(), 
-        max_payout_amount, 
+        max_payout_amount * tf, 
         {'from': riskpool_wallet})
 
     # setup riskpool with a single risk bundle
-    bundle_funding = 10000 * 10 ** protected_token.decimals()
-    min_sum_insured = 2000 * 10 ** protected_token.decimals()
-    max_sum_insured = 10000 * 10 ** protected_token.decimals()
+    bundle_funding = 10000
+    min_sum_insured = 2000
+    max_sum_insured = 10000
 
     assert instanceService.getBalance(riskpool_id) == 0
     assert instanceService.getCapital(riskpool_id) == 0
@@ -97,32 +98,32 @@ def test_happy_path(
     # check actual balances of riskpool, protected wallet and policy holder
     assert protected_token.balanceOf(protectedWallet) == 0
     assert token.balanceOf(instanceWallet) == 0 # zero fee for risk capital staking
-    assert token.balanceOf(riskpoolWallet) == bundle_funding
+    assert token.balanceOf(riskpoolWallet) == bundle_funding * tf
     assert token.balanceOf(protectedWallet) == 0
     assert token.balanceOf(customer) == 0
     assert token.balanceOf(investor) == 0
 
     # check effect on riskpoool
-    assert instanceService.getBalance(riskpool_id) == bundle_funding
-    assert instanceService.getCapital(riskpool_id) == bundle_funding
+    assert instanceService.getBalance(riskpool_id) == bundle_funding * tf 
+    assert instanceService.getCapital(riskpool_id) == bundle_funding * tf
     assert instanceService.getTotalValueLocked(riskpool_id) == 0
 
     # setup up wallet to protect with some coins
-    wallet_balance = 4051 * 10 ** protected_token.decimals()
-    protected_token.transfer(protectedWallet, wallet_balance, {'from': instanceOperator})
+    wallet_balance = 4051
+    protected_token.transfer(protectedWallet, wallet_balance * tf, {'from': instanceOperator})
     assert wallet_balance < max_payout_amount # protection: amounts need to stay in relation to each other
 
     # set application parameters
     sum_insured = wallet_balance
     duration_days = 60
-    max_premium = 42 * 10 ** protected_token.decimals() # might need to actually calculate this ...
+    max_premium = 42 # might need to actually calculate this ...
 
     riskpool_balance_before = instanceService.getBalance(riskpool_id)
     instance_balance_before = token.balanceOf(instance_wallet)
 
     # check effect on riskpoool status
-    assert instanceService.getBalance(riskpool_id) == bundle_funding
-    assert instanceService.getCapital(riskpool_id) == bundle_funding
+    assert instanceService.getBalance(riskpool_id) == bundle_funding * tf
+    assert instanceService.getCapital(riskpool_id) == bundle_funding * tf
     assert instanceService.getTotalValueLocked(riskpool_id) == 0
 
     process_id = apply_for_policy_with_bundle(
@@ -143,20 +144,20 @@ def test_happy_path(
     net_premium = tx.events['LogTreasuryPremiumTransferred']['amount']
     premium_fee = tx.events['LogTreasuryFeesTransferred']['amount']
     premium = net_premium + premium_fee
-    assert net_premium + premium_fee <= max_premium
+    assert net_premium + premium_fee <= max_premium * tf
 
     # check actual balances of riskpool, protected wallet and policy holder
-    assert protected_token.balanceOf(protectedWallet) == wallet_balance
+    assert protected_token.balanceOf(protectedWallet) == wallet_balance * tf
     assert token.balanceOf(instanceWallet) == premium_fee # some fee for premium payment
-    assert token.balanceOf(riskpoolWallet) == bundle_funding + net_premium
+    assert token.balanceOf(riskpoolWallet) == bundle_funding * tf + net_premium
     assert token.balanceOf(protectedWallet) == 0
-    assert token.balanceOf(customer) == max_premium - premium
+    assert token.balanceOf(customer) == max_premium * tf - premium
     assert token.balanceOf(investor) == 0
 
     # check effect on riskpoool status
-    assert instanceService.getBalance(riskpool_id) == bundle_funding + net_premium
-    assert instanceService.getCapital(riskpool_id) == bundle_funding
-    assert instanceService.getTotalValueLocked(riskpool_id) == sum_insured
+    assert instanceService.getBalance(riskpool_id) == bundle_funding * tf + net_premium
+    assert instanceService.getCapital(riskpool_id) == bundle_funding * tf
+    assert instanceService.getTotalValueLocked(riskpool_id) == sum_insured * tf
 
     riskpool_balance_after = instanceService.getBalance(riskpool_id)
     instance_balance_after = token.balanceOf(instanceWallet)
@@ -166,13 +167,13 @@ def test_happy_path(
     assert tx.events['LogDepegApplicationCreated']['processId'] == process_id
     assert tx.events['LogDepegApplicationCreated']['policyHolder'] == customer
     assert tx.events['LogDepegApplicationCreated']['protectedWallet'] == protectedWallet
-    assert tx.events['LogDepegApplicationCreated']['sumInsuredAmount'] == sum_insured
+    assert tx.events['LogDepegApplicationCreated']['sumInsuredAmount'] == sum_insured * tf
     assert tx.events['LogDepegApplicationCreated']['premiumAmount'] == premium
 
     assert 'LogDepegPolicyCreated' in tx.events
     assert tx.events['LogDepegPolicyCreated']['processId'] == process_id
     assert tx.events['LogDepegPolicyCreated']['policyHolder'] == customer
-    assert tx.events['LogDepegPolicyCreated']['sumInsuredAmount'] == sum_insured
+    assert tx.events['LogDepegPolicyCreated']['sumInsuredAmount'] == sum_insured * tf
 
     metadata = instanceService.getMetadata(process_id).dict()
     application = instanceService.getApplication(process_id).dict()
@@ -189,12 +190,12 @@ def test_happy_path(
 
     # check application
     assert application['premiumAmount'] == premium
-    assert application['sumInsuredAmount'] == sum_insured
+    assert application['sumInsuredAmount'] == sum_insured * tf
 
     # check policy
     assert policy['premiumExpectedAmount'] == premium
     assert policy['premiumPaidAmount'] == premium
-    assert policy['payoutMaxAmount'] == sum_insured
+    assert policy['payoutMaxAmount'] == sum_insured * tf
     assert policy['payoutAmount'] == 0
     assert policy['claimsCount'] == 0
     assert policy['openClaimsCount'] == 0
@@ -243,10 +244,10 @@ def test_happy_path(
 
     # calcuate expected claim amount
     target_price = product.getTargetPrice()
-    claim_amount_expected = int(sum_insured * (target_price - depeg_price) / target_price)
+    claim_amount_expected = int(sum_insured * tf * (target_price - depeg_price) / target_price)
 
     # check product claim amaount calculation
-    assert product.calculateClaimAmount(sum_insured) == claim_amount_expected
+    assert product.calculateClaimAmount(sum_insured * tf) == claim_amount_expected
 
     # create claim from protected wallet
     tx = product.createDepegClaim(
@@ -254,17 +255,17 @@ def test_happy_path(
         {'from': protectedWallet})
 
     # check actual balances of riskpool, protected wallet and policy holder
-    assert protected_token.balanceOf(protectedWallet) == wallet_balance
+    assert protected_token.balanceOf(protectedWallet) == wallet_balance * tf
     assert token.balanceOf(instanceWallet) == premium_fee # some fee for premium payment
-    assert token.balanceOf(riskpoolWallet) == bundle_funding + net_premium
+    assert token.balanceOf(riskpoolWallet) == bundle_funding * tf + net_premium
     assert token.balanceOf(protectedWallet) == 0
-    assert token.balanceOf(customer) == max_premium - premium
+    assert token.balanceOf(customer) == max_premium * tf - premium
     assert token.balanceOf(investor) == 0
 
     # check zero effect on riskpoool status
-    assert instanceService.getBalance(riskpool_id) == bundle_funding + net_premium
-    assert instanceService.getCapital(riskpool_id) == bundle_funding
-    assert instanceService.getTotalValueLocked(riskpool_id) == sum_insured
+    assert instanceService.getBalance(riskpool_id) == bundle_funding * tf + net_premium
+    assert instanceService.getCapital(riskpool_id) == bundle_funding * tf
+    assert instanceService.getTotalValueLocked(riskpool_id) == sum_insured * tf
 
     # verify claim details in logs
     assert 'LogDepegClaimCreated' in tx.events
@@ -296,7 +297,7 @@ def test_happy_path(
     # check policy data
     policy = instanceService.getPolicy(process_id).dict()
     assert policy['state'] == 1 # enum PolicyState {Active, Expired, Closed}
-    assert policy['payoutMaxAmount'] == sum_insured
+    assert policy['payoutMaxAmount'] == sum_insured * tf
     assert policy['payoutAmount'] == 0 # payout amount
     assert policy['claimsCount'] == 1 # claims count
     assert policy['openClaimsCount'] == 1 # open claims count
@@ -305,7 +306,7 @@ def test_happy_path(
     # in this case balance of wallet at depeg time 
     # exactly matches with the amount protected for that wallet
     payout_id = 0
-    depegged_at_balance = sum_insured
+    depegged_at_balance = sum_insured * tf
     payout_amount_expected = claim_amount_expected
 
     assert protected_token.balanceOf(protectedWallet) == depegged_at_balance
@@ -385,7 +386,7 @@ def test_happy_path(
     # check policy data
     policy = instanceService.getPolicy(process_id).dict()
     assert policy['state'] == 2 # enum PolicyState {Active, Expired, Closed}
-    assert policy['payoutMaxAmount'] == sum_insured
+    assert policy['payoutMaxAmount'] == sum_insured * tf
     assert policy['payoutAmount'] == payout_amount_expected # payout amount
     assert policy['claimsCount'] == 1 # claims count
     assert policy['openClaimsCount'] == 0 # open claims count
@@ -393,16 +394,16 @@ def test_happy_path(
     # check effect on token balance after payout
     # depeg protection has max 1 payout, after execution of payout policy is closed, 
     # this results in 0 locked capital afterwards
-    assert instanceService.getBalance(riskpool_id) == bundle_funding + net_premium - payout_amount_expected
-    assert instanceService.getCapital(riskpool_id) == bundle_funding - payout_amount_expected
+    assert instanceService.getBalance(riskpool_id) == bundle_funding * tf + net_premium - payout_amount_expected
+    assert instanceService.getCapital(riskpool_id) == bundle_funding * tf - payout_amount_expected
     assert instanceService.getTotalValueLocked(riskpool_id) == 0
 
     # check actual balances of riskpool, protected wallet and policy holder at end of happy case
-    assert protected_token.balanceOf(protectedWallet) == wallet_balance
+    assert protected_token.balanceOf(protectedWallet) == wallet_balance * tf
     assert token.balanceOf(instanceWallet) == premium_fee # some fee for premium payment
-    assert token.balanceOf(riskpoolWallet) == bundle_funding + net_premium - payout_amount_expected
+    assert token.balanceOf(riskpoolWallet) == bundle_funding * tf + net_premium - payout_amount_expected
     assert token.balanceOf(protectedWallet) == 0
-    assert token.balanceOf(customer) == payout_amount_expected + max_premium - premium
+    assert token.balanceOf(customer) == payout_amount_expected + max_premium * tf - premium
     assert token.balanceOf(investor) == 0
 
     # investor may now burn bundle and claim the remaining balance
@@ -412,11 +413,11 @@ def test_happy_path(
     riskpool.closeBundle(bundle_id, {'from': investor})
 
     # check actual balances of riskpool, protected wallet and policy holder at end of happy case
-    assert protected_token.balanceOf(protectedWallet) == wallet_balance
+    assert protected_token.balanceOf(protectedWallet) == wallet_balance * tf
     assert token.balanceOf(instanceWallet) == premium_fee # some fee for premium payment
     assert token.balanceOf(riskpoolWallet) == bundle_balance_remaining
     assert token.balanceOf(protectedWallet) == 0
-    assert token.balanceOf(customer) == payout_amount_expected + max_premium - premium
+    assert token.balanceOf(customer) == payout_amount_expected + max_premium * tf - premium
     assert token.balanceOf(investor) == 0
 
     info_closed = riskpool.getBundleInfo(bundle_id).dict()
@@ -437,11 +438,11 @@ def test_happy_path(
     assert tx.events['LogRiskpoolBundleBurned']['bundleId'] == bundle_id
 
     # check actual balances of riskpool, protected wallet and policy holder at end of happy case
-    assert protected_token.balanceOf(protectedWallet) == wallet_balance
+    assert protected_token.balanceOf(protectedWallet) == wallet_balance * tf
     assert token.balanceOf(instanceWallet) == premium_fee # some fee for premium payment
     assert token.balanceOf(riskpoolWallet) == 0
     assert token.balanceOf(protectedWallet) == 0
-    assert token.balanceOf(customer) == payout_amount_expected + max_premium - premium
+    assert token.balanceOf(customer) == payout_amount_expected + max_premium * tf - premium
     assert token.balanceOf(investor) == bundle_balance_remaining
 
     info_burned = riskpool.getBundleInfo(bundle_id).dict()

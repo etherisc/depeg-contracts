@@ -47,16 +47,16 @@ class GifDepegRiskpool(object):
         print('2) deploy riskpool {} by riskpool keeper {}'.format(
             name, riskpoolKeeper))
 
-        sumOfSumInsuredCap = 1000000 * 10 ** erc20Token.decimals()
         self.riskpool = DepegRiskpool.deploy(
             s2b(name),
-            sumOfSumInsuredCap,
             erc20Token,
             riskpoolWallet,
             instance.getRegistry(),
             {'from': riskpoolKeeper},
             publish_source=publishSource)
-        
+
+        sumOfSumInsuredCap = self.riskpool.getSumOfSumInsuredCap()
+
         print('3) riskpool {} proposing to instance by riskpool keeper {}'.format(
             self.riskpool, riskpoolKeeper))
         

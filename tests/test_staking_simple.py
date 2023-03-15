@@ -31,12 +31,14 @@ def test_staking_happy_path(
     instance_id = instanceService.getInstanceId()
     riskpool_id = riskpool.getId()
     bundle_name = 'bundle-1'
+    bundle_lifetime_days = 60
     bundle_id = new_bundle(
         instance,
         instanceOperator,
         investor,
         riskpool,
-        bundle_name)
+        bundle_name,
+        bundleLifetimeDays = bundle_lifetime_days)
 
     token = instanceService.getComponentToken(riskpool_id)
     bundleRegistry.registerToken(token)
@@ -104,7 +106,7 @@ def test_staking_happy_path(
     assert stake_info2['updatedAt'] > stake_info['createdAt']
 
     print('--- test setup after withdrawal of some staking ---')
-    chain.sleep(60 * 24 * 3600)
+    chain.sleep(bundle_lifetime_days * 24 * 3600)
     chain.mine(1)
 
     assert staking.isStakingSupported(bundle_target_id) is False
@@ -221,12 +223,14 @@ def test_staking_failure_modes(
     instance_id = instanceService.getInstanceId()
     riskpool_id = riskpool.getId()
     bundle_name = 'bundle-1'
+    bundle_lifetime_days = 60
     bundle_id = new_bundle(
         instance,
         instanceOperator,
         investor,
         riskpool,
-        bundle_name)
+        bundle_name,
+        bundleLifetimeDays=bundle_lifetime_days)
 
     # register token, instance, component (not bundle, yet)
     token = instanceService.getComponentToken(riskpool_id)
@@ -288,7 +292,7 @@ def test_staking_failure_modes(
         staking.unstake(bundle_target_id, 0, {'from': stakerWithDips})
 
     # wait to allow unstaking
-    chain.sleep(60 * 24 * 3600)
+    chain.sleep(bundle_lifetime_days * 24 * 3600)
     chain.mine(1)
 
     # 2nd attempt to unstake from bundle

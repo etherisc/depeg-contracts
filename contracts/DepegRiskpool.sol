@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.2;
 
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+
 import "@etherisc/gif-interface/contracts/components/BasicRiskpool.sol";
 import "@etherisc/gif-interface/contracts/modules/IBundle.sol";
 import "@etherisc/gif-interface/contracts/modules/IPolicy.sol";
@@ -45,13 +45,18 @@ contract DepegRiskpool is
     event LogBundleMismatch(uint256 bundleId, uint256 bundleIdRequested);
     event LogBundleMatchesApplication(uint256 bundleId, bool sumInsuredOk, bool durationOk, bool premiumOk);
 
-    uint256 public constant USD_CAPITAL_CAP = 1 * 10**6;
+    // values according to 
+    // https://github.com/etherisc/depeg-ui/issues/241
+    uint256 public constant USD_CAPITAL_CAP = 10 * 10**6; // unit amount in usd
 
     bytes32 public constant EMPTY_STRING_HASH = keccak256(abi.encodePacked(""));
 
     uint256 public constant MIN_BUNDLE_LIFETIME = 14 * 24 * 3600;
     uint256 public constant MAX_BUNDLE_LIFETIME = 180 * 24 * 3600;
-    uint256 public constant MAX_POLICY_DURATION = 180 * 24 * 3600;
+    uint256 public constant MIN_POLICY_DURATION = 14 * 24 * 3600;
+    uint256 public constant MAX_POLICY_DURATION = 120 * 24 * 3600;
+    uint256 public constant MIN_POLICY_COVERAGE = 100; // unit amount in usd
+    uint256 public constant MAX_POLICY_COVERAGE = 50000; // unit amount in usd
     uint256 public constant ONE_YEAR_DURATION = 365 * 24 * 3600; 
 
     uint256 public constant APR_100_PERCENTAGE = 10**6;
@@ -61,6 +66,10 @@ contract DepegRiskpool is
 
     IChainRegistryFacade private _chainRegistry;
     IStakingFacade private _staking;
+
+    // managed token
+    IERC20Metadata private _token;
+    uint256 private _tokenDecimals;
 
     // capital caps
     uint256 private _riskpoolCapitalCap;
@@ -79,17 +88,17 @@ contract DepegRiskpool is
 
     constructor(
         bytes32 name,
-        uint256 sumOfSumInsuredCap,
         address erc20Token,
         address wallet,
         address registry
     )
-        BasicRiskpool2(name, getFullCollateralizationLevel(), sumOfSumInsuredCap, erc20Token, wallet, registry)
+        BasicRiskpool2(name, getFullCollateralizationLevel(), USD_CAPITAL_CAP, erc20Token, wallet, registry)
     {
-        require(sumOfSumInsuredCap > 0, "ERROR:DRP-010:SUM_OF_SUM_INSURED_CAP_ZERO");
+        _token = IERC20Metadata(erc20Token);
+        _tokenDecimals = _token.decimals();
 
-        _riskpoolCapitalCap = sumOfSumInsuredCap;
-        _bundleCapitalCap = sumOfSumInsuredCap / 10;
+        _riskpoolCapitalCap = USD_CAPITAL_CAP * 10 ** _tokenDecimals;
+        _bundleCapitalCap = _riskpoolCapitalCap / 10;
         _allowAllAccounts = true;
 
         _staking = IStakingFacade(address(0));
@@ -160,6 +169,8 @@ contract DepegRiskpool is
         onlyOwner
     {
         _staking = IStakingFacade(stakingAddress);
+        require(_staking.implementsIStaking(), "ERROR:DRP-016:STAKING_NOT_ISTAKING");
+
         _chainRegistry = IChainRegistryFacade(_staking.getRegistry());
     }
 
@@ -195,11 +206,12 @@ contract DepegRiskpool is
             && lifetime <= MAX_BUNDLE_LIFETIME, 
             "ERROR:DRP-021:LIFETIME_INVALID");
         require(
-            policyMaxSumInsured > 0 
-            && policyMaxSumInsured <= _bundleCapitalCap, 
+            policyMaxSumInsured >= policyMinSumInsured
+            && policyMaxSumInsured <= _bundleCapitalCap
+            && policyMaxSumInsured <= MAX_POLICY_COVERAGE * 10 ** _tokenDecimals, 
             "ERROR:DRP-022:MAX_SUM_INSURED_INVALID");
         require(
-            policyMinSumInsured > 0 
+            policyMinSumInsured >= MIN_POLICY_COVERAGE * 10 ** _tokenDecimals
             && policyMinSumInsured <= policyMaxSumInsured, 
             "ERROR:DRP-023:MIN_SUM_INSURED_INVALID");
         require(
@@ -207,7 +219,7 @@ contract DepegRiskpool is
             && policyMaxDuration <= MAX_POLICY_DURATION, 
             "ERROR:DRP-024:MAX_DURATION_INVALID");
         require(
-            policyMinDuration > 0
+            policyMinDuration >= MIN_POLICY_DURATION
             && policyMinDuration <= policyMaxDuration, 
             "ERROR:DRP-025:MIN_DURATION_INVALID");
         require(

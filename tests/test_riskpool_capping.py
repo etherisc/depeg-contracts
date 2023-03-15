@@ -59,7 +59,7 @@ def test_riskpool_setting_caps(
     pool_cap_old = riskpool.getRiskpoolCapitalCap()
     bundle_cap_old = riskpool.getBundleCapitalCap()
 
-    assert pool_cap_old == 1000000 * 10 ** usd2.decimals()
+    assert pool_cap_old == riskpool.USD_CAPITAL_CAP() * 10 ** usd2.decimals()
     assert bundle_cap_old == pool_cap_old / 10
 
     riskpool_cap = int(riskpool.getRiskpoolCapitalCap() / 200)
@@ -126,12 +126,13 @@ def test_riskpool_enforcing_caps_simple(
     investor,
     usd2,
 ):
-    riskpool_cap = 10000 * 10 ** usd2.decimals()
+    riskpool_cap = 10000
     bundle_cap = int(riskpool_cap / 1) - 1
+    tf = 10 ** usd2.decimals()
 
     riskpool.setCapitalCaps(
-        riskpool_cap,
-        bundle_cap,
+        riskpool_cap * tf,
+        bundle_cap * tf,
         {'from': riskpoolKeeper})
 
     # case 1: attempt to created bundle > pool cap
@@ -141,7 +142,8 @@ def test_riskpool_enforcing_caps_simple(
             instanceOperator, 
             investor, 
             riskpool,
-            funding=riskpool_cap + 1)
+            maxSumInsured = bundle_cap - 1,
+            funding = riskpool_cap + 1)
 
     # case 2: attempt to create bundle > bundle cap
     with brownie.reverts('ERROR:DRP-027:RISK_CAPITAL_INVALID'):
@@ -150,6 +152,7 @@ def test_riskpool_enforcing_caps_simple(
             instanceOperator, 
             investor, 
             riskpool,
+            maxSumInsured = bundle_cap - 1,
             funding=riskpool_cap)
 
     # case 3: create bundle == bundle cap
@@ -158,11 +161,12 @@ def test_riskpool_enforcing_caps_simple(
         instanceOperator, 
         investor, 
         riskpool,
+        maxSumInsured = bundle_cap - 1,
         funding=bundle_cap)
 
     bundle = instanceService.getBundle(bundle_id).dict()
-    assert bundle['capital'] == bundle_cap
-    assert bundle['balance'] == bundle_cap
+    assert bundle['capital'] == bundle_cap * tf
+    assert bundle['balance'] == bundle_cap * tf
 
     # attempt to increase bundle capital via bundle funding
     increase_amount = 1
@@ -183,7 +187,7 @@ def test_riskpool_enforcing_caps_simple(
         delta_amount,
         {'from': investor})
 
-    assert instanceService.getBundle(bundle_id).dict()['capital'] == bundle_cap - delta_amount
+    assert instanceService.getBundle(bundle_id).dict()['capital'] == bundle_cap * tf - delta_amount
 
     usd2.approve(instanceService.getTreasuryAddress(), delta_amount, {'from': investor})
     riskpool.fundBundle(
@@ -191,7 +195,7 @@ def test_riskpool_enforcing_caps_simple(
         delta_amount,
         {'from': investor})
 
-    assert instanceService.getBundle(bundle_id).dict()['capital'] == bundle_cap
+    assert instanceService.getBundle(bundle_id).dict()['capital'] == bundle_cap * tf
 
 
 def test_riskpool_enforcing_caps_multiple_bundles(
@@ -204,14 +208,15 @@ def test_riskpool_enforcing_caps_multiple_bundles(
     investor,
     usd2,
 ):
-    riskpool_cap = 10000 * 10 ** usd2.decimals()
+    riskpool_cap = 10000
     bundle_cap = int(riskpool_cap * 2 / 3)
+    tf = 10 ** usd2.decimals()
 
     assert 2 * bundle_cap > riskpool_cap
 
     riskpool.setCapitalCaps(
-        riskpool_cap,
-        bundle_cap,
+        riskpool_cap * tf,
+        bundle_cap * tf,
         {'from': riskpoolKeeper})
 
     # case 3: attempt to create 2 bundles, each < bundle cap, summed > pool cap
@@ -222,6 +227,7 @@ def test_riskpool_enforcing_caps_multiple_bundles(
             instanceOperator, 
             investor, 
             riskpool,
+            maxSumInsured = bundle_cap - 1,
             funding=bundle_cap)
 
     # verify there's no room for a second such bundle
@@ -231,6 +237,7 @@ def test_riskpool_enforcing_caps_multiple_bundles(
                 instanceOperator, 
                 investor, 
                 riskpool,
+                maxSumInsured = bundle_cap - 1,
                 funding=bundle_cap)
 
     # case 4: as 3, withdraw from 1st bundle as much as is needed to get: summed == pool cap    # try again with reduced funding for 2nd bundle
@@ -240,11 +247,12 @@ def test_riskpool_enforcing_caps_multiple_bundles(
                 instanceOperator, 
                 investor, 
                 riskpool,
+                maxSumInsured = bundle_cap - 1,
                 funding=second_bundle_funding_max)
 
-    assert riskpool.getCapital() == riskpool_cap
-    assert instanceService.getBundle(bundle_id1).dict()['capital'] == bundle_cap
-    assert instanceService.getBundle(bundle_id2).dict()['capital'] == second_bundle_funding_max
+    assert riskpool.getCapital() == riskpool_cap * tf
+    assert instanceService.getBundle(bundle_id1).dict()['capital'] == bundle_cap * tf
+    assert instanceService.getBundle(bundle_id2).dict()['capital'] == second_bundle_funding_max * tf
 
     # verify that funding bundles is not possible even with its capital < bundle_cap
     increase_amount = 1

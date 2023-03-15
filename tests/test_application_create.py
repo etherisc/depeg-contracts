@@ -39,7 +39,8 @@ def test_create_application(
     instanceWallet = instanceService.getInstanceWallet()
     riskpoolWallet = instanceService.getRiskpoolWallet(riskpool.getId())
     tokenAddress = instanceService.getComponentToken(riskpool.getId())
-    token = interface.IERC20(tokenAddress)
+    token = interface.IERC20Metadata(tokenAddress)
+    tf = 10 ** token.decimals()
 
     bundleId = create_bundle(
         instance, 
@@ -70,8 +71,8 @@ def test_create_application(
     assert tx.events['LogDepegApplicationCreated']['processId'] == processId
     assert tx.events['LogDepegApplicationCreated']['policyHolder'] == customer
     assert tx.events['LogDepegApplicationCreated']['protectedWallet'] == protectedWallet
-    assert tx.events['LogDepegApplicationCreated']['sumInsuredAmount'] == sumInsured
-    assert tx.events['LogDepegApplicationCreated']['premiumAmount'] <= maxPremium
+    assert tx.events['LogDepegApplicationCreated']['sumInsuredAmount'] == sumInsured * tf
+    assert tx.events['LogDepegApplicationCreated']['premiumAmount'] <= maxPremium * tf
 
     # check collateralization with specified bundle
     appl_bundle_id = get_bundle_id(instanceService, riskpool, processId)
@@ -82,7 +83,7 @@ def test_create_application(
     assert 'LogDepegPolicyCreated' in tx.events
     assert tx.events['LogDepegPolicyCreated']['processId'] == processId
     assert tx.events['LogDepegPolicyCreated']['policyHolder'] == customer
-    assert tx.events['LogDepegPolicyCreated']['sumInsuredAmount'] == sumInsured
+    assert tx.events['LogDepegPolicyCreated']['sumInsuredAmount'] == sumInsured * tf
 
     metadata = instanceService.getMetadata(processId).dict()
     application = instanceService.getApplication(processId).dict()
@@ -99,8 +100,8 @@ def test_create_application(
 
     # check application
     premium = application['premiumAmount']
-    assert premium <= maxPremium
-    assert application['sumInsuredAmount'] == sumInsured
+    assert premium <= maxPremium * tf
+    assert application['sumInsuredAmount'] == sumInsured * tf
 
     riskpoolBalanceAfter = instanceService.getBalance(riskpool.getId())
     instanceBalanceAfter = token.balanceOf(instanceWallet)
@@ -127,7 +128,7 @@ def test_create_application(
     assert policy['premiumPaidAmount'] == premium
     assert policy['claimsCount'] == 0
     assert policy['openClaimsCount'] == 0
-    assert policy['payoutMaxAmount'] == sumInsured
+    assert policy['payoutMaxAmount'] == sumInsured * tf
     assert policy['payoutAmount'] == 0
 
     # check wallet balances against premium payment

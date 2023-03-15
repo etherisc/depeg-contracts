@@ -30,7 +30,7 @@ def test_create_bundle_happy_case(
     instanceWallet = instanceService.getInstanceWallet()
     riskpoolWallet = instanceService.getRiskpoolWallet(riskpool.getId())
     tokenAddress = instanceService.getComponentToken(riskpool.getId())
-    token = interface.IERC20(tokenAddress)
+    token = interface.IERC20Metadata(tokenAddress)
 
     bundle_funding = 100000
 
@@ -67,17 +67,18 @@ def test_create_bundle_happy_case(
     fractionalFee = 0
     capital_fees = fractionalFee * bundle_funding + fixedFee
     net_capital = bundle_funding - capital_fees
+    tf = 10**token.decimals()
 
     assert instanceService.bundles() == 1
-    assert token.balanceOf(riskpoolWallet) == net_capital
-    assert token.balanceOf(instanceWallet) == capital_fees
+    assert token.balanceOf(riskpoolWallet) == net_capital * tf
+    assert token.balanceOf(instanceWallet) == capital_fees * tf
 
     print('bundle {} created'.format(bundleId))
 
     # check riskpool statistics
-    assert instanceService.getCapital(riskpool.getId()) == net_capital
-    assert instanceService.getCapacity(riskpool.getId()) == net_capital
-    assert instanceService.getBalance(riskpool.getId()) == net_capital
+    assert instanceService.getCapital(riskpool.getId()) == net_capital * tf
+    assert instanceService.getCapacity(riskpool.getId()) == net_capital * tf
+    assert instanceService.getBalance(riskpool.getId()) == net_capital * tf
     assert instanceService.getTotalValueLocked(riskpool.getId()) == 0
 
     # check bundle statistics
@@ -97,9 +98,9 @@ def test_create_bundle_happy_case(
     assert id == bundleId
     assert riskpoolId == riskpool.getId()
     assert state == 0 # enum BundleState { Active, Locked, Closed, Burned }
-    assert capital == net_capital
+    assert capital == net_capital * tf
     assert lockedCapital == 0
-    assert balance == net_capital
+    assert balance == net_capital * tf
     assert createdAt > 0
     assert updatedAt == createdAt
 
@@ -117,8 +118,8 @@ def test_create_bundle_happy_case(
     assert filterBundleName == bundleName
     assert filterBundleLifetime == bundleLifetimeDays * 24 * 3600
 
-    assert filterMinSumInsured == minSumInsured
-    assert filterMaxSumInsured == maxSumInsured
+    assert filterMinSumInsured == minSumInsured * tf
+    assert filterMaxSumInsured == maxSumInsured * tf
     assert filterMinDuration == minDurationDays * 24 * 3600
     assert filterMaxDuration == maxDurationDays * 24 * 3600
     assert filterAnnualPercentageReturn == riskpool.getApr100PercentLevel() * aprPercentage / 100.0
@@ -133,8 +134,8 @@ def test_create_bundle_happy_case(
     assert bundleInfo['name'] == bundleName
     assert bundleInfo['lifetime'] == bundleLifetimeDays * 24 * 3600
 
-    assert bundleInfo['minSumInsured'] == minSumInsured
-    assert bundleInfo['maxSumInsured'] == maxSumInsured
+    assert bundleInfo['minSumInsured'] == minSumInsured * tf
+    assert bundleInfo['maxSumInsured'] == maxSumInsured * tf
     assert bundleInfo['minDuration'] == filterMinDuration
     assert bundleInfo['maxDuration'] == filterMaxDuration
     assert bundleInfo['annualPercentageReturn'] == filterAnnualPercentageReturn
@@ -363,7 +364,7 @@ def test_create_max_suminsured_validation(
 
     assert instanceService.bundles() == 0
 
-    maxSumInsured = 50000 * 10**token.decimals() # ok
+    maxSumInsured = 50000 # ok
     bundleId2 = create_bundle(
         instance, 
         instanceOperator, 
@@ -380,7 +381,7 @@ def test_create_max_suminsured_validation(
 
     assert instanceService.bundles() == 1
 
-    maxSumInsured = 1000000 * 10**token.decimals() # too large
+    maxSumInsured = 1000000 # too large
 
     with brownie.reverts("ERROR:DRP-022:MAX_SUM_INSURED_INVALID"):
         bundleId3 = create_bundle(
@@ -461,7 +462,7 @@ def test_create_min_suminsured_validation(
 
     minSumInsured = maxSumInsured + 1 # too large
 
-    with brownie.reverts("ERROR:DRP-023:MIN_SUM_INSURED_INVALID"):
+    with brownie.reverts("ERROR:DRP-022:MAX_SUM_INSURED_INVALID"):
         bundleId3 = create_bundle(
             instance, 
             instanceOperator, 

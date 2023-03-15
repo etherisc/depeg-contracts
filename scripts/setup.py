@@ -12,8 +12,8 @@ from scripts.util import contract_from_address
 
 
 DEFAULT_BUNDLE_FUNDING = 100000
-DEFAULT_MIN_SUM_INSURED =  5000
-DEFAULT_MAX_SUM_INSURED = 20000
+DEFAULT_MIN_SUM_INSURED =   100
+DEFAULT_MAX_SUM_INSURED = 50000
 DEFAULT_MIN_DURATION_DAYS =  30
 DEFAULT_MAX_DURATION_DAYS =  90
 DEFAULT_APR_PERCENTAGE =    5.0
@@ -23,10 +23,13 @@ DEFAULT_DURATION_DAYS =  60
 DEFAULT_MAX_PREMIUM =    75
 
 USD2_DECIMALS = 6
-FUNDING = 10000 * 10**USD2_DECIMALS
-BUNDLE_LIFETIME_DAYS = 60
-MAX_SUM_INSURED = FUNDING
-MAX_DURATION_DAYS = BUNDLE_LIFETIME_DAYS
+FUNDING = 10000
+BUNDLE_LIFETIME_DAYS = 100
+
+MIN_SUM_INSURED = 100
+MAX_SUM_INSURED = 20000
+MIN_DURATION_DAYS = 14
+MAX_DURATION_DAYS = 120
 ARP_PERCENTAGE = 3.1415
 
 
@@ -46,7 +49,8 @@ def new_bundle(
     instanceOperator,
     investor,
     riskpool,
-    bundleName
+    bundleName, 
+    bundleLifetimeDays=BUNDLE_LIFETIME_DAYS
 ):
     return create_bundle(
         instance,
@@ -55,10 +59,10 @@ def new_bundle(
         riskpool,
         FUNDING,
         bundleName,
-        BUNDLE_LIFETIME_DAYS,
-        1,
+        bundleLifetimeDays,
+        MIN_SUM_INSURED,
         MAX_SUM_INSURED,
-        1,
+        MIN_DURATION_DAYS,
         MAX_DURATION_DAYS,
         ARP_PERCENTAGE)
 
@@ -78,11 +82,12 @@ def create_bundle(
     aprPercentage: float = DEFAULT_APR_PERCENTAGE
 ) -> int:
     tokenAddress = riskpool.getErc20Token()
-    token = contract_from_address(interface.IERC20, tokenAddress)
+    token = contract_from_address(interface.IERC20Metadata, tokenAddress)
+    tf = 10 ** token.decimals()
 
     instanceService = instance.getInstanceService()
-    token.transfer(investor, funding, {'from': instanceOperator})
-    token.approve(instanceService.getTreasuryAddress(), funding, {'from': investor})
+    token.transfer(investor, funding * tf, {'from': instanceOperator})
+    token.approve(instanceService.getTreasuryAddress(), funding * tf, {'from': investor})
 
     apr100level = riskpool.getApr100PercentLevel();
     apr = apr100level * aprPercentage / 100
@@ -91,12 +96,12 @@ def create_bundle(
     tx = riskpool.createBundle(
         bundleName,
         bundleLifetimeDays * spd,
-        minSumInsured,
-        maxSumInsured,
+        minSumInsured * tf,
+        maxSumInsured * tf,
         minDurationDays * spd,
         maxDurationDays * spd,
         apr,
-        funding, 
+        funding * tf, 
         {'from': investor})
 
     return tx.events['LogRiskpoolBundleCreated']['bundleId']
@@ -114,18 +119,19 @@ def apply_for_policy_with_bundle(
     maxPremium: int = DEFAULT_MAX_PREMIUM,
 ):
     tokenAddress = product.getToken()
-    token = contract_from_address(interface.IERC20, tokenAddress)
+    token = contract_from_address(interface.IERC20Metadata, tokenAddress)
+    tf = 10 ** token.decimals()
 
     # transfer premium funds to customer and create allowance
-    token.transfer(customer, maxPremium, {'from': instanceOperator})
-    token.approve(instance.getTreasury(), maxPremium, {'from': customer})
+    token.transfer(customer, maxPremium * tf, {'from': instanceOperator})
+    token.approve(instance.getTreasury(), maxPremium * tf, {'from': customer})
 
     if not wallet:
         wallet = customer
 
     tx = product.applyForPolicyWithBundle(
         wallet,
-        sumInsured,
+        sumInsured * tf,
         durationDays * 24 * 3600,
         bundleId, 
         {'from': customer})
