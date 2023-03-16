@@ -522,7 +522,7 @@ contract DepegProduct is
 
         // determine balance left to process
         uint256 amountLeftToProcess = depegBalance - _processedBalance[protectedWallet];
-        require(amountLeftToProcess > 0, "ERROR:DP-044:PROTECTED_BALANCE_PROCESSED_ALREADY");
+        require(amountLeftToProcess > 0, "ERROR:DP-045:PROTECTED_BALANCE_PROCESSED_ALREADY");
 
         if(amountLeftToProcess < protectedAmount) {
             emit LogDepegProcessedAmountReduction(processId, protectedAmount, amountLeftToProcess);

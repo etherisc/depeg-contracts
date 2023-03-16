@@ -762,7 +762,7 @@ def test_over_protected_with_multiple_policies(
     assert product.getProcessedBalance(protectedWallet) == depegged_at_balance
 
     # attempt to process 3rd payout
-    with brownie.reverts('ERROR:DP-044:PROTECTED_BALANCE_PROCESSED_ALREADY'):
+    with brownie.reverts('ERROR:DP-045:PROTECTED_BALANCE_PROCESSED_ALREADY'):
         product.processPolicy(process_id3)
 
 
