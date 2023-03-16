@@ -62,9 +62,14 @@ contract DepegProduct is
     // actual wallet balances at depeg time
     mapping(address /* wallet */ => DepegBalance /* balance */) private _depegBalance;
 
+    // processed wallet balances 
+    mapping(address /* wallet */ => uint256 /* processed total claims so far */) private _processedBalance;
+
     event LogDepegApplicationCreated(bytes32 processId, address policyHolder, address protectedWallet, uint256 sumInsuredAmount, uint256 premiumAmount, uint256 netPremiumAmount);
     event LogDepegPolicyCreated(bytes32 processId, address policyHolder, uint256 sumInsuredAmount);
     event LogDepegClaimCreated(bytes32 processId, uint256 claimId, uint256 claimAmount);
+    event LogDepegProtectedAmountReduction(bytes32 processId, uint256 protectedAmount, uint256 depegBalance);
+    event LogDepegProcessedAmountReduction(bytes32 processId, uint256 protectedAmount, uint256 amountLeftToProcess);
     event LogDepegClaimConfirmed(bytes32 processId, uint256 claimId, uint256 claimAmount, uint256 accountBalance, uint256 payoutAmount);
     event LogDepegPayoutProcessed(bytes32 processId, uint256 claimId, uint256 payoutId, uint256 payoutAmount);
     event LogDepegPolicyExpired(bytes32 processId);
@@ -326,6 +331,15 @@ contract DepegProduct is
     }
 
 
+    function getProcessedBalance(address protectedWallet)
+        public
+        view
+        returns(uint256 claimedBalance)
+    {
+        return _processedBalance[protectedWallet];
+    }
+
+
     function hasDepegClaim(bytes32 processId)
         public
         view
@@ -486,16 +500,42 @@ contract DepegProduct is
         _policiesWithOpenClaims.remove(processId);
         _policiesWithConfirmedClaims.add(processId);
 
-        // determine final payout amount based on both protected amount
-        // and actual balance at time of the depeg event
-        address wallet = getProtectedWallet(processId);
-        require(_depegBalance[wallet].blockNumber > 0, "ERROR:DP-043:DEPEG_BALANCE_MISSING");
+        // get claim details
+        uint256 protectedAmount = _getApplication(processId).sumInsuredAmount;
+        address protectedWallet = getProtectedWallet(processId);
+        require(_depegBalance[protectedWallet].blockNumber > 0, "ERROR:DP-043:DEPEG_BALANCE_MISSING");
+        require(_depegBalance[protectedWallet].balance > 0, "ERROR:DP-044:DEPEG_BALANCE_ZERO");
 
-        uint256 depegBalance = _depegBalance[wallet].balance;
+        // deal with over insurance 
+        // case A) of a single policy that covers more than the actual balance
+        uint256 depegBalance = _depegBalance[protectedWallet].balance;
+
+        // determine protected amount based on both protected amount from policy
+        // and actual balance at time of the depeg event
+        if(depegBalance < protectedAmount) {
+            emit LogDepegProtectedAmountReduction(processId, protectedAmount, depegBalance);
+            protectedAmount = depegBalance;
+        }
+
+        // deal with over insurance 
+        // case B) several policies each <= depeg balance but summed up > depeg balance
+
+        // determine balance left to process
+        uint256 amountLeftToProcess = depegBalance - _processedBalance[protectedWallet];
+        require(amountLeftToProcess > 0, "ERROR:DP-044:PROTECTED_BALANCE_PROCESSED_ALREADY");
+
+        if(amountLeftToProcess < protectedAmount) {
+            emit LogDepegProcessedAmountReduction(processId, protectedAmount, amountLeftToProcess);
+            protectedAmount = amountLeftToProcess;
+        }
+
+        // update processed balance
+        _processedBalance[protectedWallet] += protectedAmount;
+
 
         IPolicy.Claim memory claim = _getClaim(processId, CLAIM_ID);
         uint256 payoutAmount = claim.claimAmount;
-        uint256 depegPayoutAmount = calculateClaimAmount(depegBalance);
+        uint256 depegPayoutAmount = calculateClaimAmount(protectedAmount);
 
         // down-adjust payout amount based on actual balance at depeg time
         if(depegPayoutAmount < payoutAmount) {
