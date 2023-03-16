@@ -734,8 +734,8 @@ def all_in_1(
     instance_id = instance_service.getInstanceId()
     riskpool_id = riskpool.getId()
     bundleLifetimeDays = 90
-    bundle_id1 = new_bundle(deployment, 'bundle-1', bundleLifetimeDays, initial_funding * mult, 8000 * mult, max_sum_insured * mult, 60, 90, 1.7)
-    bundle_id2 = new_bundle(deployment, 'bundle-2', bundleLifetimeDays, initial_funding * mult, 4000 * mult, max_sum_insured * mult, 30, 80, 2.1)
+    bundle_id1 = new_bundle(deployment, 'bundle-1', bundleLifetimeDays, initial_funding, 8000, max_sum_insured, 60, 90, 1.7)
+    bundle_id2 = new_bundle(deployment, 'bundle-2', bundleLifetimeDays, initial_funding, 4000, max_sum_insured, 30, 80, 2.1)
 
     # approval necessary for payouts or pulling out funds by investor
     usd2.approve(
