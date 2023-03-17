@@ -315,17 +315,24 @@ def check_funds(
 
     _print_constants(gas_price, safety_factor, gp)
 
-    native_token_success = True
+    checkedAccounts = 0
+    fundsAvailable = 0
     fundsMissing = 0
+    native_token_success = True
+
     for accountName, requiredAmount in GAS_DEPEG.items():
-        if a[accountName].balance() >= gp * GAS_DEPEG[accountName]:
+        balance = a[accountName].balance()
+        fundsAvailable += balance
+        checkedAccounts += 1
+
+        if balance >= gp * GAS_DEPEG[accountName]:
             print('{} funding ok'.format(accountName))
         else:
-            fundsMissing += gp * GAS_DEPEG[accountName] - a[accountName].balance()
+            fundsMissing += gp * GAS_DEPEG[accountName] - balance
             print('{} needs {} but has {}'.format(
                 accountName,
                 gp * GAS_DEPEG[accountName],
-                a[accountName].balance()
+                balance
             ))
     
     if fundsMissing > 0:
@@ -348,6 +355,9 @@ def check_funds(
         erc20_success = check_erc20_funds(a, erc20_token)
     else:
         print('WARNING: no erc20 token defined, skipping erc20 funds checking')
+
+    print('total funds available ({} accounts) [ETH]: {:.6f}'
+        .format(checkedAccounts, fundsAvailable/10**18))
 
     return native_token_success & erc20_success
 
@@ -686,8 +696,9 @@ def all_in_1(
             usd2 = USD2.deploy({'from':a[INSTANCE_OPERATOR]}, publish_source=publish_source)
 
         instance = GifInstance(
-            instanceOperator=a[INSTANCE_OPERATOR], 
-            instanceWallet=a[INSTANCE_WALLET],
+            # TODO cleanup commented out lines below if no problems observed
+            # instanceOperator=a[INSTANCE_OPERATOR], 
+            # instanceWallet=a[INSTANCE_WALLET],
             registryAddress=registry_address or get_address('registry'))
 
     print('====== token setup ======')
@@ -832,7 +843,7 @@ def all_in_1(
 
     wallet = a[CUSTOMER1]
     sum_insured = 20000 * mult
-    duration = 50
+    duration = 80
     max_premium = 1000 * mult
     process_id = new_policy(
         deployment,
