@@ -12,7 +12,11 @@ from brownie import (
     DepegRiskpool,
 )
 
-from scripts.util import s2b
+from scripts.util import (
+    s2b,
+    wait_for_confirmations,
+)
+
 from scripts.instance import GifInstance
 
 class GifDepegRiskpool(object):
@@ -60,9 +64,11 @@ class GifDepegRiskpool(object):
         print('3) riskpool {} proposing to instance by riskpool keeper {}'.format(
             self.riskpool, riskpoolKeeper))
         
-        componentOwnerService.propose(
+        tx = componentOwnerService.propose(
             self.riskpool,
             {'from': riskpoolKeeper})
+
+        wait_for_confirmations(tx)
 
         print('4) approval of riskpool id {} by instance operator {}'.format(
             self.riskpool.getId(), instance.getOwner()))
@@ -164,13 +170,15 @@ class GifDepegProduct(object):
         print('3) product {} proposing to instance by product owner {}'.format(
             self.product, productOwner))
         
-        componentOwnerService.propose(
+        tx = componentOwnerService.propose(
             self.product,
             {'from': productOwner})
 
+        wait_for_confirmations(tx)
+
         print('4) approval of product id {} by instance operator {}'.format(
             self.product.getId(), instance.getOwner()))
-        
+
         instanceOperatorService.approve(
             self.product.getId(),
             {'from': instance.getOwner()})
