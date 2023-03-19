@@ -650,6 +650,9 @@ def all_in_1(
     stakeholders_accounts=None,
     registry_address=None,
     staking_address=None,
+    price_provider_address=None,
+    product_address=None,
+    riskpool_address=None,
     dip_address=None,
     usd1_address=None,
     usd2_address=None,
@@ -721,13 +724,20 @@ def all_in_1(
     riskpoolKeeper = a[RISKPOOL_KEEPER]
     riskpoolWallet = a[RISKPOOL_WALLET]
     
-    print('====== deploy price data provider ======')
-    # hint: this contract will automatically link to chainlink pricefeed
-    # when connected to mainnet
-    priceDataProvider = UsdcPriceDataProvider.deploy(
-        usd1.address,
-        {'from': productOwner},
-        publish_source=publish_source)
+    print('====== obtain depeg price data provider ======')
+    priceDataProvider = None
+
+    if price_provider_address:
+        print('- get price data provider from address {} ---'.format(price_provider_address))
+        priceDataProvider = contract_from_address(UsdcPriceDataProvider, price_provider_address)            
+    else:
+        # hint: this contract will automatically link to chainlink pricefeed
+        # when connected to mainnet
+        print('-- deploy price data provider ---')
+        priceDataProvider = UsdcPriceDataProvider.deploy(
+            usd1.address,
+            {'from': productOwner},
+            publish_source=publish_source)
 
     print('====== deploy depeg product/riskpool ======')
     depegDeploy = GifDepegProductComplete(
@@ -738,6 +748,7 @@ def all_in_1(
         usd2,
         riskpoolKeeper,
         riskpoolWallet,
+        riskpool_address=riskpool_address,
         publishSource=publish_source)
 
     # assess balances at beginning of deploy

@@ -13,6 +13,7 @@ from brownie import (
 )
 
 from scripts.util import (
+    contract_from_address,
     s2b,
     wait_for_confirmations,
 )
@@ -28,25 +29,36 @@ class GifDepegRiskpool(object):
         riskpoolWallet: Account,
         investor: Account,
         collateralization:int,
-        name, 
+        name,
+        riskpool_address=None,
         publishSource=False
     ):
         instanceService = instance.getInstanceService()
         instanceOperatorService = instance.getInstanceOperatorService()
         componentOwnerService = instance.getComponentOwnerService()
-        # TODO cleanup
-        # riskpoolService = instance.getRiskpoolService()
 
         print('------ setting up riskpool ------')
+        self.riskpool = None
+
+        if riskpool_address:
+            print('1) obtain riskpool from address {}'.format(riskpool_address))
+            self.riskpool = contract_from_address(DepegRiskpool, riskpool_address)
+
+            return
 
         riskpoolKeeperRole = instanceService.getRiskpoolKeeperRole()
-        print('1) grant riskpool keeper role {} to riskpool keeper {}'.format(
-            riskpoolKeeperRole, riskpoolKeeper))
 
-        instanceOperatorService.grantRole(
-            riskpoolKeeperRole, 
-            riskpoolKeeper, 
-            {'from': instance.getOwner()})
+        if instanceService.hasRole(riskpoolKeeperRole, riskpoolKeeper):
+            print('1) riskpool keeper {} already has role {}'.format(
+                riskpoolKeeper, riskpoolKeeperRole))
+        else:
+            print('1) grant riskpool keeper role {} to riskpool keeper {}'.format(
+                riskpoolKeeperRole, riskpoolKeeper))
+
+            instanceOperatorService.grantRole(
+                riskpoolKeeperRole, 
+                riskpoolKeeper, 
+                {'from': instance.getOwner()})
 
         print('2) deploy riskpool {} by riskpool keeper {}'.format(
             name, riskpoolKeeper))
@@ -145,15 +157,19 @@ class GifDepegProduct(object):
         registry = instance.getRegistry()
 
         print('------ setting up product ------')
-
         productOwnerRole = instanceService.getProductOwnerRole()
-        print('1) grant product owner role {} to product owner {}'.format(
-            productOwnerRole, productOwner))
 
-        instanceOperatorService.grantRole(
-            productOwnerRole,
-            productOwner, 
-            {'from': instance.getOwner()})
+        if instanceService.hasRole(productOwnerRole, productOwner):
+            print('1) product owner {} already has role {}'.format(
+                productOwner, productOwnerRole))
+        else:
+            print('1) grant product owner role {} to product owner {}'.format(
+                productOwnerRole, productOwner))
+
+            instanceOperatorService.grantRole(
+                productOwnerRole,
+                productOwner, 
+                {'from': instance.getOwner()})
 
         print('2) deploy product by product owner {}'.format(
             productOwner))
@@ -167,8 +183,8 @@ class GifDepegProduct(object):
             {'from': productOwner},
             publish_source=publishSource)
 
-        print('3) product {} proposing to instance by product owner {}'.format(
-            self.product, productOwner))
+        print('3) product {} (id={}) proposing to instance by product owner {}'.format(
+            self.product, self.product.getId(), productOwner))
         
         tx = componentOwnerService.propose(
             self.product,
@@ -235,6 +251,8 @@ class GifDepegProductComplete(object):
         riskpoolKeeper: Account,
         riskpoolWallet: Account,
         baseName='Depeg' + str(int(time.time())),  # FIXME
+        riskpool_address=None,
+        product_address=None,
         publishSource=False
     ):
         instanceService = instance.getInstanceService()
@@ -244,14 +262,16 @@ class GifDepegProductComplete(object):
 
         self.token = erc20Token
 
+        print('====== obtain depeg riskpool ======')
         self.riskpool = GifDepegRiskpool(
             instance, 
             erc20Token, 
             riskpoolKeeper, 
-            riskpoolWallet, 
+            riskpoolWallet,
             investor, 
             instanceService.getFullCollateralizationLevel(),
             '{}Riskpool'.format(baseName),
+            riskpool_address,
             publishSource)
 
         self.product = GifDepegProduct(
