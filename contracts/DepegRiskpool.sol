@@ -71,6 +71,13 @@ contract DepegRiskpool is
     IERC20Metadata private _token;
     uint256 private _tokenDecimals;
 
+    // sum insured % of protected amount
+    // 100 corresponds to a depeg price value down to 0.0 is covered by the policy
+    // 20 corresponds to only depeg values down to 0.8 are covered 
+    // ie even if the chainlink price feed would report 0.65 at depeg time
+    // the policy holder payout is capped at 0.80
+    uint256 private _sumInsuredPercentage;
+    
     // capital caps
     uint256 private _riskpoolCapitalCap;
     uint256 private _bundleCapitalCap;
@@ -88,12 +95,19 @@ contract DepegRiskpool is
 
     constructor(
         bytes32 name,
+        uint256 sumInsuredPercentage,
         address erc20Token,
         address wallet,
         address registry
     )
         BasicRiskpool2(name, getFullCollateralizationLevel(), USD_CAPITAL_CAP, erc20Token, wallet, registry)
     {
+        require(
+            sumInsuredPercentage > 0 && sumInsuredPercentage <= 100,
+            "ERROR:DRP-005:SUM_INSURED_PERCENTAGE_INVALID");
+
+        _sumInsuredPercentage = sumInsuredPercentage;
+
         _token = IERC20Metadata(erc20Token);
         _tokenDecimals = _token.decimals();
 
@@ -183,12 +197,12 @@ contract DepegRiskpool is
         return _staking;
     }
 
-
+    // TODO adapt policyMin/MaxSumInsured to policyMin/MaxProtectedBalance
     function createBundle(
         string memory name,
         uint256 lifetime,
-        uint256 policyMinSumInsured,
-        uint256 policyMaxSumInsured,
+        uint256 policyMinProtectedBalance,
+        uint256 policyMaxProtectedBalance,
         uint256 policyMinDuration,
         uint256 policyMaxDuration,
         uint256 annualPercentageReturn,
@@ -205,15 +219,20 @@ contract DepegRiskpool is
             lifetime >= MIN_BUNDLE_LIFETIME
             && lifetime <= MAX_BUNDLE_LIFETIME, 
             "ERROR:DRP-021:LIFETIME_INVALID");
+
+        // get sum insured bounds from protected balance bounds
+        uint256 policyMinSumInsured = calculateSumInsured(policyMinProtectedBalance);
+        uint256 policyMaxSumInsured = calculateSumInsured(policyMaxProtectedBalance);
+
         require(
-            policyMaxSumInsured >= policyMinSumInsured
-            && policyMaxSumInsured <= _bundleCapitalCap
-            && policyMaxSumInsured <= MAX_POLICY_COVERAGE * 10 ** _tokenDecimals, 
-            "ERROR:DRP-022:MAX_SUM_INSURED_INVALID");
+            policyMaxProtectedBalance >= policyMinProtectedBalance
+            && policyMaxProtectedBalance <= MAX_POLICY_COVERAGE * 10 ** _tokenDecimals
+            && policyMaxSumInsured <= _bundleCapitalCap,
+            "ERROR:DRP-022:MAX_PROTECTED_BALANCE_INVALID");
         require(
-            policyMinSumInsured >= MIN_POLICY_COVERAGE * 10 ** _tokenDecimals
-            && policyMinSumInsured <= policyMaxSumInsured, 
-            "ERROR:DRP-023:MIN_SUM_INSURED_INVALID");
+            policyMinProtectedBalance >= MIN_POLICY_COVERAGE * 10 ** _tokenDecimals
+            && policyMinProtectedBalance <= policyMaxProtectedBalance, 
+            "ERROR:DRP-023:MIN_PROTECTED_BALANCE_INVALID");
         require(
             policyMaxDuration > 0
             && policyMaxDuration <= MAX_POLICY_DURATION, 
@@ -259,6 +278,43 @@ contract DepegRiskpool is
             registerBundleInRegistry(bundle, name, lifetime);
         }
     }
+
+
+    function getSumInsuredPercentage()
+        external
+        view
+        returns(uint256 sumInsuredPercentage)
+    {
+        return _sumInsuredPercentage;
+    }
+
+
+    function calculateSumInsured(uint256 protectedBalance)
+        public
+        view
+        returns(uint256 sumInsured)
+    {
+        return (protectedBalance * _sumInsuredPercentage) / 100;
+    }
+
+
+    function depegPriceIsBelowProtectedDepegPrice(uint256 depegPrice, uint256 targetPrice)
+        public
+        view
+        returns(bool isBelowProtectedPrice)
+    {
+        return 100 * depegPrice < targetPrice * (100 - _sumInsuredPercentage);
+    }
+
+
+    function getProtectedMinDepegPrice(uint256 targetPrice)
+        public
+        view
+        returns(uint256 protectedDepegPrice)
+    {
+        return (targetPrice * (100 - _sumInsuredPercentage)) / 100;
+    }
+
 
     function isComponentRegistered(uint256 componentId)
         private
@@ -388,6 +444,7 @@ contract DepegRiskpool is
 
     function encodeApplicationParameterAsData(
         address wallet,
+        uint256 protectedBalance,
         uint256 duration,
         uint256 bundleId,
         uint256 maxPremium
@@ -397,6 +454,7 @@ contract DepegRiskpool is
     {
         data = abi.encode(
             wallet,
+            protectedBalance,
             duration,
             bundleId,
             maxPremium
@@ -410,6 +468,7 @@ contract DepegRiskpool is
         public pure
         returns (
             address wallet,
+            uint256 protectedBalance,
             uint256 duration,
             uint256 bundleId,
             uint256 maxPremium
@@ -417,10 +476,11 @@ contract DepegRiskpool is
     {
         (
             wallet,
+            protectedBalance,
             duration,
             bundleId,
             maxPremium
-        ) = abi.decode(data, (address, uint256, uint256, uint256));
+        ) = abi.decode(data, (address, uint256, uint256, uint256, uint256));
     }
 
     function getBundleFilter(uint256 bundleId) public view returns (bytes memory filter) {
@@ -505,6 +565,7 @@ contract DepegRiskpool is
     {
         (
             , // we don't care about the wallet address here
+            , // we don't care about the protected balance here
             uint256 duration,
             uint256 applicationBundleId,
             uint256 maxPremium

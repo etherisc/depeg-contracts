@@ -30,6 +30,7 @@ class GifDepegRiskpool(object):
         investor: Account,
         collateralization:int,
         name,
+        sum_insured_percentage=100,
         riskpool_address=None,
         publishSource=False
     ):
@@ -65,6 +66,7 @@ class GifDepegRiskpool(object):
 
         self.riskpool = DepegRiskpool.deploy(
             s2b(name),
+            sum_insured_percentage,
             erc20Token,
             riskpoolWallet,
             instance.getRegistry(),
@@ -250,7 +252,8 @@ class GifDepegProductComplete(object):
         erc20Token: Account,
         riskpoolKeeper: Account,
         riskpoolWallet: Account,
-        baseName='Depeg' + str(int(time.time())),  # FIXME
+        baseName='Depeg_' + str(int(time.time())),
+        sum_insured_percentage=100,
         riskpool_address=None,
         product_address=None,
         publishSource=False
@@ -270,7 +273,8 @@ class GifDepegProductComplete(object):
             riskpoolWallet,
             investor, 
             instanceService.getFullCollateralizationLevel(),
-            '{}Riskpool'.format(baseName),
+            '{}_Riskpool'.format(baseName),
+            sum_insured_percentage,
             riskpool_address,
             publishSource)
 
@@ -280,7 +284,7 @@ class GifDepegProductComplete(object):
             erc20Token, 
             productOwner, 
             self.riskpool,
-            '{}Product'.format(baseName),
+            '{}_Product'.format(baseName),
             publishSource)
 
     def getToken(self):

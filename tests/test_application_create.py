@@ -113,12 +113,14 @@ def test_create_application(
 
     (
         wallet,
+        protected_balance,
         applicationDuration,
         applicationBundleId,
         applicationMaxPremium
     ) = riskpool.decodeApplicationParameterFromData(application['data'])
 
     assert wallet == protectedWallet
+    assert protected_balance == sumInsured * tf
     assert applicationDuration == durationDays * 24 * 3600
     assert applicationBundleId == bundleId
     assert applicationMaxPremium == netPremium

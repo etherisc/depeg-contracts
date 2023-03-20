@@ -47,8 +47,8 @@ def test_create_bundle_happy_case(
 
     bundleName = 'test bundle'
     bundleLifetimeDays = 90
-    minSumInsured =  1000
-    maxSumInsured = 10000
+    minProtectedBalance =  1000
+    maxProtectedBalance = 10000
     minDurationDays = 14
     maxDurationDays = 60
     aprPercentage = 5.0
@@ -60,8 +60,8 @@ def test_create_bundle_happy_case(
         bundle_funding, 
         bundleName,
         bundleLifetimeDays,
-        minSumInsured, 
-        maxSumInsured, 
+        minProtectedBalance, 
+        maxProtectedBalance, 
         minDurationDays, 
         maxDurationDays, 
         aprPercentage)
@@ -130,6 +130,9 @@ def test_create_bundle_happy_case(
     assert filterBundleName == bundleName
     assert filterBundleLifetime == bundleLifetimeDays * 24 * 3600
 
+    minSumInsured = riskpool.calculateSumInsured(minProtectedBalance)
+    maxSumInsured = riskpool.calculateSumInsured(maxProtectedBalance)
+    
     assert filterMinSumInsured == minSumInsured * tf
     assert filterMaxSumInsured == maxSumInsured * tf
     assert filterMinDuration == minDurationDays * 24 * 3600
@@ -179,7 +182,7 @@ def test_create_name_validation(
     bundleName = ''
     bundleLifetimeDays = 30
     minSumInsured =  1000
-    maxSumInsured = 10000
+    maxProtectedBalance = 10000
     minDurationDays = 14
     maxDurationDays = 60
     aprPercentage = 5.0
@@ -193,7 +196,7 @@ def test_create_name_validation(
         bundleName,
         bundleLifetimeDays,
         minSumInsured, 
-        maxSumInsured, 
+        maxProtectedBalance, 
         minDurationDays, 
         maxDurationDays, 
         aprPercentage)
@@ -211,7 +214,7 @@ def test_create_name_validation(
         bundleName,
         bundleLifetimeDays,
         minSumInsured, 
-        maxSumInsured, 
+        maxProtectedBalance, 
         minDurationDays, 
         maxDurationDays, 
         aprPercentage)
@@ -230,7 +233,7 @@ def test_create_name_validation(
         bundleName,
         bundleLifetimeDays,
         minSumInsured, 
-        maxSumInsured, 
+        maxProtectedBalance, 
         minDurationDays, 
         maxDurationDays, 
         aprPercentage)
@@ -247,7 +250,7 @@ def test_create_name_validation(
             bundleName,
             bundleLifetimeDays,
             minSumInsured, 
-            maxSumInsured, 
+            maxProtectedBalance, 
             minDurationDays, 
             maxDurationDays, 
             aprPercentage)
@@ -275,7 +278,7 @@ def test_create_lifetime_validation(
     bundleName = ''
     bundleLifetimeDays = 1 # too short
     minSumInsured =  1000
-    maxSumInsured = 10000
+    maxProtectedBalance = 10000
     minDurationDays = 14
     maxDurationDays = 60
     aprPercentage = 5.0
@@ -290,7 +293,7 @@ def test_create_lifetime_validation(
             bundleName,
             bundleLifetimeDays,
             minSumInsured, 
-            maxSumInsured, 
+            maxProtectedBalance, 
             minDurationDays, 
             maxDurationDays, 
             aprPercentage)
@@ -307,7 +310,7 @@ def test_create_lifetime_validation(
         bundleName,
         bundleLifetimeDays,
         minSumInsured, 
-        maxSumInsured, 
+        maxProtectedBalance, 
         minDurationDays, 
         maxDurationDays, 
         aprPercentage)
@@ -326,7 +329,7 @@ def test_create_lifetime_validation(
             bundleName,
             bundleLifetimeDays,
             minSumInsured, 
-            maxSumInsured, 
+            maxProtectedBalance, 
             minDurationDays, 
             maxDurationDays, 
             aprPercentage)
@@ -334,7 +337,7 @@ def test_create_lifetime_validation(
     assert instanceService.bundles() == 1
 
 
-def test_create_max_suminsured_validation(
+def test_create_max_protected_balance_validation(
     instance,
     instanceService,
     instanceOperator,
@@ -353,13 +356,13 @@ def test_create_max_suminsured_validation(
 
     bundleName = ''
     bundleLifetimeDays = 90
-    minSumInsured =  1000
-    maxSumInsured = 0 # too low
+    minProtectedBalance =  1000
+    maxProtectedBalance = 0 # too low
     minDurationDays = 14
     maxDurationDays = 60
     aprPercentage = 5.0
 
-    with brownie.reverts("ERROR:DRP-022:MAX_SUM_INSURED_INVALID"):
+    with brownie.reverts("ERROR:DRP-022:MAX_PROTECTED_BALANCE_INVALID"):
         bundleId1 = create_bundle(
             instance, 
             instanceOperator, 
@@ -368,15 +371,15 @@ def test_create_max_suminsured_validation(
             bundle_funding, 
             bundleName,
             bundleLifetimeDays,
-            minSumInsured, 
-            maxSumInsured, 
+            minProtectedBalance, 
+            maxProtectedBalance, 
             minDurationDays, 
             maxDurationDays, 
             aprPercentage)
 
     assert instanceService.bundles() == 0
 
-    maxSumInsured = 50000 # ok
+    maxProtectedBalance = 50000 # ok
     bundleId2 = create_bundle(
         instance, 
         instanceOperator, 
@@ -385,17 +388,17 @@ def test_create_max_suminsured_validation(
         bundle_funding, 
         bundleName,
         bundleLifetimeDays,
-        minSumInsured, 
-        maxSumInsured, 
+        minProtectedBalance, 
+        maxProtectedBalance, 
         minDurationDays, 
         maxDurationDays, 
         aprPercentage)
 
     assert instanceService.bundles() == 1
 
-    maxSumInsured = 1000000 # too large
+    maxProtectedBalance = 1000000 # too large
 
-    with brownie.reverts("ERROR:DRP-022:MAX_SUM_INSURED_INVALID"):
+    with brownie.reverts("ERROR:DRP-022:MAX_PROTECTED_BALANCE_INVALID"):
         bundleId3 = create_bundle(
             instance, 
             instanceOperator, 
@@ -404,8 +407,8 @@ def test_create_max_suminsured_validation(
             bundle_funding, 
             bundleName,
             bundleLifetimeDays,
-            minSumInsured, 
-            maxSumInsured, 
+            minProtectedBalance, 
+            maxProtectedBalance, 
             minDurationDays, 
             maxDurationDays, 
             aprPercentage)
@@ -413,7 +416,7 @@ def test_create_max_suminsured_validation(
     assert instanceService.bundles() == 1
 
 
-def test_create_min_suminsured_validation(
+def test_create_min_protected_balance_validation(
     instance,
     instanceService,
     instanceOperator,
@@ -432,13 +435,13 @@ def test_create_min_suminsured_validation(
 
     bundleName = ''
     bundleLifetimeDays = 90
-    minSumInsured =  0 # too low
-    maxSumInsured = 10000
+    minProtectedBalance =  0 # too low
+    maxProtectedBalance = 10000
     minDurationDays = 14
     maxDurationDays = 60
     aprPercentage = 5.0
 
-    with brownie.reverts("ERROR:DRP-023:MIN_SUM_INSURED_INVALID"):
+    with brownie.reverts("ERROR:DRP-023:MIN_PROTECTED_BALANCE_INVALID"):
         bundleId1 = create_bundle(
             instance, 
             instanceOperator, 
@@ -447,15 +450,15 @@ def test_create_min_suminsured_validation(
             bundle_funding, 
             bundleName,
             bundleLifetimeDays,
-            minSumInsured, 
-            maxSumInsured, 
+            minProtectedBalance, 
+            maxProtectedBalance, 
             minDurationDays, 
             maxDurationDays, 
             aprPercentage)
 
     assert instanceService.bundles() == 0
 
-    minSumInsured = maxSumInsured - 1 # ok
+    minProtectedBalance = maxProtectedBalance - 1 # ok
     bundleId2 = create_bundle(
         instance, 
         instanceOperator, 
@@ -464,17 +467,17 @@ def test_create_min_suminsured_validation(
         bundle_funding, 
         bundleName,
         bundleLifetimeDays,
-        minSumInsured, 
-        maxSumInsured, 
+        minProtectedBalance, 
+        maxProtectedBalance, 
         minDurationDays, 
         maxDurationDays, 
         aprPercentage)
 
     assert instanceService.bundles() == 1
 
-    minSumInsured = maxSumInsured + 1 # too large
+    minProtectedBalance = maxProtectedBalance + 1 # too large
 
-    with brownie.reverts("ERROR:DRP-022:MAX_SUM_INSURED_INVALID"):
+    with brownie.reverts("ERROR:DRP-022:MAX_PROTECTED_BALANCE_INVALID"):
         bundleId3 = create_bundle(
             instance, 
             instanceOperator, 
@@ -483,8 +486,8 @@ def test_create_min_suminsured_validation(
             bundle_funding, 
             bundleName,
             bundleLifetimeDays,
-            minSumInsured, 
-            maxSumInsured, 
+            minProtectedBalance, 
+            maxProtectedBalance, 
             minDurationDays, 
             maxDurationDays, 
             aprPercentage)
@@ -511,8 +514,8 @@ def test_create_capital_validation(
 
     bundleName = ''
     bundleLifetimeDays = 90
-    minSumInsured =  1000
-    maxSumInsured = 10000
+    minProtectedBalance =  1000
+    maxProtectedBalance = 10000
     minDurationDays = 14
     maxDurationDays = 60
     aprPercentage = 5.0
@@ -526,15 +529,15 @@ def test_create_capital_validation(
             bundle_funding, 
             bundleName,
             bundleLifetimeDays,
-            minSumInsured, 
-            maxSumInsured, 
+            minProtectedBalance, 
+            maxProtectedBalance, 
             minDurationDays, 
             maxDurationDays, 
             aprPercentage)
 
     assert instanceService.bundles() == 0
 
-    bundle_funding = maxSumInsured # ok
+    bundle_funding = maxProtectedBalance # ok
     bundleId2 = create_bundle(
         instance, 
         instanceOperator, 
@@ -543,8 +546,8 @@ def test_create_capital_validation(
         bundle_funding, 
         bundleName,
         bundleLifetimeDays,
-        minSumInsured, 
-        maxSumInsured, 
+        minProtectedBalance, 
+        maxProtectedBalance, 
         minDurationDays, 
         maxDurationDays, 
         aprPercentage)
@@ -562,8 +565,8 @@ def test_create_capital_validation(
             bundle_funding, 
             bundleName,
             bundleLifetimeDays,
-            minSumInsured, 
-            maxSumInsured, 
+            minProtectedBalance, 
+            maxProtectedBalance, 
             minDurationDays, 
             maxDurationDays, 
             aprPercentage)
