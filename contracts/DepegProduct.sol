@@ -65,7 +65,7 @@ contract DepegProduct is
     // processed wallet balances 
     mapping(address /* wallet */ => uint256 /* processed total claims so far */) private _processedBalance;
 
-    event LogDepegApplicationCreated(bytes32 processId, address policyHolder, address protectedWallet, uint256 sumInsuredAmount, uint256 premiumAmount, uint256 netPremiumAmount);
+    event LogDepegApplicationCreated(bytes32 processId, address policyHolder, address protectedWallet, uint256 protectedBalance, uint256 sumInsuredAmount, uint256 premiumAmount, uint256 netPremiumAmount);
     event LogDepegPolicyCreated(bytes32 processId, address policyHolder, uint256 sumInsuredAmount);
     event LogDepegClaimCreated(bytes32 processId, uint256 claimId, uint256 claimAmount);
     event LogDepegProtectedAmountReduction(bytes32 processId, uint256 protectedAmount, uint256 depegBalance);
@@ -202,6 +202,7 @@ contract DepegProduct is
             processId, 
             policyHolder, 
             wallet,
+            protectedBalance,
             sumInsured,
             maxPremium, 
             maxNetPremium); 

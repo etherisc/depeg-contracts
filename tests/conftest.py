@@ -213,6 +213,35 @@ def product(gifDepegProduct) -> DepegProduct: return gifDepegProduct.getContract
 @pytest.fixture(scope="module")
 def riskpool(gifDepegProduct) -> DepegRiskpool: return gifDepegProduct.getRiskpool().getContract()
 
+#--- sum insured percentage = 20% ----------------------------------------#
+@pytest.fixture(scope="module")
+def gifDepeg20Deploy(
+    instance: GifInstance, 
+    productOwner: Account, 
+    investor: Account, 
+    usdc_feeder,
+    usd2: USD2,
+    riskpoolKeeper: Account, 
+    riskpoolWallet: Account
+) -> GifDepegProductComplete:
+    return GifDepegProductComplete(
+        instance, 
+        productOwner, 
+        investor,
+        usdc_feeder,
+        usd2,
+        riskpoolKeeper, 
+        riskpoolWallet,
+        sum_insured_percentage=20)
+
+@pytest.fixture(scope="module")
+def gifDepegProduct20(gifDepeg20Deploy) -> GifDepegProduct: return gifDepeg20Deploy.getProduct()
+
+@pytest.fixture(scope="module")
+def product20(gifDepegProduct20) -> DepegProduct: return gifDepegProduct20.getContract()
+
+@pytest.fixture(scope="module")
+def riskpool20(gifDepegProduct20) -> DepegRiskpool: return gifDepegProduct20.getRiskpool().getContract()
 
 #=== staking fixtures ====================================================#
 
