@@ -41,6 +41,10 @@ def test_create_bundle_happy_case(
     assert token.balanceOf(investor) == 0
     assert token.balanceOf(instanceOperator) >= bundle_funding
 
+    # check riskpool bundles
+    assert riskpool.activeBundles() == 0
+    assert riskpool.bundles() == 0
+
     bundleName = 'test bundle'
     bundleLifetimeDays = 90
     minSumInsured =  1000
@@ -68,6 +72,14 @@ def test_create_bundle_happy_case(
     capital_fees = fractionalFee * bundle_funding + fixedFee
     net_capital = bundle_funding - capital_fees
     tf = 10**token.decimals()
+
+    # check riskpool bundles
+    assert riskpool.activeBundles() == 1
+    assert riskpool.bundles() == 1
+    assert riskpool.getBundleId(0) == bundleId
+
+    with brownie.reverts('ERROR:RPL-007:BUNDLE_INDEX_TOO_LARGE'):
+        riskpool.getBundleId(1) > 0
 
     assert instanceService.bundles() == 1
     assert token.balanceOf(riskpoolWallet) == net_capital * tf

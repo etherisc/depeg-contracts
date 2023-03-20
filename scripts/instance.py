@@ -16,6 +16,7 @@ from brownie import (
 
 from scripts.const import (
     GIF_RELEASE,
+    ZERO_ADDRESS,
 )
 
 from scripts.util import (
@@ -24,21 +25,59 @@ from scripts.util import (
     get_package,
     s2h,
     s2b,
+    b2s,
     contract_from_address,
 )
+
+INSTANCE_CONTRACTS = [
+    'InstanceOperatorService',
+    'Registry',
+    'RegistryController',
+    'BundleToken',
+    'RiskpoolToken',
+    'AccessController',
+    'Access',
+    'ComponentController',
+    'Component',
+    'QueryController',
+    'Query',
+    'LicenseController',
+    'License',
+    'PolicyController',
+    'Policy',
+    'BundleController',
+    'Bundle',
+    'PoolController',
+    'Pool',
+    'TreasuryController',
+    'Treasury',
+    'PolicyDefaultFlow',
+    'InstanceServiceController',
+    'InstanceService',
+    'ComponentOwnerServiceController',
+    'ComponentOwnerService',
+    'OracleServiceController',
+    'OracleService',
+    'RiskpoolServiceController',
+    'RiskpoolService',
+    'ProductService',
+    'InstanceOperatorServiceControlle',
+]
 
 class GifRegistry(object):
 
     def __init__(
         self, 
         instanceOperator: Account, 
-        registryAddress: Account
+        registryAddress: Account,
+        publish_source=False
     ):
         gif = get_package('gif-contracts')
 
         if instanceOperator is not None and registryAddress is None:
             controller = gif.RegistryController.deploy(
-                {'from': instanceOperator})
+                {'from': instanceOperator},
+                publish_source=publish_source)
 
             encoded_initializer = encode_function_data(
                 s2b(GIF_RELEASE),
@@ -47,7 +86,8 @@ class GifRegistry(object):
             proxy = gif.CoreProxy.deploy(
                 controller.address,
                 encoded_initializer, 
-                {'from': instanceOperator})
+                {'from': instanceOperator},
+                publish_source=publish_source)
 
             registry = contract_from_address(gif.RegistryController, proxy.address)
             registry.register(s2b('Registry'), proxy.address, {'from': instanceOperator})
@@ -57,10 +97,12 @@ class GifRegistry(object):
 
         elif registryAddress is not None:
             registry = contract_from_address(gif.RegistryController, registryAddress)
-            instanceOperatorServiceAddress = registry.getContract(s2b('InstanceOperatorService'))
-            instanceOperatorService = contract_from_address(gif.InstanceOperatorService, instanceOperatorServiceAddress)
-            
-            instanceOperator = instanceOperatorService.owner()
+
+            if instanceOperator is None:
+                instanceOperatorServiceAddress = registry.getContract(s2b('InstanceOperatorService'))
+                instanceOperatorService = contract_from_address(gif.InstanceOperatorService, instanceOperatorServiceAddress)
+                
+                instanceOperator = instanceOperatorService.owner()
 
         else:
             print('ERROR invalid arguments for GifRegistry: registryAddress and instanceOperator must not both be None')
@@ -87,19 +129,26 @@ class GifInstance(GifRegistry):
         self, 
         instanceOperator:Account=None, 
         instanceWallet:Account=None, 
-        registryAddress:Account=None
+        registryAddress:Account=None,
+        test_deploy_abort:bool=False,
+        publish_source=False
     ):
         super().__init__(
             instanceOperator,
-            registryAddress
+            registryAddress,
+            publish_source
         )
         
-        if registryAddress is None:
-            self.deployWithRegistry()
+        if instanceOperator:
+            self.deployWithRegistry(test_deploy_abort, publish_source)
 
-            self.instanceOperatorService.setInstanceWallet(
-                instanceWallet,
-                {'from': instanceOperator})
+            if test_deploy_abort:
+                print('registry={}'.format(self.getRegistry()))
+            else:
+                if instanceWallet and self.instanceService.getInstanceWallet() != instanceWallet:
+                    self.instanceOperatorService.setInstanceWallet(
+                        instanceWallet,
+                        {'from': instanceOperator})
 
         else:
             self.createFromRegistry()
@@ -122,49 +171,56 @@ class GifInstance(GifRegistry):
         self.instanceOperatorService = contract_from_address(
             gif.InstanceOperatorService,
             registry.getContract(s2b('InstanceOperatorService')))
+        
+        # other contracts needed
+        self.treasury = contract_from_address(
+            gif.TreasuryModule,
+            registry.getContract(s2b('Treasury')))
 
 
-    def deployWithRegistry(self):
+    def deployWithRegistry(self, test_deploy_abort=False, publish_source=False):
         gif = self.gif
         registry = self.getRegistry()
         instanceOperator = self.getOwner()
 
-        self.bundleToken = deployGifToken("BundleToken", gif.BundleToken, registry, instanceOperator)
-        self.riskpoolToken = deployGifToken("RiskpoolToken", gif.RiskpoolToken, registry, instanceOperator)
+        self.bundleToken = deployGifToken("BundleToken", gif.BundleToken, registry, instanceOperator, publish_source)
+        self.riskpoolToken = deployGifToken("RiskpoolToken", gif.RiskpoolToken, registry, instanceOperator, publish_source)
 
         # modules (need to be deployed first)
         # deploy order needs to respect module dependencies
-        self.access = deployGifModuleV2("Access", gif.AccessController, registry, instanceOperator, gif)
-        self.component = deployGifModuleV2("Component", gif.ComponentController, registry, instanceOperator, gif)
-        self.query = deployGifModuleV2("Query", gif.QueryModule, registry, instanceOperator, gif)
-        self.license = deployGifModuleV2("License", gif.LicenseController, registry, instanceOperator, gif)
-        self.policy = deployGifModuleV2("Policy", gif.PolicyController, registry, instanceOperator, gif)
-        self.bundle = deployGifModuleV2("Bundle", gif.BundleController, registry, instanceOperator, gif)
-        self.pool = deployGifModuleV2("Pool", gif.PoolController, registry, instanceOperator, gif)
-        self.treasury = deployGifModuleV2("Treasury", gif.TreasuryModule, registry, instanceOperator, gif)
+        self.access = deployGifModuleV2("Access", gif.AccessController, registry, instanceOperator, gif, publish_source)
+        self.component = deployGifModuleV2("Component", gif.ComponentController, registry, instanceOperator, gif, publish_source)
+
+        if test_deploy_abort:
+            return
+
+        self.query = deployGifModuleV2("Query", gif.QueryModule, registry, instanceOperator, gif, publish_source)
+        self.license = deployGifModuleV2("License", gif.LicenseController, registry, instanceOperator, gif, publish_source)
+        self.policy = deployGifModuleV2("Policy", gif.PolicyController, registry, instanceOperator, gif, publish_source)
+        self.bundle = deployGifModuleV2("Bundle", gif.BundleController, registry, instanceOperator, gif, publish_source)
+        self.pool = deployGifModuleV2("Pool", gif.PoolController, registry, instanceOperator, gif, publish_source)
+        self.treasury = deployGifModuleV2("Treasury", gif.TreasuryModule, registry, instanceOperator, gif, publish_source)
 
         # TODO these contracts do not work with proxy pattern
-        self.policyFlow = deployGifService(gif.PolicyDefaultFlow, registry, instanceOperator)
+        self.policyFlow = deployGifService("PolicyDefaultFlow", gif.PolicyDefaultFlow, registry, instanceOperator, publish_source)
 
         # services
-        self.instanceService = deployGifModuleV2("InstanceService", gif.InstanceService, registry, instanceOperator, gif)
-        self.componentOwnerService = deployGifModuleV2("ComponentOwnerService", gif.ComponentOwnerService, registry, instanceOperator, gif)
-        self.oracleService = deployGifModuleV2("OracleService", gif.OracleService, registry, instanceOperator, gif)
-        self.riskpoolService = deployGifModuleV2("RiskpoolService", gif.RiskpoolService, registry, instanceOperator, gif)
+        self.instanceService = deployGifModuleV2("InstanceService", gif.InstanceService, registry, instanceOperator, gif, publish_source)
+        self.componentOwnerService = deployGifModuleV2("ComponentOwnerService", gif.ComponentOwnerService, registry, instanceOperator, gif, publish_source)
+        self.oracleService = deployGifModuleV2("OracleService", gif.OracleService, registry, instanceOperator, gif, publish_source)
+        self.riskpoolService = deployGifModuleV2("RiskpoolService", gif.RiskpoolService, registry, instanceOperator, gif, publish_source)
 
         # TODO these contracts do not work with proxy pattern
-        self.productService = deployGifService(gif.ProductService, registry, instanceOperator)
+        self.productService = deployGifService("ProductService", gif.ProductService, registry, instanceOperator, publish_source)
 
         # needs to be the last module to register as it will 
         # perform some post deploy wirings and changes the address 
         # of the instance operator service to its true address
-        self.instanceOperatorService = deployGifModuleV2("InstanceOperatorService", gif.InstanceOperatorService, registry, instanceOperator, gif)
-
-        # post deploy wiring steps
-        # self.bundleToken.setBundleModule(self.bundle)
+        self.instanceOperatorService = deployGifModuleV2("InstanceOperatorService", gif.InstanceOperatorService, registry, instanceOperator, gif, publish_source)
 
         # ensure that the instance has 32 contracts when freshly deployed
         assert 32 == registry.contracts()
+
 
     def getTreasury(self) -> interface.ITreasury:
         return self.treasury
@@ -188,28 +244,60 @@ class GifInstance(GifRegistry):
         return self.oracleService
 
 
-# generic upgradable gif module deployment
-def deployGifModule(
-    controllerClass, 
-    storageClass, 
-    registry, 
-    owner,
-):
-    controller = controllerClass.deploy(
-        registry.address, 
-        {'from': owner})
+def check_registry(registryAddress) -> bool:
+    print('checking registry at {}'.format(registryAddress))
+
+    gif = get_package('gif-contracts')
+    registry = contract_from_address(gif.RegistryController, registryAddress)
+    registry_is_ok = True
+
+    contracts = []
+    numContracts = registry.contracts()
+    numContractsOk = 'OK ({})'.format(numContracts) if numContracts == 32 else 'ERROR (found: {}, expected: 32)'.format(numContracts)
+    print('registry count {}'.format(numContractsOk))
+
+    for i, name in enumerate(INSTANCE_CONTRACTS):
+        nameB32 = s2b(name)
+        address = registry.getContract(nameB32)
+        if address != ZERO_ADDRESS:
+            print("contract[{}] '{}' at {}".format(i, name, address))
+        else:
+            print("contract[{}] '{}' missing".format(i, name))
+            registry_is_ok = False
+
+    if registry_is_ok:
+        print('registry check OK')
+    else:
+        print('registry check ERROR')
+
+    return registry_is_ok
+
+# TODO cleanup if this works commented out
+# # generic upgradable gif module deployment
+# def deployGifModule(
+#     controllerClass, 
+#     storageClass, 
+#     registry, 
+#     owner,
+#     publish_source=False
+# ):
+#     controller = controllerClass.deploy(
+#         registry.address, 
+#         {'from': owner},
+#         publish_source=publish_source)
     
-    storage = storageClass.deploy(
-        registry.address, 
-        {'from': owner})
+#     storage = storageClass.deploy(
+#         registry.address, 
+#         {'from': owner},
+#         publish_source=publish_source)
 
-    controller.assignStorage(storage.address, {'from': owner})
-    storage.assignController(controller.address, {'from': owner})
+#     controller.assignStorage(storage.address, {'from': owner})
+#     storage.assignController(controller.address, {'from': owner})
 
-    registry.register(controller.NAME.call(), controller.address, {'from': owner})
-    registry.register(storage.NAME.call(), storage.address, {'from': owner})
+#     registry.register(controller.NAME.call(), controller.address, {'from': owner})
+#     registry.register(storage.NAME.call(), storage.address, {'from': owner})
 
-    return contract_from_address(controllerClass, storage.address)
+#     return contract_from_address(controllerClass, storage.address)
 
 
 # gif token deployment
@@ -218,12 +306,22 @@ def deployGifToken(
     tokenClass,
     registry,
     owner,
+    publish_source=False
 ):
+    tokenNameB32 = s2b(tokenName)
+    tokenAddress = registry.getContract(tokenNameB32)
+
+    # check if contract already available via registry
+    if tokenAddress != ZERO_ADDRESS:
+        print('token {} already registered at {}'.format(tokenName, tokenAddress))
+        return contract_from_address(tokenClass, tokenAddress)
+
+    # deploy contract
     print('token {} deploy'.format(tokenName))
     token = tokenClass.deploy(
-        {'from': owner})
+        {'from': owner},
+        publish_source=publish_source)
 
-    tokenNameB32 = s2b(tokenName)
     print('token {} register'.format(tokenName))
     registry.register(tokenNameB32, token.address, {'from': owner})
 
@@ -236,43 +334,74 @@ def deployGifModuleV2(
     controllerClass,
     registry, 
     owner,
-    gif
+    gif,
+    publish_source=False
 ):
-    print('module {} deploy controller'.format(moduleName))
-    controller = controllerClass.deploy(
-        {'from': owner})
-
-    encoded_initializer = encode_function_data(
-        registry.address,
-        initializer=controller.initialize)
-
-    print('module {} deploy proxy'.format(moduleName))
-    proxy = gif.CoreProxy.deploy(
-        controller.address, 
-        encoded_initializer, 
-        {'from': owner})
-
     moduleNameB32 = s2b(moduleName)
-    controllerNameB32 = s2b('{}Controller'.format(moduleName)[:32])
+    controllerName = '{}Controller'.format(moduleName)[:32]
+    controllerNameB32 = s2b(controllerName)
 
-    print('module {} ({}) register controller'.format(moduleName, controllerNameB32))
-    registry.register(controllerNameB32, controller.address, {'from': owner})
-    print('module {} ({}) register proxy'.format(moduleName, moduleNameB32))
-    registry.register(moduleNameB32, proxy.address, {'from': owner})
+    controllerAddress = registry.getContract(controllerNameB32)
+    proxyAddress = registry.getContract(moduleNameB32)
 
-    return contract_from_address(controllerClass, proxy.address)
+    # check if controller contract already available via registry
+    if controllerAddress != ZERO_ADDRESS:
+        print('module {} controller already registered at {}'.format(moduleName, controllerAddress))
+    else:
+        print('module {} deploy controller'.format(moduleName))
+        controller = controllerClass.deploy(
+            {'from': owner},
+            publish_source=publish_source)
+
+    # check if module contract already available via registry
+    # check for != owner covers special case with instance operator
+    if proxyAddress != ZERO_ADDRESS and proxyAddress != owner:
+        print('module {} proxy already registered at {}'.format(moduleName, proxyAddress))
+    else:
+        encoded_initializer = encode_function_data(
+            registry.address,
+            initializer=controller.initialize)
+
+        print('module {} deploy proxy'.format(moduleName))
+        proxy = gif.CoreProxy.deploy(
+            controller.address, 
+            encoded_initializer, 
+            {'from': owner},
+            publish_source=publish_source)
+
+        print('module {} ({}) register controller'.format(moduleName, controllerNameB32))
+        registry.register(controllerNameB32, controller.address, {'from': owner})
+        print('module {} ({}) register proxy'.format(moduleName, moduleNameB32))
+        registry.register(moduleNameB32, proxy.address, {'from': owner})
+
+        proxyAddress = proxy.address
+
+    return contract_from_address(controllerClass, proxyAddress)
 
 
 # generic upgradable gif service deployment
 def deployGifService(
+    name,
     serviceClass, 
     registry, 
     owner,
+    publish_source=False
 ):
+    serviceNameB32 = s2b(name)
+    serviceAddress = registry.getContract(serviceNameB32)
+
+    # check if contract already available via registry
+    if serviceAddress != ZERO_ADDRESS:
+        print('service {} already registered at {}'.format(name, serviceAddress))
+        return contract_from_address(serviceClass, serviceAddress)
+
+    print('service {} deploy'.format(name))
     service = serviceClass.deploy(
         registry.address, 
-        {'from': owner})
+        {'from': owner},
+        publish_source=publish_source)
 
-    registry.register(service.NAME.call(), service.address, {'from': owner})
+    print('service {} register'.format(name))
+    registry.register(serviceNameB32, service.address, {'from': owner})
 
     return service
