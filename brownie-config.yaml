@@ -22,12 +22,8 @@ compiler:
         remappings:
             - "@openzeppelin=OpenZeppelin/openzeppelin-contracts@4.7.3"
             - "@chainlink=smartcontractkit/chainlink@1.10.0"
-            # working version below
-            # - "@etherisc/gif-interface=etherisc/gif-interface@a8c9822"
             # audited version below
             - "@etherisc/gif-interface=etherisc/gif-interface@3b0002a"
-            # working version below
-            # - "@etherisc/gif-contracts=etherisc/gif-contracts@0a64b7e"
             # audited version below
             - "@etherisc/gif-contracts=etherisc/gif-contracts@b58fd27"
 
@@ -39,9 +35,6 @@ dependencies:
     # github dependency format: <owner>/<repository>@<release>
     - OpenZeppelin/openzeppelin-contracts@4.7.3
     - smartcontractkit/chainlink@1.10.0
-    # working
-    # - etherisc/gif-interface@a8c9822
-    # - etherisc/gif-contracts@0a64b7e
     # audited versions
     - etherisc/gif-interface@3b0002a
     - etherisc/gif-contracts@b58fd27
