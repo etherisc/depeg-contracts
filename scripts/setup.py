@@ -12,13 +12,13 @@ from scripts.util import contract_from_address
 
 
 DEFAULT_BUNDLE_FUNDING = 100000
-DEFAULT_MIN_SUM_INSURED =   100
-DEFAULT_MAX_SUM_INSURED = 50000
+DEFAULT_MIN_PROTECTED_BALANCE =  2000
+DEFAULT_MAX_PROTECTED_BALANCE = 50000
 DEFAULT_MIN_DURATION_DAYS =  30
 DEFAULT_MAX_DURATION_DAYS =  90
 DEFAULT_APR_PERCENTAGE =    5.0
 
-DEFAULT_SUM_INSURED = 10000
+DEFAULT_PROTECTED_BALANCE = 10000
 DEFAULT_DURATION_DAYS =  60
 DEFAULT_MAX_PREMIUM =    75
 
@@ -26,8 +26,8 @@ USD2_DECIMALS = 6
 FUNDING = 10000
 BUNDLE_LIFETIME_DAYS = 100
 
-MIN_SUM_INSURED = 100
-MAX_SUM_INSURED = 20000
+MIN_PROTECTED_BALANCE = DEFAULT_MIN_PROTECTED_BALANCE
+MAX_PROTECTED_BALANCE = 20000
 MIN_DURATION_DAYS = 14
 MAX_DURATION_DAYS = 120
 ARP_PERCENTAGE = 3.1415
@@ -60,8 +60,8 @@ def new_bundle(
         FUNDING,
         bundleName,
         bundleLifetimeDays,
-        MIN_SUM_INSURED,
-        MAX_SUM_INSURED,
+        MIN_PROTECTED_BALANCE,
+        MAX_PROTECTED_BALANCE,
         MIN_DURATION_DAYS,
         MAX_DURATION_DAYS,
         ARP_PERCENTAGE)
@@ -75,8 +75,8 @@ def create_bundle(
     funding: int = DEFAULT_BUNDLE_FUNDING,
     bundleName: str = '',
     bundleLifetimeDays: int = 90,
-    minSumInsured: int = DEFAULT_MIN_SUM_INSURED,
-    maxSumInsured: int = DEFAULT_MAX_SUM_INSURED,
+    minProtectedBalance: int = DEFAULT_MIN_PROTECTED_BALANCE,
+    maxProtectedBalance: int = DEFAULT_MAX_PROTECTED_BALANCE,
     minDurationDays: int = DEFAULT_MIN_DURATION_DAYS,
     maxDurationDays: int = DEFAULT_MAX_DURATION_DAYS,
     aprPercentage: float = DEFAULT_APR_PERCENTAGE
@@ -96,8 +96,8 @@ def create_bundle(
     tx = riskpool.createBundle(
         bundleName,
         bundleLifetimeDays * spd,
-        minSumInsured * tf,
-        maxSumInsured * tf,
+        minProtectedBalance * tf,
+        maxProtectedBalance * tf,
         minDurationDays * spd,
         maxDurationDays * spd,
         apr,
@@ -114,7 +114,7 @@ def apply_for_policy_with_bundle(
     customer: Account,
     bundleId: int,
     wallet: Account = None,
-    sumInsured: int = DEFAULT_SUM_INSURED,
+    protectedBalance: int = DEFAULT_PROTECTED_BALANCE,
     durationDays: int = DEFAULT_DURATION_DAYS,
     maxPremium: int = DEFAULT_MAX_PREMIUM,
 ):
@@ -131,7 +131,7 @@ def apply_for_policy_with_bundle(
 
     tx = product.applyForPolicyWithBundle(
         wallet,
-        sumInsured * tf,
+        protectedBalance * tf,
         durationDays * 24 * 3600,
         bundleId, 
         {'from': customer})

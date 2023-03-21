@@ -59,7 +59,7 @@ def test_riskpool_setting_caps(
     pool_cap_old = riskpool.getRiskpoolCapitalCap()
     bundle_cap_old = riskpool.getBundleCapitalCap()
 
-    assert pool_cap_old == riskpool.USD_CAPITAL_CAP() * 10 ** usd2.decimals()
+    assert pool_cap_old == riskpool.getSumOfSumInsuredCap()
     assert bundle_cap_old == pool_cap_old / 10
 
     riskpool_cap = int(riskpool.getRiskpoolCapitalCap() / 200)
@@ -142,7 +142,7 @@ def test_riskpool_enforcing_caps_simple(
             instanceOperator, 
             investor, 
             riskpool,
-            maxSumInsured = bundle_cap - 1,
+            maxProtectedBalance = bundle_cap - 1,
             funding = riskpool_cap + 1)
 
     # case 2: attempt to create bundle > bundle cap
@@ -152,7 +152,7 @@ def test_riskpool_enforcing_caps_simple(
             instanceOperator, 
             investor, 
             riskpool,
-            maxSumInsured = bundle_cap - 1,
+            maxProtectedBalance = bundle_cap - 1,
             funding=riskpool_cap)
 
     # case 3: create bundle == bundle cap
@@ -161,7 +161,7 @@ def test_riskpool_enforcing_caps_simple(
         instanceOperator, 
         investor, 
         riskpool,
-        maxSumInsured = bundle_cap - 1,
+        maxProtectedBalance = bundle_cap - 1,
         funding=bundle_cap)
 
     bundle = instanceService.getBundle(bundle_id).dict()
@@ -227,7 +227,7 @@ def test_riskpool_enforcing_caps_multiple_bundles(
             instanceOperator, 
             investor, 
             riskpool,
-            maxSumInsured = bundle_cap - 1,
+            maxProtectedBalance = bundle_cap - 1,
             funding=bundle_cap)
 
     # verify there's no room for a second such bundle
@@ -237,7 +237,7 @@ def test_riskpool_enforcing_caps_multiple_bundles(
                 instanceOperator, 
                 investor, 
                 riskpool,
-                maxSumInsured = bundle_cap - 1,
+                maxProtectedBalance = bundle_cap - 1,
                 funding=bundle_cap)
 
     # case 4: as 3, withdraw from 1st bundle as much as is needed to get: summed == pool cap    # try again with reduced funding for 2nd bundle
@@ -247,7 +247,7 @@ def test_riskpool_enforcing_caps_multiple_bundles(
                 instanceOperator, 
                 investor, 
                 riskpool,
-                maxSumInsured = bundle_cap - 1,
+                maxProtectedBalance = bundle_cap - 1,
                 funding=second_bundle_funding_max)
 
     assert riskpool.getCapital() == riskpool_cap * tf

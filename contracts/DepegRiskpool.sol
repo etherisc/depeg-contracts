@@ -46,8 +46,7 @@ contract DepegRiskpool is
     event LogBundleMatchesApplication(uint256 bundleId, bool sumInsuredOk, bool durationOk, bool premiumOk);
 
     // values according to 
-    // https://github.com/etherisc/depeg-ui/issues/241
-    uint256 public constant USD_CAPITAL_CAP = 10 * 10**6; // unit amount in usd
+    // https://github.com/etherisc/depeg-ui/issues/328
 
     bytes32 public constant EMPTY_STRING_HASH = keccak256(abi.encodePacked(""));
 
@@ -55,8 +54,8 @@ contract DepegRiskpool is
     uint256 public constant MAX_BUNDLE_LIFETIME = 180 * 24 * 3600;
     uint256 public constant MIN_POLICY_DURATION = 14 * 24 * 3600;
     uint256 public constant MAX_POLICY_DURATION = 120 * 24 * 3600;
-    uint256 public constant MIN_POLICY_COVERAGE = 100; // unit amount in usd
-    uint256 public constant MAX_POLICY_COVERAGE = 50000; // unit amount in usd
+    uint256 public constant MIN_POLICY_COVERAGE = 2000; // unit amount in usd
+    uint256 public constant MAX_POLICY_COVERAGE = 10 ** 6; // unit amount in usd
     uint256 public constant ONE_YEAR_DURATION = 365 * 24 * 3600; 
 
     uint256 public constant APR_100_PERCENTAGE = 10**6;
@@ -95,12 +94,13 @@ contract DepegRiskpool is
 
     constructor(
         bytes32 name,
+        uint256 sumOfSumInsuredCap,
         uint256 sumInsuredPercentage,
         address erc20Token,
         address wallet,
         address registry
     )
-        BasicRiskpool2(name, getFullCollateralizationLevel(), USD_CAPITAL_CAP, erc20Token, wallet, registry)
+        BasicRiskpool2(name, getFullCollateralizationLevel(), sumOfSumInsuredCap, erc20Token, wallet, registry)
     {
         require(
             sumInsuredPercentage > 0 && sumInsuredPercentage <= 100,
@@ -111,7 +111,7 @@ contract DepegRiskpool is
         _token = IERC20Metadata(erc20Token);
         _tokenDecimals = _token.decimals();
 
-        _riskpoolCapitalCap = USD_CAPITAL_CAP * 10 ** _tokenDecimals;
+        _riskpoolCapitalCap = sumOfSumInsuredCap;
         _bundleCapitalCap = _riskpoolCapitalCap / 10;
         _allowAllAccounts = true;
 

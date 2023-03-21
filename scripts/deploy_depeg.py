@@ -910,8 +910,8 @@ def new_bundle(
     bundleName,
     bundleLifetimeDays,
     funding,
-    minSumInsured,
-    maxSumInsured,
+    minProtectedBalance,
+    maxProtectedBalance,
     minDurationDays,
     maxDurationDays,
     aprPercentage
@@ -924,8 +924,8 @@ def new_bundle(
         funding,
         bundleName,
         bundleLifetimeDays,
-        minSumInsured,
-        maxSumInsured,
+        minProtectedBalance,
+        maxProtectedBalance,
         minDurationDays,
         maxDurationDays,
         aprPercentage
@@ -958,7 +958,7 @@ def inspect_fee(
 
 def best_quote(
     d,
-    sumInsured,
+    protectedBalance,
     durationDays
 ):
     token = contract_from_address(USD2, d[ERC20_PROTECTED_TOKEN])
@@ -968,7 +968,7 @@ def best_quote(
         d[PRODUCT],
         d[RISKPOOL],
         token,
-        sumInsured,
+        protectedBalance,
         durationDays)
 
 
@@ -977,14 +977,14 @@ def best_quote(
     product,
     riskpool,
     token,
-    sumInsured,
+    protectedBalance,
     durationDays
 ):
     return best_premium(
         instanceService,
         riskpool,
         product,
-        sumInsured * 10 ** token.decimals(),
+        protectedBalance * 10 ** token.decimals(),
         durationDays)
 
 
@@ -992,9 +992,10 @@ def best_premium(
     instanceService,
     riskpool,
     product,
-    sumInsured,
+    protectedBalance,
     durationDays
 ):
+    sumInsured = riskpool.calculateSumInsured(protectedBalance)
     bundleData = get_bundle_data(instanceService, riskpool)
     aprMin = 100.0
     bundleId = None
@@ -1089,7 +1090,14 @@ def inspect_applications(instanceService, product, riskpool, usd1, usd2):
         premium = application[1]
         suminsured = application[2]
         appdata = application[3]
-        (wallet, duration, bundle_id, maxpremium) = riskpool.decodeApplicationParameterFromData(appdata)
+
+        (
+            wallet,
+            protected_balance,
+            duration,
+            bundle_id,
+            maxpremium
+        ) = riskpool.decodeApplicationParameterFromData(appdata)
 
         if state == 2:
             policy = instanceService.getPolicy(processId)

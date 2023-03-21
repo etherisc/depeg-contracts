@@ -159,7 +159,7 @@ def test_product_20_create_policy(
         instanceOperator, 
         investor, 
         riskpool20,
-        maxSumInsured = max_protected_balance,
+        maxProtectedBalance = max_protected_balance,
         funding = bundle_funding)
 
     # setup up wallet to protect with some coins
@@ -257,7 +257,7 @@ def test_product_20_depeg_normal(
         instanceOperator, 
         investor, 
         riskpool20,
-        maxSumInsured = max_protected_balance,
+        maxProtectedBalance = max_protected_balance,
         funding = bundle_funding)
 
     # setup up wallet to protect with some coins
@@ -318,7 +318,7 @@ def test_product_20_depeg_below_80(
         instanceOperator, 
         investor, 
         riskpool20,
-        maxSumInsured = max_protected_balance,
+        maxProtectedBalance = max_protected_balance,
         funding = bundle_funding)
 
     # setup up wallet to protect with some coins

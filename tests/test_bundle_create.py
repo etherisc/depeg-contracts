@@ -47,7 +47,7 @@ def test_create_bundle_happy_case(
 
     bundleName = 'test bundle'
     bundleLifetimeDays = 90
-    minProtectedBalance =  1000
+    minProtectedBalance =  2000
     maxProtectedBalance = 10000
     minDurationDays = 14
     maxDurationDays = 60
@@ -181,7 +181,7 @@ def test_create_name_validation(
 
     bundleName = ''
     bundleLifetimeDays = 30
-    minSumInsured =  1000
+    minProtectedBalance =  2000
     maxProtectedBalance = 10000
     minDurationDays = 14
     maxDurationDays = 60
@@ -195,7 +195,7 @@ def test_create_name_validation(
         bundle_funding, 
         bundleName,
         bundleLifetimeDays,
-        minSumInsured, 
+        minProtectedBalance, 
         maxProtectedBalance, 
         minDurationDays, 
         maxDurationDays, 
@@ -213,7 +213,7 @@ def test_create_name_validation(
         bundle_funding, 
         bundleName,
         bundleLifetimeDays,
-        minSumInsured, 
+        minProtectedBalance, 
         maxProtectedBalance, 
         minDurationDays, 
         maxDurationDays, 
@@ -232,7 +232,7 @@ def test_create_name_validation(
         bundle_funding, 
         bundleName,
         bundleLifetimeDays,
-        minSumInsured, 
+        minProtectedBalance, 
         maxProtectedBalance, 
         minDurationDays, 
         maxDurationDays, 
@@ -249,7 +249,7 @@ def test_create_name_validation(
             bundle_funding, 
             bundleName,
             bundleLifetimeDays,
-            minSumInsured, 
+            minProtectedBalance, 
             maxProtectedBalance, 
             minDurationDays, 
             maxDurationDays, 
@@ -277,7 +277,7 @@ def test_create_lifetime_validation(
 
     bundleName = ''
     bundleLifetimeDays = 1 # too short
-    minSumInsured =  1000
+    minProtectedBalance =  2000
     maxProtectedBalance = 10000
     minDurationDays = 14
     maxDurationDays = 60
@@ -292,7 +292,7 @@ def test_create_lifetime_validation(
             bundle_funding, 
             bundleName,
             bundleLifetimeDays,
-            minSumInsured, 
+            minProtectedBalance, 
             maxProtectedBalance, 
             minDurationDays, 
             maxDurationDays, 
@@ -309,7 +309,7 @@ def test_create_lifetime_validation(
         bundle_funding, 
         bundleName,
         bundleLifetimeDays,
-        minSumInsured, 
+        minProtectedBalance, 
         maxProtectedBalance, 
         minDurationDays, 
         maxDurationDays, 
@@ -328,7 +328,7 @@ def test_create_lifetime_validation(
             bundle_funding, 
             bundleName,
             bundleLifetimeDays,
-            minSumInsured, 
+            minProtectedBalance, 
             maxProtectedBalance, 
             minDurationDays, 
             maxDurationDays, 
@@ -356,7 +356,7 @@ def test_create_max_protected_balance_validation(
 
     bundleName = ''
     bundleLifetimeDays = 90
-    minProtectedBalance =  1000
+    minProtectedBalance =  2000
     maxProtectedBalance = 0 # too low
     minDurationDays = 14
     maxDurationDays = 60
@@ -396,7 +396,7 @@ def test_create_max_protected_balance_validation(
 
     assert instanceService.bundles() == 1
 
-    maxProtectedBalance = 1000000 # too large
+    maxProtectedBalance = 10000000 # too large
 
     with brownie.reverts("ERROR:DRP-022:MAX_PROTECTED_BALANCE_INVALID"):
         bundleId3 = create_bundle(
@@ -514,7 +514,7 @@ def test_create_capital_validation(
 
     bundleName = ''
     bundleLifetimeDays = 90
-    minProtectedBalance =  1000
+    minProtectedBalance =  2000
     maxProtectedBalance = 10000
     minDurationDays = 14
     maxDurationDays = 60

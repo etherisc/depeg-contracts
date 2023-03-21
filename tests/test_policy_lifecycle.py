@@ -72,8 +72,8 @@ def test_happy_path(
 
     # setup riskpool with a single risk bundle
     bundle_funding = 10000
-    min_sum_insured = 2000
-    max_sum_insured = 10000
+    min_protected_balance = 2000
+    max_protected_balance = 10000
 
     assert instanceService.getBalance(riskpool_id) == 0
     assert instanceService.getCapital(riskpool_id) == 0
@@ -92,8 +92,8 @@ def test_happy_path(
         investor,
         riskpool,
         funding=bundle_funding,
-        minSumInsured=min_sum_insured,
-        maxSumInsured=max_sum_insured)
+        minProtectedBalance=min_protected_balance,
+        maxProtectedBalance=max_protected_balance)
 
     # check actual balances of riskpool, protected wallet and policy holder
     assert protected_token.balanceOf(protectedWallet) == 0
@@ -114,7 +114,8 @@ def test_happy_path(
     assert wallet_balance < max_payout_amount # protection: amounts need to stay in relation to each other
 
     # set application parameters
-    sum_insured = wallet_balance
+    protected_balance = wallet_balance
+    sum_insured = riskpool.calculateSumInsured(protected_balance)
     duration_days = 60
     max_premium = 42 # might need to actually calculate this ...
 
@@ -133,7 +134,7 @@ def test_happy_path(
         customer,
         bundle_id,
         protectedWallet,
-        sum_insured,
+        protected_balance,
         duration_days,
         max_premium)
 
@@ -204,7 +205,7 @@ def test_happy_path(
     assert product.getProcessedBalance(protectedWallet) == 0
 
     fixed_fee = 0
-    fractional_fee = 0.1
+    fractional_fee = 0.05
 
     assert int(fractional_fee * premium + fixed_fee) == premium_fee
     assert net_premium == premium - premium_fee
@@ -512,8 +513,8 @@ def test_over_protected_with_single_policy(
 
     # setup riskpool with a single risk bundle
     bundle_funding = 15000
-    min_balance_protected = 2000
-    max_balance_protected = 10000
+    min_protected_balance = 2000
+    max_protected_balance = 10000
 
     bundle_id = create_bundle(
         instance,
@@ -521,8 +522,8 @@ def test_over_protected_with_single_policy(
         investor,
         riskpool,
         funding=bundle_funding,
-        minSumInsured=min_balance_protected,
-        maxSumInsured=max_balance_protected)
+        minProtectedBalance=min_protected_balance,
+        maxProtectedBalance=max_protected_balance)
 
     # setup up wallet to protect with some coins
     wallet_balance = 5000
@@ -640,8 +641,8 @@ def test_over_protected_with_multiple_policies(
 
     # setup riskpool with a single risk bundle
     bundle_funding = 15000 + 1
-    min_balance_protected = 2000
-    max_balance_protected = 10000
+    min_protected_balance = 2000
+    max_protected_balance = 10000
 
     bundle_id = create_bundle(
         instance,
@@ -649,8 +650,8 @@ def test_over_protected_with_multiple_policies(
         investor,
         riskpool,
         funding=bundle_funding,
-        minSumInsured=min_balance_protected,
-        maxSumInsured=max_balance_protected)
+        minProtectedBalance=min_protected_balance,
+        maxProtectedBalance=max_protected_balance)
 
     # setup up wallet to protect with some coins
     wallet_balance = 8000

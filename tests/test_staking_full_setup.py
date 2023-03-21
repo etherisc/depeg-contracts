@@ -115,9 +115,9 @@ def xtest_staking_full_setup(
 
     # case: insufficient staking
     # attempt to buy a policy where the sum insured cannot be covered by riskpool
-    sum_insured = 4000 * 10**usd2.decimals()
+    protected_balance = 4000 * 10**usd2.decimals()
     duration_days = 60
-    premium_info = best_premium(instanceService, riskpool, product, sum_insured, duration_days)
+    premium_info = best_premium(instanceService, riskpool, product, protected_balance, duration_days)
     print('premium_info {}'.format(premium_info))
 
     # ensure there is a bundle that matches with the application
@@ -125,7 +125,7 @@ def xtest_staking_full_setup(
 
     # check that capital support is 0 (as nothing has yet been staked to the bundle)
     assert staking.capitalSupport(bundle_target_id) == 0
-    assert sum_insured > staking.capitalSupport(bundle_target_id) == 0
+    assert protected_balance > staking.capitalSupport(bundle_target_id) == 0
 
     process_id1 = apply_for_policy_with_bundle(
         instance,
