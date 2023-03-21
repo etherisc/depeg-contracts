@@ -54,8 +54,8 @@ contract DepegRiskpool is
     uint256 public constant MAX_BUNDLE_LIFETIME = 180 * 24 * 3600;
     uint256 public constant MIN_POLICY_DURATION = 14 * 24 * 3600;
     uint256 public constant MAX_POLICY_DURATION = 120 * 24 * 3600;
-    uint256 public constant MIN_POLICY_COVERAGE = 2000; // unit amount in usd
-    uint256 public constant MAX_POLICY_COVERAGE = 10 ** 6; // unit amount in usd
+    uint256 public constant MIN_POLICY_COVERAGE = 2000 * 10 ** 6; // as usdt amount
+    uint256 public constant MAX_POLICY_COVERAGE = 10 ** 6 * 10 ** 6; // as usdt amount
     uint256 public constant ONE_YEAR_DURATION = 365 * 24 * 3600; 
 
     uint256 public constant APR_100_PERCENTAGE = 10**6;
@@ -226,11 +226,11 @@ contract DepegRiskpool is
 
         require(
             policyMaxProtectedBalance >= policyMinProtectedBalance
-            && policyMaxProtectedBalance <= MAX_POLICY_COVERAGE * 10 ** _tokenDecimals
+            && policyMaxProtectedBalance <= MAX_POLICY_COVERAGE
             && policyMaxSumInsured <= _bundleCapitalCap,
             "ERROR:DRP-022:MAX_PROTECTED_BALANCE_INVALID");
         require(
-            policyMinProtectedBalance >= MIN_POLICY_COVERAGE * 10 ** _tokenDecimals
+            policyMinProtectedBalance >= MIN_POLICY_COVERAGE
             && policyMinProtectedBalance <= policyMaxProtectedBalance, 
             "ERROR:DRP-023:MIN_PROTECTED_BALANCE_INVALID");
         require(

@@ -17,6 +17,8 @@ from scripts.depeg_product import (
     GifDepegRiskpool,
 )
 
+from scripts.deploy_depeg import get_setup
+
 from scripts.price_data import (
     STATE_PRODUCT,
     PERFECT_PRICE,
@@ -36,33 +38,79 @@ from scripts.setup import (
 def isolation(fn_isolation):
     pass
 
-def test_gif_product_20(
+def test_product_sandbox(
+    instance,
+    instanceOperator: Account,
     gifDepegProduct20: GifDepegProduct,
+    productOwner: Account,
+    riskpoolKeeper: Account,
     riskpoolWallet: Account,
-    usd1: USD1,
+    investor: Account,
+    customer: Account,
 ):
-    gifDepegRiskpool20 = gifDepegProduct20.getRiskpool()
-
-    print('gifDepegProduct20 {}'.format(gifDepegProduct20))
-    print('gifDepegRiskpool20 {}'.format(gifDepegRiskpool20))
-    print('riskpoolWallet {}'.format(riskpoolWallet))
-    print('getToken() {}'.format(gifDepegProduct20.getToken()))
-    print('usd1 {}'.format(usd1))
-
     product20 = gifDepegProduct20.getContract()
-    riskpool20 = gifDepegRiskpool20.getContract()
 
-    print('product20 {} id {} name {}'.format(
-        product20,
-        product20.getId(),
-        b2s(product20.getName())
-    ))
+    (
+        setup_before,
+        product,
+        feeder,
+        riskpool,
+        usdt,
+        instance_service
+    ) = get_setup(product20)
 
-    print('riskpool20 {} id {} name {}'.format(
-        riskpool20,
-        riskpool20.getId(),
-        b2s(riskpool20.getName())
-    ))
+    max_protected_balance = 10000
+    bundle_funding = (max_protected_balance * 2) / 5
+
+    bundle_id = create_bundle(
+        instance, 
+        instanceOperator, 
+        investor, 
+        riskpool,
+        bundleName = 'bundle-1',
+        maxProtectedBalance = max_protected_balance,
+        funding = bundle_funding)
+    
+    bundle = instance_service.getBundle(bundle_id).dict()
+    bundle_filter = riskpool.decodeBundleParamsFromFilter(bundle['filter']).dict()
+
+    # buy policy for wallet to be protected
+    protected_wallet = customer
+    protected_balance = 5000
+    duration_days = 60
+    max_premium = 100
+
+    process_id = apply_for_policy_with_bundle(
+        instance,
+        instanceOperator,
+        product,
+        customer,
+        bundle_id,
+        protected_wallet,
+        protected_balance,
+        duration_days,
+        max_premium)
+
+    metadata = instance_service.getMetadata(process_id).dict()
+    application = instance_service.getApplication(process_id).dict()
+    application_data = riskpool.decodeApplicationParameterFromData(application['data']).dict()
+    policy = instance_service.getPolicy(process_id).dict()      
+
+    (
+        setup,
+        product,
+        feeder,
+        riskpool,
+        usdt,
+        instance_service
+    ) = get_setup(product20)
+
+    # to use sandboxr:
+    # - uncomment 'assert False' below
+    # - run brownie command below
+    # brownie test tests/test_product_20.py::test_product_sandbox --interactive
+
+    # assert False
 
 
 def test_product_20_deploy(

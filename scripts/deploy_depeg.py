@@ -21,7 +21,10 @@ from scripts.setup import create_bundle
 
 from scripts.util import (
     contract_from_address,
-    get_package
+    get_package,
+    get_iso_datetime,
+    b2s,
+    s2b,
 )
 
 from os.path import exists
@@ -92,15 +95,180 @@ GAS_DEPEG = {
 }
 
 def help():
-    print('from scripts.deploy_depeg import all_in_1, verify_deploy, check_funds, amend_funds, new_bundle, best_quote, new_policy, inspect_bundle, inspect_bundles_d, inspect_applications_d, help')
+    print('from scripts.deploy_depeg import all_in_1, get_setup, verify_deploy, check_funds, amend_funds, new_bundle, best_quote, new_policy, inspect_bundle, inspect_bundles_d, inspect_applications_d, help')
     print('(customer, customer2, product, riskpool, riskpoolWallet, investor, bundleRegistry, staking, staker, dip, usd1, usd2, instanceService, instanceOperator, processId, d) = all_in_1(deploy_all=True)')
-    print('verify_deploy(d, usd1, usd2, dip, product)')
+    print('(setup, product, feeder, riskpool, usdt, instance_service) = get_setup(product_address)')
     print('instanceService.getPolicy(processId).dict()')
     print('instanceService.getBundle(1).dict()')
     print('inspect_bundle(d, 1)')
     print('inspect_bundles_d(d)')
     print('inspect_applications_d(d)')
     print('best_quote(d, 5000, 29)')
+
+
+def get_deploy_timestamp(name):
+    name_timestamp_from = len('Depeg')
+    name_timestamp_to = name_timestamp_from + 12
+
+    timestamp = name[name_timestamp_from:name_timestamp_to]
+    if timestamp[0] == '_':
+        return int(timestamp[1:-1])
+    
+    return int(timestamp[:-2])
+
+
+def get_setup(product_address):
+
+    product = contract_from_address(DepegProduct, product_address)
+    product_id = product.getId()
+    product_name = b2s(product.getName())
+    product_contract = (DepegProduct._name, product)
+
+    token = contract_from_address(interface.IERC20Metadata, product.getToken())
+    protected_token = contract_from_address(interface.IERC20Metadata, product.getProtectedToken())
+
+    feeder_address = product.getPriceDataProvider()
+    feeder = contract_from_address(UsdcPriceDataProvider, feeder_address)
+    feeder_contract = (UsdcPriceDataProvider._name, feeder)
+    feeder_token = contract_from_address(interface.IERC20Metadata, feeder.getToken())
+
+    (instance_service, treasury, registry) = get_instance(product)
+    riskpool = get_riskpool(product, instance_service)
+    riskpool_id = riskpool.getId()
+    riskpool_name = b2s(riskpool.getName())
+    riskpool_contract = (DepegRiskpool._name, riskpool)
+    riskpool_sum_insured_cap = riskpool.getSumOfSumInsuredCap()
+
+    riskpool_capital_cap = -1
+    try:
+        riskpool_capital_cap = riskpool.getRiskpoolCapitalCap()
+    except Exception as e:
+        print('failed to call riskpool.getRiskpoolCapitalCap(): {}'.format(e))
+
+    riskpool_bundle_cap = riskpool.getBundleCapitalCap()
+    riskpool_token = contract_from_address(interface.IERC20Metadata, riskpool.getErc20Token())
+
+    pfs = treasury.getFeeSpecification(product_id).dict()
+    cfs = treasury.getFeeSpecification(riskpool_id).dict()
+
+    setup = {}
+    setup['instance'] = {}
+    setup['product'] = {}
+    setup['feeder'] = {}
+    setup['riskpool'] = {}
+    setup['bundle'] = {}
+    setup['policy'] = {}
+
+    # instance specifics
+    setup['instance']['id'] = instance_service.getInstanceId()
+    setup['instance']['chain'] = (instance_service.getChainName(), instance_service.getChainId())
+    setup['instance']['instance_registry'] = instance_service.getRegistry()
+    setup['instance']['release'] = b2s(registry.getRelease())
+    setup['instance']['wallet'] = instance_service.getInstanceWallet()
+    setup['instance']['products'] = instance_service.products()
+    setup['instance']['oracles'] = instance_service.oracles()
+    setup['instance']['riskpools'] = instance_service.riskpools()
+    setup['instance']['bundles'] = instance_service.bundles()
+
+    wallet_balance = token.balanceOf(instance_service.getInstanceWallet())
+    setup['instance']['wallet_balance'] = (wallet_balance / 10 ** token.decimals(), wallet_balance)
+
+    # product specifics
+    setup['product']['contract'] = product_contract
+    setup['product']['id'] = product_id
+    setup['product']['riskpool_id'] = product.getRiskpoolId()
+    setup['product']['deployed_at'] = (get_iso_datetime(get_deploy_timestamp(product_name)), get_deploy_timestamp(product_name))
+    setup['product']['premium_fee'] = (pfs['fractionalFee']/instance_service.getFeeFractionFullUnit(), pfs['fixedFee'])
+    setup['product']['token'] = (token.symbol(), token, token.decimals())
+    setup['product']['protected_token'] = (protected_token.symbol(), protected_token, protected_token.decimals())
+    setup['product']['applications'] = product.applications()
+    setup['product']['policies'] = product.policies()
+
+    # feeder specifics
+    (new_info, price_info, time_since) = feeder.isNewPriceInfoEventAvailable()
+    setup['feeder']['aggregator'] = ('AggregatorV2V3Interface', feeder.getAggregatorAddress())
+    setup['feeder']['contract'] = feeder_contract
+    setup['feeder']['description'] = feeder.description()
+    setup['feeder']['decimals'] = feeder.decimals()
+    setup['feeder']['info'] = price_info.dict()
+    setup['feeder']['info_new'] = new_info
+    setup['feeder']['info_new_since'] = time_since
+    setup['feeder']['latest_price'] = (feeder.latestAnswer()/10**feeder.decimals(), feeder.latestAnswer())
+    setup['feeder']['latest_timestamp'] = (get_iso_datetime(feeder.latestTimestamp()), feeder.latestTimestamp())
+    setup['feeder']['triggered_at'] = (get_iso_datetime(feeder.getTriggeredAt()), feeder.getTriggeredAt())
+    setup['feeder']['depegged_at'] = (get_iso_datetime(feeder.getDepeggedAt()), feeder.getDepeggedAt())
+    setup['feeder']['token'] = (feeder_token.symbol(), feeder_token, feeder_token.decimals())
+
+    # riskpool specifics
+    setup['riskpool']['contract'] = riskpool_contract
+    setup['riskpool']['id'] = riskpool_id
+    setup['riskpool']['deployed_at'] = (get_iso_datetime(get_deploy_timestamp(riskpool_name)), get_deploy_timestamp(riskpool_name))
+    setup['riskpool']['capital_fee'] = (cfs['fractionalFee']/instance_service.getFeeFractionFullUnit(), cfs['fixedFee'])
+    setup['riskpool']['token'] = (riskpool_token.symbol(), riskpool_token, riskpool_token.decimals())
+
+    setup['riskpool']['sum_insured_cap'] = (riskpool_sum_insured_cap / 10**riskpool_token.decimals(), riskpool_sum_insured_cap)
+
+    try:
+        setup['riskpool']['sum_insured_percentage'] = (riskpool.getSumInsuredPercentage()/100, riskpool.getSumInsuredPercentage())
+    except Exception as e:
+        setup['riskpool']['sum_insured_percentage'] = (1.0, 100)
+
+    setup['riskpool']['bundles'] = riskpool.bundles()
+    setup['riskpool']['bundles_active'] = riskpool.activeBundles()
+    setup['riskpool']['bundles_max'] = riskpool.getMaximumNumberOfActiveBundles()
+    setup['riskpool']['capital_cap'] = (riskpool_capital_cap / 10**riskpool_token.decimals(), riskpool_capital_cap)
+
+    setup['riskpool']['balance'] = (riskpool.getBalance() / 10**riskpool_token.decimals(), riskpool.getBalance())
+    setup['riskpool']['capital'] = (riskpool.getCapital() / 10**riskpool_token.decimals(), riskpool.getCapital())
+    setup['riskpool']['capacity'] = (riskpool.getCapacity() / 10**riskpool_token.decimals(), riskpool.getCapacity())
+    setup['riskpool']['total_value_locked'] = (riskpool.getTotalValueLocked() / 10**riskpool_token.decimals(), riskpool.getTotalValueLocked())
+
+    riskpool_wallet = instance_service.getRiskpoolWallet(riskpool_id)
+    setup['riskpool']['wallet'] = riskpool_wallet
+    setup['riskpool']['wallet_balance'] = (riskpool_token.balanceOf(riskpool_wallet) / 10**riskpool_token.decimals(), riskpool_token.balanceOf(riskpool_wallet))
+
+    # bundle specifics
+    spd = 24 * 3600
+    setup['bundle']['apr_max'] = (riskpool.MAX_APR()/riskpool.APR_100_PERCENTAGE(), riskpool.MAX_APR())
+    setup['bundle']['capital_cap'] = (riskpool_bundle_cap / 10**riskpool_token.decimals(), riskpool_bundle_cap)
+    setup['bundle']['lifetime_min'] = (riskpool.MIN_BUNDLE_LIFETIME()/spd , riskpool.MIN_BUNDLE_LIFETIME())
+    setup['bundle']['lifetime_max'] = (riskpool.MAX_BUNDLE_LIFETIME()/spd , riskpool.MAX_BUNDLE_LIFETIME())
+
+    # policy specifics
+    setup['policy']['duration_min'] = (riskpool.MIN_POLICY_DURATION()/spd , riskpool.MIN_POLICY_DURATION())
+    setup['policy']['duration_max'] = (riskpool.MAX_POLICY_DURATION()/spd , riskpool.MAX_POLICY_DURATION())
+    setup['policy']['protection_min'] = (riskpool.MIN_POLICY_COVERAGE()/10**token.decimals() , riskpool.MIN_POLICY_COVERAGE())
+    setup['policy']['protection_max'] = (riskpool.MAX_POLICY_COVERAGE()/10**token.decimals() , riskpool.MAX_POLICY_COVERAGE())
+
+    return (
+        setup,
+        product,
+        feeder,
+        riskpool,
+        token,
+        instance_service
+    )
+
+
+def get_riskpool(product, instance_service):
+    riskpool_id = product.getRiskpoolId()
+    riskpool_address = instance_service.getComponent(riskpool_id)
+    return contract_from_address(DepegRiskpool, riskpool_address)
+
+
+def get_instance(product):
+    gif = get_package('gif-contracts')
+
+    registry_address = product.getRegistry()
+    registry = contract_from_address(gif.RegistryController, registry_address)
+
+    instance_service_address = registry.getContract(s2b('InstanceService'))
+    instance_service = contract_from_address(gif.InstanceService, instance_service_address)
+
+    treasury_address = registry.getContract(s2b('Treasury'))
+    treasury = contract_from_address(gif.TreasuryModule, treasury_address)
+
+    return (instance_service, treasury, registry)
 
 
 def verify_deploy(
