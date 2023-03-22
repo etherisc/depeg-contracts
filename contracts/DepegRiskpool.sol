@@ -9,8 +9,8 @@ import "@etherisc/gif-interface/contracts/modules/IPolicy.sol";
 import "@etherisc/gif-interface/contracts/tokens/IBundleToken.sol";
 
 import "./gif/BasicRiskpool2.sol";
-import "./registry/IChainRegistryFacade.sol";
-import "./registry/IStakingFacade.sol";
+import "./IChainRegistryFacade.sol";
+import "./IStakingFacade.sol";
 
 
 contract DepegRiskpool is 
@@ -197,7 +197,15 @@ contract DepegRiskpool is
         return _staking;
     }
 
-    // TODO adapt policyMin/MaxSumInsured to policyMin/MaxProtectedBalance
+
+    function getChainRegistry()
+        external
+        view
+        returns(IChainRegistryFacade)
+    {
+        return _chainRegistry;
+    }
+
     function createBundle(
         string memory name,
         uint256 lifetime,
@@ -223,7 +231,7 @@ contract DepegRiskpool is
         // get sum insured bounds from protected balance bounds
         uint256 policyMinSumInsured = calculateSumInsured(policyMinProtectedBalance);
         uint256 policyMaxSumInsured = calculateSumInsured(policyMaxProtectedBalance);
-
+        
         require(
             policyMaxProtectedBalance >= policyMinProtectedBalance
             && policyMaxProtectedBalance <= MAX_POLICY_COVERAGE

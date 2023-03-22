@@ -17,6 +17,7 @@ from brownie import (
     ComponentRegistry,
     BundleRegistry,
     Staking,
+    MockRegistryStaking,
     DIP
 )
 
@@ -216,15 +217,17 @@ def riskpool(gifDepegProduct) -> DepegRiskpool: return gifDepegProduct.getRiskpo
 #--- sum insured percentage = 20% ----------------------------------------#
 @pytest.fixture(scope="module")
 def gifDepeg20Deploy(
-    instance: GifInstance, 
+    instance: GifInstance,
+    registryOwner: Account,
     productOwner: Account, 
     investor: Account, 
     usdc_feeder,
+    dip: DIP,
     usd2: USD2,
     riskpoolKeeper: Account, 
     riskpoolWallet: Account
 ) -> GifDepegProductComplete:
-    return GifDepegProductComplete(
+    gifComplete = GifDepegProductComplete(
         instance, 
         productOwner, 
         investor,
@@ -233,6 +236,22 @@ def gifDepeg20Deploy(
         riskpoolKeeper, 
         riskpoolWallet,
         sum_insured_percentage=20)
+    
+    # add staking
+    mock = MockRegistryStaking.deploy(dip, usd2, {'from': registryOwner})
+    
+    # wire with riskpool
+    riskpool = gifComplete.getRiskpool().getContract()
+    riskpool.setStakingAddress(mock, {'from': riskpoolKeeper})
+
+    # register instance and riskpool
+    mock.mockRegisterRiskpool(
+        instance.getInstanceService().getInstanceId(),
+        riskpool.getId(),
+        {'from': registryOwner})
+
+    return gifComplete
+
 
 @pytest.fixture(scope="module")
 def gifDepegProduct20(gifDepeg20Deploy) -> GifDepegProduct: return gifDepeg20Deploy.getProduct()

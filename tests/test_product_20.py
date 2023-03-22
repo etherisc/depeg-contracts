@@ -9,6 +9,7 @@ from brownie import (
     UsdcPriceDataProvider,
     USD1,
     USD2,
+    DIP
 )
 
 from scripts.util import b2s
@@ -47,14 +48,19 @@ def test_product_sandbox(
     riskpoolWallet: Account,
     investor: Account,
     customer: Account,
+    registryOwner: Account,
 ):
     product20 = gifDepegProduct20.getContract()
 
+    # just needed to get riskpool and product
     (
         setup_before,
         product,
         feeder,
         riskpool,
+        registry,
+        staking,
+        dip,
         usdt,
         instance_service
     ) = get_setup(product20)
@@ -101,6 +107,9 @@ def test_product_sandbox(
         product,
         feeder,
         riskpool,
+        registry,
+        staking,
+        dip,
         usdt,
         instance_service
     ) = get_setup(product20)
@@ -110,7 +119,7 @@ def test_product_sandbox(
     # - run brownie command below
     # brownie test tests/test_product_20.py::test_product_sandbox --interactive
 
-    # assert False
+    assert False
 
 
 def test_product_20_deploy(

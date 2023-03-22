@@ -97,7 +97,7 @@ GAS_DEPEG = {
 def help():
     print('from scripts.deploy_depeg import all_in_1, get_setup, verify_deploy, check_funds, amend_funds, new_bundle, best_quote, new_policy, inspect_bundle, inspect_bundles_d, inspect_applications_d, help')
     print('(customer, customer2, product, riskpool, riskpoolWallet, investor, bundleRegistry, staking, staker, dip, usd1, usd2, instanceService, instanceOperator, processId, d) = all_in_1(deploy_all=True)')
-    print('(setup, product, feeder, riskpool, usdt, instance_service) = get_setup(product_address)')
+    print('(setup, product, feeder, riskpool, registry, staking, dip, usdt, instance_service) = get_setup(product_address)')
     print('instanceService.getPolicy(processId).dict()')
     print('instanceService.getBundle(1).dict()')
     print('inspect_bundle(d, 1)')
@@ -123,6 +123,7 @@ def get_setup(product_address):
     product_id = product.getId()
     product_name = b2s(product.getName())
     product_contract = (DepegProduct._name, product)
+    product_owner = product.owner()
 
     token = contract_from_address(interface.IERC20Metadata, product.getToken())
     protected_token = contract_from_address(interface.IERC20Metadata, product.getProtectedToken())
@@ -132,12 +133,13 @@ def get_setup(product_address):
     feeder_contract = (UsdcPriceDataProvider._name, feeder)
     feeder_token = contract_from_address(interface.IERC20Metadata, feeder.getToken())
 
-    (instance_service, treasury, registry) = get_instance(product)
+    (instance_service, instance_operator, treasury, instance_registry) = get_instance(product)
     riskpool = get_riskpool(product, instance_service)
     riskpool_id = riskpool.getId()
     riskpool_name = b2s(riskpool.getName())
     riskpool_contract = (DepegRiskpool._name, riskpool)
     riskpool_sum_insured_cap = riskpool.getSumOfSumInsuredCap()
+    riskpool_owner = riskpool.owner()
 
     riskpool_capital_cap = -1
     try:
@@ -151,6 +153,18 @@ def get_setup(product_address):
     pfs = treasury.getFeeSpecification(product_id).dict()
     cfs = treasury.getFeeSpecification(riskpool_id).dict()
 
+    staking = contract_from_address(interface.IStakingFacade, riskpool.getStaking())
+    staking_contract = (interface.IStakingFacade._name, staking)
+    staking_owner = staking.owner()
+    dip_token = contract_from_address(DIP, staking.getDip())
+
+    chain_registry = contract_from_address(interface.IChainRegistryFacade, staking.getRegistry())
+    registry_contract = (interface.IChainRegistryFacade._name, chain_registry)
+    registry_owner = chain_registry.owner()
+
+    nft = contract_from_address(interface.IChainNftFacade, chain_registry.getNft())
+    nft_contract = (interface.IChainNftFacade._name, nft)
+
     setup = {}
     setup['instance'] = {}
     setup['product'] = {}
@@ -158,12 +172,16 @@ def get_setup(product_address):
     setup['riskpool'] = {}
     setup['bundle'] = {}
     setup['policy'] = {}
+    setup['nft'] = {}
+    setup['registry'] = {}
+    setup['staking'] = {}
 
     # instance specifics
     setup['instance']['id'] = instance_service.getInstanceId()
     setup['instance']['chain'] = (instance_service.getChainName(), instance_service.getChainId())
     setup['instance']['instance_registry'] = instance_service.getRegistry()
-    setup['instance']['release'] = b2s(registry.getRelease())
+    setup['instance']['instance_operator'] = instance_operator
+    setup['instance']['release'] = b2s(instance_registry.getRelease())
     setup['instance']['wallet'] = instance_service.getInstanceWallet()
     setup['instance']['products'] = instance_service.products()
     setup['instance']['oracles'] = instance_service.oracles()
@@ -176,6 +194,7 @@ def get_setup(product_address):
     # product specifics
     setup['product']['contract'] = product_contract
     setup['product']['id'] = product_id
+    setup['product']['owner'] = product_owner
     setup['product']['riskpool_id'] = product.getRiskpoolId()
     setup['product']['deployed_at'] = (get_iso_datetime(get_deploy_timestamp(product_name)), get_deploy_timestamp(product_name))
     setup['product']['premium_fee'] = (pfs['fractionalFee']/instance_service.getFeeFractionFullUnit(), pfs['fixedFee'])
@@ -202,6 +221,7 @@ def get_setup(product_address):
     # riskpool specifics
     setup['riskpool']['contract'] = riskpool_contract
     setup['riskpool']['id'] = riskpool_id
+    setup['riskpool']['owner'] = riskpool_owner
     setup['riskpool']['deployed_at'] = (get_iso_datetime(get_deploy_timestamp(riskpool_name)), get_deploy_timestamp(riskpool_name))
     setup['riskpool']['capital_fee'] = (cfs['fractionalFee']/instance_service.getFeeFractionFullUnit(), cfs['fixedFee'])
     setup['riskpool']['token'] = (riskpool_token.symbol(), riskpool_token, riskpool_token.decimals())
@@ -240,11 +260,42 @@ def get_setup(product_address):
     setup['policy']['protection_min'] = (riskpool.MIN_POLICY_COVERAGE()/10**token.decimals() , riskpool.MIN_POLICY_COVERAGE())
     setup['policy']['protection_max'] = (riskpool.MAX_POLICY_COVERAGE()/10**token.decimals() , riskpool.MAX_POLICY_COVERAGE())
 
+    setup['nft']['contract'] = nft_contract
+
+    setup['nft']['name'] = nft.name()
+    setup['nft']['symbol'] = nft.symbol()
+    try:
+        setup['nft']['total_minted'] = nft.totalMinted()
+    except Exception as e:
+        setup['nft']['total_minted'] = 'n/a'
+
+    chain_id = chain_registry.toChain(web3.chain_id)
+    setup['registry']['contract'] = registry_contract
+    setup['registry']['owner'] = registry_owner
+    setup['registry']['instances'] = chain_registry.objects(chain_id, 20)
+    setup['registry']['riskpools'] = chain_registry.objects(chain_id, 23)
+    setup['registry']['bundles'] = chain_registry.objects(chain_id, 40)
+    setup['registry']['stakes'] = chain_registry.objects(chain_id, 10)
+
+    staking_rate = staking.stakingRate(chain_id, riskpool_token)
+    setup['staking']['contract'] = staking_contract
+    setup['staking']['chain'] = chain_id
+    setup['staking']['owner'] = staking_owner
+    setup['staking']['dip'] = (dip_token.symbol(), dip_token, dip_token.decimals())
+    setup['staking']['reward_balance'] = (staking.rewardBalance()/10**dip_token.decimals(), staking.rewardBalance())
+    setup['staking']['reward_reserves'] = (staking.rewardReserves()/10**dip_token.decimals(), staking.rewardReserves())
+    setup['staking']['reward_rate'] = (staking.rewardRate()/10**staking.rateDecimals(), staking.rewardRate())
+    setup['staking']['staking_rate'] = (staking_rate/10**staking.rateDecimals(), staking_rate)
+    setup['staking']['wallet'] = staking.getStakingWallet()
+
     return (
         setup,
         product,
         feeder,
         riskpool,
+        chain_registry,
+        staking,
+        dip_token,
         token,
         instance_service
     )
@@ -264,11 +315,12 @@ def get_instance(product):
 
     instance_service_address = registry.getContract(s2b('InstanceService'))
     instance_service = contract_from_address(gif.InstanceService, instance_service_address)
+    instance_operator = instance_service.getInstanceOperator()
 
     treasury_address = registry.getContract(s2b('Treasury'))
     treasury = contract_from_address(gif.TreasuryModule, treasury_address)
 
-    return (instance_service, treasury, registry)
+    return (instance_service, instance_operator, treasury, registry)
 
 
 def verify_deploy(
