@@ -52,7 +52,7 @@ contract DepegProduct is
     address private _protectedToken;
     DepegState private _state;
 
-    DepegRiskpool private _riskPool;
+    DepegRiskpool private _riskpool;
     TreasuryModule private _treasury;
     uint256 private _depeggedBlockNumber;
 
@@ -133,7 +133,7 @@ contract DepegProduct is
         IComponent poolComponent = _instanceService.getComponent(riskpoolId); 
         address poolAddress = address(poolComponent);
 
-        _riskPool = DepegRiskpool(poolAddress);
+        _riskpool = DepegRiskpool(poolAddress);
         _treasury = TreasuryModule(_instanceService.getTreasuryAddress());
         _depeggedBlockNumber = 0;
     }
@@ -159,24 +159,24 @@ contract DepegProduct is
         require(bundleId > 0, "ERROR:DP-012:BUNDLE_ID_ZERO");
 
         address policyHolder = msg.sender;
-        uint256 sumInsured = _riskPool.calculateSumInsured(protectedBalance);
+        uint256 sumInsured = _riskpool.calculateSumInsured(protectedBalance);
         uint256 maxPremium = 0;
         uint256 maxNetPremium = 0;
 
         IBundle.Bundle memory bundle = _instanceService.getBundle(bundleId);
         require(
-            bundle.riskpoolId == _riskPool.getId(),
+            bundle.riskpoolId == _riskpool.getId(),
             "ERROR:DP-013:BUNDLE_RISKPOOL_MISMATCH"
         );
 
 
         // calculate premium for specified bundle
-        (,,,,,,uint256 annualPercentageReturn) = _riskPool.decodeBundleParamsFromFilter(bundle.filter);
-        maxNetPremium = _riskPool.calculatePremium(sumInsured, duration, annualPercentageReturn);
+        (,,,,,,uint256 annualPercentageReturn) = _riskpool.decodeBundleParamsFromFilter(bundle.filter);
+        maxNetPremium = _riskpool.calculatePremium(sumInsured, duration, annualPercentageReturn);
         maxPremium = calculatePremium(maxNetPremium);
 
         bytes memory metaData = "";
-        bytes memory applicationData = _riskPool.encodeApplicationParameterAsData(
+        bytes memory applicationData = _riskpool.encodeApplicationParameterAsData(
             wallet,
             protectedBalance,
             duration,
@@ -243,7 +243,7 @@ contract DepegProduct is
             uint256 duration,
             , // don't need bundle id info
             // don't need maxNetPremium
-        ) = _riskPool.decodeApplicationParameterFromData(application.data);
+        ) = _riskpool.decodeApplicationParameterFromData(application.data);
 
         expiredAt = policy.createdAt + duration;
         isExpired = isExpired || block.timestamp >= expiredAt;
@@ -412,7 +412,7 @@ contract DepegProduct is
         require(this.policyIsAllowedToClaim(processId), "ERROR:DP-030:CLAIM_CONDITION_FAILURE");
 
         // calculate claim attributes
-        uint256 protectedAmount = _getApplication(processId).sumInsuredAmount;
+        uint256 protectedAmount = getProtectedBalance(processId);
         uint256 claimAmount = calculateClaimAmount(protectedAmount);
 
         // create the depeg claim for this policy
@@ -506,7 +506,7 @@ contract DepegProduct is
         _policiesWithConfirmedClaims.add(processId);
 
         // get claim details
-        uint256 protectedAmount = _getApplication(processId).sumInsuredAmount;
+        uint256 protectedAmount = getProtectedBalance(processId);
         address protectedWallet = getProtectedWallet(processId);
         require(_depegBalance[protectedWallet].blockNumber > 0, "ERROR:DP-043:DEPEG_BALANCE_MISSING");
         require(_depegBalance[protectedWallet].balance > 0, "ERROR:DP-044:DEPEG_BALANCE_ZERO");
@@ -562,6 +562,12 @@ contract DepegProduct is
     }
 
 
+    function getProtectedBalance(bytes32 processId) public view returns(uint256 protectedBalance) {
+        bytes memory applictionData = _getApplication(processId).data;
+        (,protectedBalance,,,) = _riskpool.decodeApplicationParameterFromData(applictionData);
+    }
+
+
     function encodeClaimInfoAsData(
         uint256 depegPrice,
         uint256 depeggedAt
@@ -599,8 +605,8 @@ contract DepegProduct is
         uint256 depegPrice = _priceDataProvider.getDepegPriceInfo().price;
 
         // if necessary: dap depegPrice to sum insured percentage
-        if(_riskPool.depegPriceIsBelowProtectedDepegPrice(depegPrice, targetPrice)) {
-            depegPrice = _riskPool.getProtectedMinDepegPrice(targetPrice);
+        if(_riskpool.depegPriceIsBelowProtectedDepegPrice(depegPrice, targetPrice)) {
+            depegPrice = _riskpool.getProtectedMinDepegPrice(targetPrice);
         }
 
         claimAmount = (tokenAmount * (targetPrice - depegPrice)) / targetPrice;
@@ -715,8 +721,8 @@ contract DepegProduct is
             , // minDuration not needed
             , // maxDuration not needed
             uint256 annualPercentageReturn
-        ) = _riskPool.decodeBundleParamsFromFilter(bundle.filter);
-        netPremium = _riskPool.calculatePremium(sumInsured, duration, annualPercentageReturn);
+        ) = _riskpool.decodeBundleParamsFromFilter(bundle.filter);
+        netPremium = _riskpool.calculatePremium(sumInsured, duration, annualPercentageReturn);
     }
 
 
@@ -793,7 +799,7 @@ contract DepegProduct is
 
     function getProtectedWallet(bytes32 processId) public view returns(address wallet) {
         bytes memory applicationData = _getApplication(processId).data;
-        (wallet,,,,) = _riskPool.decodeApplicationParameterFromData(applicationData);        
+        (wallet,,,,) = _riskpool.decodeApplicationParameterFromData(applicationData);        
     }
 
 

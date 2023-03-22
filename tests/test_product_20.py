@@ -12,7 +12,10 @@ from brownie import (
     DIP
 )
 
-from scripts.util import b2s
+from scripts.util import (
+    b2s,
+    contract_from_address
+)
 from scripts.depeg_product import (
     GifDepegProduct,
     GifDepegRiskpool,
@@ -119,7 +122,7 @@ def test_product_sandbox(
     # - run brownie command below
     # brownie test tests/test_product_20.py::test_product_sandbox --interactive
 
-    assert False
+    # assert False
 
 
 def test_product_20_deploy(
@@ -306,9 +309,16 @@ def test_product_20_depeg_normal(
     token_address = instanceService.getComponentToken(riskpool_id)
     token = interface.IERC20Metadata(token_address)
 
+    # create token allowance for payouts
     max_protected_balance = 10000
-    bundle_funding = (max_protected_balance * 2) / 5
+    max_payout_amount = max_protected_balance
+    token.approve(
+        instanceService.getTreasuryAddress(), 
+        max_payout_amount * tf, 
+        {'from': riskpoolWallet})
 
+    # create bundle
+    bundle_funding = (max_protected_balance * 2) / 5
     bundle_id = create_bundle(
         instance, 
         instanceOperator, 
@@ -339,10 +349,81 @@ def test_product_20_depeg_normal(
     protected_amount = protected_balance * tf
     sum_insured_amount = protected_amount / 5
 
-    # TODO continue here
-    # - create depeg normal (depeg price == 0.8)
-    # - create claim/payout
-    # - check full payout
+    # create depeg at 80% of target price (= 30% loss on protected funds)
+    depeg_exchange_rate = 0.8
+    depeg_price = int(depeg_exchange_rate * product20.getTargetPrice())
+    (timestamp_trigger, timestamp_depeg) = force_product_into_depegged_state(product20, productOwner, depeg_price)
+
+    depeg_info = product20.getDepegPriceInfo().dict()
+    assert depeg_info['triggeredAt'] == timestamp_trigger
+    assert depeg_info['depeggedAt'] == timestamp_depeg
+    assert depeg_info['price'] == depeg_price
+
+    # create claim from protected wallet
+    tx = product20.createDepegClaim(
+        process_id,
+        {'from': protectedWallet})
+
+    assert 'LogDepegClaimCreated' in tx.events
+
+    evt = dict(tx.events['LogDepegClaimCreated'])
+    claim_id = 0
+    claim_amount = round((1 - depeg_exchange_rate) * protected_balance * tf)
+    assert evt['claimId'] == claim_id
+    assert evt['claimAmount'] == claim_amount
+
+    # this number needs to be determined via moralis using the depeg timestamp via getDepeggedAt()
+    depeg_block_number = 1000
+    depeg_block_number_comment = "block number for timsteamp xyz"
+
+    tx = product20.setDepeggedBlockNumber(
+        depeg_block_number,
+        depeg_block_number_comment,
+        {'from': productOwner})
+
+    # inject balance data for depegged time for protected wallet
+    wallet_balance = protected_token.balanceOf(protectedWallet)
+    depeg_balance = product20.createDepegBalance(
+        protectedWallet,
+        depeg_block_number,
+        wallet_balance)
+
+    # only product owner can do this
+    tx = product20.addDepegBalances(
+        [depeg_balance],
+        {'from': productOwner})
+
+    # check product claim amaount calculation
+    payout_id = 0
+    target_price = product20.getTargetPrice()
+    payout_amount_expected = int(wallet_balance * (target_price - depeg_price) / target_price)
+
+    assert product20.calculateClaimAmount(wallet_balance) == payout_amount_expected
+
+    # record customer usdt balance before payout
+    customer_usdt_blanace_before = usd2.balanceOf(customer)
+
+    # process payout
+    assert product20.getProcessedBalance(protectedWallet) == 0
+    # anybody can do this (and has to pay tx fees)
+    tx = product20.processPolicies([process_id])
+    assert product20.getProcessedBalance(protectedWallet) == wallet_balance
+
+    # check payout log
+    assert 'LogPayoutCreated' in tx.events
+    assert tx.events['LogPayoutCreated']['processId'] == process_id
+    assert tx.events['LogPayoutCreated']['claimId'] == claim_id
+    assert tx.events['LogPayoutCreated']['payoutId'] == payout_id
+    assert tx.events['LogPayoutCreated']['amount'] == payout_amount_expected
+
+    # check payout book keeping
+    payout = instanceService.getPayout(process_id, payout_id).dict()
+    assert payout['claimId'] == claim_id
+    assert payout['state'] == 1
+    assert payout['amount'] == payout_amount_expected
+
+    # check actual payout in usdt token
+    assert usd2.balanceOf(customer) == customer_usdt_blanace_before + payout_amount_expected
 
 
 def test_product_20_depeg_below_80(
@@ -367,9 +448,15 @@ def test_product_20_depeg_below_80(
     token_address = instanceService.getComponentToken(riskpool_id)
     token = interface.IERC20Metadata(token_address)
 
+    # create token allowance for payouts
     max_protected_balance = 10000
-    bundle_funding = (max_protected_balance * 2) / 5
+    max_payout_amount = max_protected_balance
+    token.approve(
+        instanceService.getTreasuryAddress(), 
+        max_payout_amount * tf, 
+        {'from': riskpoolWallet})
 
+    bundle_funding = (max_protected_balance * 2) / 5
     bundle_id = create_bundle(
         instance, 
         instanceOperator, 
@@ -400,7 +487,154 @@ def test_product_20_depeg_below_80(
     protected_amount = protected_balance * tf
     sum_insured_amount = protected_amount / 5
 
-    # TODO continue here
-    # - create depeg ouside sum insured (depeg price < 0.8)
-    # - create claim/payout
-    # - check capped payout
+    # create depeg at 50% of target price (= 50% loss on protected funds)
+    depeg_exchange_rate = 0.5
+    depeg_price = int(depeg_exchange_rate * product20.getTargetPrice())
+    (timestamp_trigger, timestamp_depeg) = force_product_into_depegged_state(product20, productOwner, depeg_price)
+
+    depeg_info = product20.getDepegPriceInfo().dict()
+    assert depeg_info['triggeredAt'] == timestamp_trigger
+    assert depeg_info['depeggedAt'] == timestamp_depeg
+    assert depeg_info['price'] == depeg_price
+
+    # create claim from protected wallet
+    tx = product20.createDepegClaim(
+        process_id,
+        {'from': protectedWallet})
+
+    assert 'LogDepegClaimCreated' in tx.events
+
+    evt = dict(tx.events['LogDepegClaimCreated'])
+    claim_id = 0
+    claim_amount = min(round((1 - 0.8) * protected_balance * tf), round((1 - depeg_exchange_rate) * protected_balance * tf))
+    assert claim_amount == product20.calculateClaimAmount(protected_balance * tf)
+    assert evt['claimId'] == claim_id
+    assert evt['claimAmount'] == claim_amount
+
+    # this number needs to be determined via moralis using the depeg timestamp via getDepeggedAt()
+    depeg_block_number = 1000
+    depeg_block_number_comment = "block number for timsteamp xyz"
+
+    tx = product20.setDepeggedBlockNumber(
+        depeg_block_number,
+        depeg_block_number_comment,
+        {'from': productOwner})
+
+    # inject balance data for depegged time for protected wallet
+    wallet_balance = protected_token.balanceOf(protectedWallet)
+    depeg_balance = product20.createDepegBalance(
+        protectedWallet,
+        depeg_block_number,
+        wallet_balance)
+
+    # only product owner can do this
+    tx = product20.addDepegBalances(
+        [depeg_balance],
+        {'from': productOwner})
+
+    # check product claim amaount calculation
+    payout_id = 0
+    target_price = product20.getTargetPrice()
+    payout_amount_expected = product20.calculateClaimAmount(wallet_balance)
+
+    # record customer usdt balance before payout
+    customer_usdt_blanace_before = usd2.balanceOf(customer)
+
+    # process payout
+    assert product20.getProcessedBalance(protectedWallet) == 0
+    # anybody can do this (and has to pay tx fees)
+    tx = product20.processPolicies([process_id])
+    assert product20.getProcessedBalance(protectedWallet) == wallet_balance
+
+    # check payout log
+    assert 'LogPayoutCreated' in tx.events
+    assert tx.events['LogPayoutCreated']['processId'] == process_id
+    assert tx.events['LogPayoutCreated']['claimId'] == claim_id
+    assert tx.events['LogPayoutCreated']['payoutId'] == payout_id
+    assert tx.events['LogPayoutCreated']['amount'] == payout_amount_expected
+
+    # check payout book keeping
+    payout = instanceService.getPayout(process_id, payout_id).dict()
+    assert payout['claimId'] == claim_id
+    assert payout['state'] == 1
+    assert payout['amount'] == payout_amount_expected
+
+    # check actual payout in usdt token
+    assert usd2.balanceOf(customer) == customer_usdt_blanace_before + payout_amount_expected
+
+
+def force_product_into_depegged_state(product, productOwner, depeg_price):
+
+    timestamp_trigger = force_product_into_triggered_state(product, productOwner)
+
+    # check pre-conditions (product is triggered now)
+    assert product.getTriggeredAt() == timestamp_trigger
+    assert product.getDepeggedAt() == 0
+    assert product.getDepegState() == STATE_PRODUCT['Paused']
+
+    # obtain data provider contract from product
+    data_provider = get_data_provider(product)
+
+    # move into depegged state by staying triggered for > 24h
+    # set price usdc to 0.91 cents
+    depeg_data = generate_next_data(
+        6,
+        price = depeg_price,
+        last_update = timestamp_trigger,
+        delta_time = 24 * 3600 + 1)
+
+    (round_id, price, timestamp) = depeg_data.split()[:3]
+    timestamp = int(timestamp)
+    timestamp_depeg = timestamp
+
+    tx = inject_and_process_data(product, data_provider, depeg_data, productOwner)
+
+    assert product.getTriggeredAt() == timestamp_trigger
+    assert product.getDepeggedAt() == timestamp_depeg
+    assert product.getDepegState() == STATE_PRODUCT['Depegged']
+
+    return (timestamp_trigger, timestamp_depeg)
+
+
+def force_product_into_triggered_state(product, productOwner):
+
+    # check pre conditions (product is active)
+    assert product.getTriggeredAt() == 0
+    assert product.getDepeggedAt() == 0
+    assert product.getDepegState() == STATE_PRODUCT['Active']
+
+    # obtain data provider contract from product
+    data_provider = get_data_provider(product)
+
+    # inject some initial price data
+    for i in range(5):
+        inject_and_process_data(product, data_provider, generate_next_data(i), productOwner)
+
+    # check we're still good
+    assert product.getTriggeredAt() == 0
+    assert product.getDepeggedAt() == 0
+    assert product.getDepegState() == STATE_PRODUCT['Active']
+
+    # move into triggered (paused) state
+    trigger_data = generate_next_data(
+        5,
+        price = TRIGGER_PRICE,
+        delta_time = 12 * 3600)
+
+    (round_id, price, timestamp) = trigger_data.split()[:3]
+    timestamp = int(timestamp)
+    timestamp_trigger = timestamp
+
+    tx = inject_and_process_data(product, data_provider, trigger_data, productOwner)
+
+    assert product.getTriggeredAt() == timestamp_trigger
+    assert product.getDepeggedAt() == 0
+    assert product.getDepegState() == STATE_PRODUCT['Paused']
+
+    return timestamp_trigger
+
+
+def get_data_provider(product):
+    return contract_from_address(
+        UsdcPriceDataProvider,
+        product.getPriceDataProvider())
