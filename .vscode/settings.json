@@ -26,4 +26,5 @@
         "titleBar.inactiveBackground": "#4f3cbe99",
         "titleBar.inactiveForeground": "#e7e7e799"
     },
+    "solidity.defaultCompiler": "remote",
 }

@@ -263,7 +263,7 @@ contract MockRegistryStaking is
 
 
     function _mintObject(uint8 objectType) internal returns(uint256 nftId) {
-        nftId = mint(address(this), '');
+        nftId = mint(address(this), "");
         _objects[_chainId][objectType] += 1;
     }
 
