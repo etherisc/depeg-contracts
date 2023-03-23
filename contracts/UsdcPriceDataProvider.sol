@@ -30,8 +30,6 @@ contract UsdcPriceDataProvider is
     // deviation: 0.25%
     // heartbeat: 86400 (=24 * 60 * 60)
     uint256 public constant CHAINLINK_USDC_USD_DEVIATION = 25 * 10**CHAINLINK_USDC_DECIMALS / 10000;
-
-    // TODO evaluate margin over full chainlink price feed history
     uint256 public constant CHAINLINK_HEARTBEAT_MARGIN = 100;
     uint256 public constant CHAINLINK_USDC_USD_HEARTBEAT = 24 * 3600;
 

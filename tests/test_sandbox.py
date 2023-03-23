@@ -1,3 +1,6 @@
+# command to use sandboxr (wihout 'STOP=Y' at the beginning: just a normal test that should pass)
+# STOP=Y brownie test tests/test_sandbox.py --interactive
+
 import brownie
 import pytest
 import os
@@ -35,8 +38,6 @@ def isolation(fn_isolation):
     pass
 
 
-# command to use sandboxr (wihout 'STOP=Y' at the beginning: just a normal test that should pass)
-# STOP=Y brownie test tests/test_sandbox.py --interactive
 def test_product_sandbox(
     instance,
     instanceOperator: Account,

@@ -209,6 +209,9 @@ def get_setup(product_address):
     setup['feeder']['contract'] = feeder_contract
     setup['feeder']['description'] = feeder.description()
     setup['feeder']['decimals'] = feeder.decimals()
+    setup['feeder']['trigger_price'] = (feeder.DEPEG_TRIGGER_PRICE()/10**feeder.decimals(), feeder.DEPEG_TRIGGER_PRICE())
+    setup['feeder']['recovery_price'] = (feeder.DEPEG_RECOVERY_PRICE()/10**feeder.decimals(), feeder.DEPEG_RECOVERY_PRICE())
+    setup['feeder']['recovery_window_h'] = (feeder.DEPEG_RECOVERY_WINDOW()/3600, feeder.DEPEG_RECOVERY_WINDOW())
     setup['feeder']['info'] = price_info.dict()
     setup['feeder']['info_new'] = new_info
     setup['feeder']['info_new_since'] = time_since
