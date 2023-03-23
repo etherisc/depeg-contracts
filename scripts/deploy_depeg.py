@@ -15,6 +15,7 @@ from brownie import (
     DepegRiskpool
 )
 
+from scripts.const import ZERO_ADDRESS
 from scripts.depeg_product import GifDepegProductComplete
 from scripts.instance import GifInstance
 from scripts.setup import create_bundle
@@ -153,17 +154,20 @@ def get_setup(product_address):
     pfs = treasury.getFeeSpecification(product_id).dict()
     cfs = treasury.getFeeSpecification(riskpool_id).dict()
 
-    staking = contract_from_address(interface.IStakingFacade, riskpool.getStaking())
-    staking_contract = (interface.IStakingFacade._name, staking)
-    staking_owner = staking.owner()
-    dip_token = contract_from_address(DIP, staking.getDip())
+    (staking, chain_registry, nft, dip_token) = (None, None, None, None)
 
-    chain_registry = contract_from_address(interface.IChainRegistryFacade, staking.getRegistry())
-    registry_contract = (interface.IChainRegistryFacade._name, chain_registry)
-    registry_owner = chain_registry.owner()
+    if riskpool.getStaking() != ZERO_ADDRESS:
+        staking = contract_from_address(interface.IStakingFacade, riskpool.getStaking())
+        staking_contract = (interface.IStakingFacade._name, staking)
+        staking_owner = staking.owner()
+        dip_token = contract_from_address(DIP, staking.getDip())
 
-    nft = contract_from_address(interface.IChainNftFacade, chain_registry.getNft())
-    nft_contract = (interface.IChainNftFacade._name, nft)
+        chain_registry = contract_from_address(interface.IChainRegistryFacade, staking.getRegistry())
+        registry_contract = (interface.IChainRegistryFacade._name, chain_registry)
+        registry_owner = chain_registry.owner()
+
+        nft = contract_from_address(interface.IChainNftFacade, chain_registry.getNft())
+        nft_contract = (interface.IChainNftFacade._name, nft)
 
     setup = {}
     setup['instance'] = {}
@@ -263,33 +267,42 @@ def get_setup(product_address):
     setup['policy']['protection_min'] = (riskpool.MIN_POLICY_COVERAGE()/10**token.decimals() , riskpool.MIN_POLICY_COVERAGE())
     setup['policy']['protection_max'] = (riskpool.MAX_POLICY_COVERAGE()/10**token.decimals() , riskpool.MAX_POLICY_COVERAGE())
 
-    setup['nft']['contract'] = nft_contract
+    if nft:
+        setup['nft']['contract'] = nft_contract
 
-    setup['nft']['name'] = nft.name()
-    setup['nft']['symbol'] = nft.symbol()
-    try:
-        setup['nft']['total_minted'] = nft.totalMinted()
-    except Exception as e:
-        setup['nft']['total_minted'] = 'n/a'
+        setup['nft']['name'] = nft.name()
+        setup['nft']['symbol'] = nft.symbol()
+        try:
+            setup['nft']['total_minted'] = nft.totalMinted()
+        except Exception as e:
+            setup['nft']['total_minted'] = 'n/a'
+    else:
+        setup['nft']['setup'] = 'MISSING not ready to use'
 
-    chain_id = chain_registry.toChain(web3.chain_id)
-    setup['registry']['contract'] = registry_contract
-    setup['registry']['owner'] = registry_owner
-    setup['registry']['instances'] = chain_registry.objects(chain_id, 20)
-    setup['registry']['riskpools'] = chain_registry.objects(chain_id, 23)
-    setup['registry']['bundles'] = chain_registry.objects(chain_id, 40)
-    setup['registry']['stakes'] = chain_registry.objects(chain_id, 10)
+    if chain_registry:
+        chain_id = chain_registry.toChain(web3.chain_id)
+        setup['registry']['contract'] = registry_contract
+        setup['registry']['owner'] = registry_owner
+        setup['registry']['instances'] = chain_registry.objects(chain_id, 20)
+        setup['registry']['riskpools'] = chain_registry.objects(chain_id, 23)
+        setup['registry']['bundles'] = chain_registry.objects(chain_id, 40)
+        setup['registry']['stakes'] = chain_registry.objects(chain_id, 10)
+    else:
+        setup['registry']['setup'] = 'MISSING not ready to use'
 
-    staking_rate = staking.stakingRate(chain_id, riskpool_token)
-    setup['staking']['contract'] = staking_contract
-    setup['staking']['chain'] = chain_id
-    setup['staking']['owner'] = staking_owner
-    setup['staking']['dip'] = (dip_token.symbol(), dip_token, dip_token.decimals())
-    setup['staking']['reward_balance'] = (staking.rewardBalance()/10**dip_token.decimals(), staking.rewardBalance())
-    setup['staking']['reward_reserves'] = (staking.rewardReserves()/10**dip_token.decimals(), staking.rewardReserves())
-    setup['staking']['reward_rate'] = (staking.rewardRate()/10**staking.rateDecimals(), staking.rewardRate())
-    setup['staking']['staking_rate'] = (staking_rate/10**staking.rateDecimals(), staking_rate)
-    setup['staking']['wallet'] = staking.getStakingWallet()
+    if staking:
+        staking_rate = staking.stakingRate(chain_id, riskpool_token)
+        setup['staking']['contract'] = staking_contract
+        setup['staking']['chain'] = chain_id
+        setup['staking']['owner'] = staking_owner
+        setup['staking']['dip'] = (dip_token.symbol(), dip_token, dip_token.decimals())
+        setup['staking']['reward_balance'] = (staking.rewardBalance()/10**dip_token.decimals(), staking.rewardBalance())
+        setup['staking']['reward_reserves'] = (staking.rewardReserves()/10**dip_token.decimals(), staking.rewardReserves())
+        setup['staking']['reward_rate'] = (staking.rewardRate()/10**staking.rateDecimals(), staking.rewardRate())
+        setup['staking']['staking_rate'] = (staking_rate/10**staking.rateDecimals(), staking_rate)
+        setup['staking']['wallet'] = staking.getStakingWallet()
+    else:
+        setup['staking']['setup'] = 'MISSING not ready to use'
 
     return (
         setup,
@@ -881,6 +894,7 @@ def all_in_1(
     usd2_address=None,
     deploy_all=False,
     disable_staking=False,
+    sum_insured_percentage=20,
     publish_source=False
 ):
     a = stakeholders_accounts or stakeholders_accounts_ganache()
@@ -971,6 +985,7 @@ def all_in_1(
         usd2,
         riskpoolKeeper,
         riskpoolWallet,
+        sum_insured_percentage=sum_insured_percentage,
         riskpool_address=riskpool_address,
         publishSource=publish_source)
 
