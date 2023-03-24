@@ -37,13 +37,13 @@ contract MockRegistryStaking is
 
     // keep track of chain and object specific minted counts, and items
     mapping(bytes5 /* chain id*/ => mapping(uint8 /* object type */ => uint256 /* count*/)) private _objects;
-    mapping(bytes32 /* instance id*/  => uint256 /* nft id*/) private _instance;
-    mapping(bytes32 /* instance id*/  => mapping(uint256 /* component id */ => uint256 /* nft id*/)) private _component;
-    mapping(bytes32 /* instance id*/  => mapping(uint256 /* bundle id */ => uint256 /* nft id*/)) private _bundle;
+    mapping(bytes32 /* instance id*/  => uint96 /* nft id*/) private _instance;
+    mapping(bytes32 /* instance id*/  => mapping(uint256 /* component id */ => uint96 /* nft id*/)) private _component;
+    mapping(bytes32 /* instance id*/  => mapping(uint256 /* bundle id */ => uint96 /* nft id*/)) private _bundle;
 
     // keep track of minted nft and stakes per nft
     mapping(uint256 /* nft id*/ => bool) private _isMinted;
-    mapping(uint256 /* nft id*/ => uint256 /* dip amount */) private _stakes;
+    mapping(uint96 /* nft id*/ => uint256 /* dip amount */) private _stakes;
 
     // rates
     uint256 private _rewardRate;
@@ -92,7 +92,7 @@ contract MockRegistryStaking is
 
     //--- staking functions ------------------------------------------------//
 
-    function getRegistry() external override view returns(IChainRegistryFacade) {
+    function getRegistry() external override(IChainNftFacade, IStakingFacade) view returns(IChainRegistryFacade) {
         return IChainRegistryFacade(this);
     }
 
@@ -124,12 +124,12 @@ contract MockRegistryStaking is
         return _stakingRate[chain][token];
     }
 
-    function setStakedDip(uint256 targetNftId, uint256 dipAmount) public {
+    function setStakedDip(uint96 targetNftId, uint256 dipAmount) public {
         _stakes[targetNftId] = dipAmount;
     }
 
 
-    function capitalSupport(uint256 targetNftId) external override view returns(uint256 capitalAmount) {
+    function capitalSupport(uint96 targetNftId) external override view returns(uint256 capitalAmount) {
         uint256 dipAmount = _stakes[targetNftId];
         uint256 rate = _stakingRate[_chainId][address(_usdt)];
         int8 decimals = int8(_usdt.decimals());
@@ -174,7 +174,7 @@ contract MockRegistryStaking is
     )
         external
         override
-        returns(uint256 nftId)
+        returns(uint96 nftId)
     {
         nftId = _checkMintBundle(instanceId, riskpoolId);
         emit LogMockBundleRegistered(nftId, _chainId, BUNDLE, instanceId, riskpoolId, bundleId, msg.sender);
@@ -185,15 +185,15 @@ contract MockRegistryStaking is
         return _objects[chain][objectType];
     }
 
-    function getInstanceNftId(bytes32 instanceId) external override view returns(uint256 id) {
+    function getInstanceNftId(bytes32 instanceId) external override view returns(uint96 id) {
         return _instance[instanceId];
     }
 
-    function getComponentNftId(bytes32 instanceId, uint256 componentId) external override view returns(uint256 nftId) {
+    function getComponentNftId(bytes32 instanceId, uint256 componentId) external override view returns(uint96 nftId) {
         return _component[instanceId][componentId];
     }
 
-    function getBundleNftId(bytes32 instanceId, uint256 bundleId) external override view returns(uint256 nftId) {
+    function getBundleNftId(bytes32 instanceId, uint256 bundleId) external override view returns(uint96 nftId) {
         return _bundle[instanceId][bundleId];
     }
 
@@ -214,11 +214,15 @@ contract MockRegistryStaking is
         _totalMinted++;
     }
 
-    function name() external pure override returns (string memory) { return NAME; }
-    function symbol() external pure override returns (string memory) { return SYMBOL; }
+    function name() external override pure returns (string memory) { return NAME; }
+    function symbol() external override pure returns (string memory) { return SYMBOL; }
     function totalMinted() external override view returns(uint256) { return _totalMinted; }
 
-    function exists(uint256 tokenId) external override(IChainNftFacade, IChainRegistryFacade) view returns(bool) {
+    function exists(uint256 tokenId) external override view returns(bool) {
+        return _isMinted[uint96(tokenId)];
+    }
+
+    function exists(uint96 tokenId) external override view returns(bool) {
         return _isMinted[tokenId];
     }
 
@@ -232,7 +236,7 @@ contract MockRegistryStaking is
     }
 
 
-    function _checkMintInstance(bytes32 instanceId) internal returns(uint256 nftId) {
+    function _checkMintInstance(bytes32 instanceId) internal returns(uint96 nftId) {
         nftId = _instance[instanceId];
 
         if(nftId == 0) {
@@ -242,7 +246,7 @@ contract MockRegistryStaking is
     }
 
 
-    function _checkMintRiskpool(bytes32 instanceId, uint256 riskpoolId) internal returns(uint256 nftId) {
+    function _checkMintRiskpool(bytes32 instanceId, uint256 riskpoolId) internal returns(uint96 nftId) {
         nftId = _component[instanceId][riskpoolId];
 
         if(nftId == 0) {
@@ -252,7 +256,7 @@ contract MockRegistryStaking is
     }
 
 
-    function _checkMintBundle(bytes32 instanceId, uint256 bundleId) internal returns(uint256 nftId) {
+    function _checkMintBundle(bytes32 instanceId, uint256 bundleId) internal returns(uint96 nftId) {
         nftId = _bundle[instanceId][bundleId];
 
         if(nftId == 0) {
@@ -262,8 +266,8 @@ contract MockRegistryStaking is
     }
 
 
-    function _mintObject(uint8 objectType) internal returns(uint256 nftId) {
-        nftId = mint(address(this), "");
+    function _mintObject(uint8 objectType) internal returns(uint96 nftId) {
+        nftId = uint96(mint(address(this), ""));
         _objects[_chainId][objectType] += 1;
     }
 
