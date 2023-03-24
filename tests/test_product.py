@@ -75,8 +75,6 @@ def test_product_deploy(
     assert instanceService.getComponent(product.getId()) == product 
     assert instanceService.getComponent(riskpool.getId()) == riskpool 
 
-    # TODO check fee specification once this is available from instanceService
-
     # check token
     assert usdc_feeder.getToken() == usd1
     assert usd1.symbol() == 'USDC'
@@ -91,3 +89,23 @@ def test_product_deploy(
     # check riskpool
     assert riskpool.getWallet() == riskpoolWallet
     assert riskpool.getErc20Token() == usd2 # usdt
+    assert riskpool.getSumInsuredPercentage() == 100
+
+    # sum insured % checks
+    percentage = 100
+    target_price = product.getTargetPrice()
+    protected_price = ((100 - percentage) * target_price) / 100
+    protected_balance = 5000 * 10 ** usd1.decimals()
+    sum_insured = (percentage * protected_balance) / 100
+
+    assert target_price == 10 ** usdc_feeder.decimals()
+    assert protected_balance == sum_insured
+    assert protected_price == 0
+
+    assert riskpool.getSumInsuredPercentage() == percentage
+    assert riskpool.calculateSumInsured(protected_balance) == sum_insured
+    assert riskpool.getProtectedMinDepegPrice(target_price) == protected_price
+
+    assert riskpool.depegPriceIsBelowProtectedDepegPrice(protected_price + 1, target_price) is False
+    assert riskpool.depegPriceIsBelowProtectedDepegPrice(protected_price + 0, target_price) is False
+    # check negative number not allowed

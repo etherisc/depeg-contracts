@@ -51,7 +51,8 @@ def test_create_application(
     riskpoolBalanceBefore = instanceService.getBalance(riskpool.getId())
     instanceBalanceBefore = token.balanceOf(instanceWallet)
 
-    sumInsured = 10000
+    protectedBalance = 10000
+    sumInsured = riskpool.calculateSumInsured(protectedBalance)
     durationDays = 60
     maxPremium = 750
 
@@ -62,7 +63,7 @@ def test_create_application(
         customer,
         bundleId,
         protectedWallet,
-        sumInsured,
+        protectedBalance,
         durationDays,
         maxPremium)
 
@@ -107,18 +108,20 @@ def test_create_application(
     instanceBalanceAfter = token.balanceOf(instanceWallet)
 
     fixedFee = 0
-    fractionalFee = 0.1
+    fractionalFee = 0.05
     premiumFees = fractionalFee * premium + fixedFee
     netPremium = premium - premiumFees
 
     (
         wallet,
+        protected_balance,
         applicationDuration,
         applicationBundleId,
         applicationMaxPremium
     ) = riskpool.decodeApplicationParameterFromData(application['data'])
 
     assert wallet == protectedWallet
+    assert protected_balance == protectedBalance * tf
     assert applicationDuration == durationDays * 24 * 3600
     assert applicationBundleId == bundleId
     assert applicationMaxPremium == netPremium
@@ -160,7 +163,7 @@ def test_application_with_expired_bundle(
         investor, 
         riskpool)
 
-    sumInsured = 10000
+    protectedBalance = 10000
     durationDays = 60
     maxPremium = 750
 
@@ -171,7 +174,7 @@ def test_application_with_expired_bundle(
         customer,
         bundleId,
         protectedWallet,
-        sumInsured, 
+        protectedBalance, 
         durationDays, 
         maxPremium)
 
@@ -188,7 +191,7 @@ def test_application_with_expired_bundle(
         customer,
         bundleId,
         protectedWallet2,
-        sumInsured,
+        protectedBalance,
         durationDays,
         maxPremium)
 

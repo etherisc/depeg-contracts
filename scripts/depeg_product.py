@@ -20,6 +20,24 @@ from scripts.util import (
 
 from scripts.instance import GifInstance
 
+# values according to 
+# https://github.com/etherisc/depeg-ui/issues/328
+
+
+# goal: protect balance up to 10'000'000 usdc
+# with sum insured percentage of 20% -> 2'000'000 (2 * 10**6)
+# with usdc.decimals() == 6 -> 2 * 10**(6 + 6) == 2 * 10**12
+SUM_OF_SUM_INSURED_CAP = 2 * 10**12
+MAX_ACTIVE_BUNDLES = 10
+
+CAPITAL_FIXED_FEE = 0
+CAPITAL_FRACTIONAL_FEE = 0
+
+# 5%
+# 10**18 needs to match with instanceService.getFeeFractionFullUnit()
+PREMIUM_FRACTIONAL_FEE = int(10**18/20) 
+PREMIUM_FIXED_FEE = 0
+
 class GifDepegRiskpool(object):
 
     def __init__(self, 
@@ -30,6 +48,7 @@ class GifDepegRiskpool(object):
         investor: Account,
         collateralization:int,
         name,
+        sum_insured_percentage=100,
         riskpool_address=None,
         publishSource=False
     ):
@@ -65,13 +84,13 @@ class GifDepegRiskpool(object):
 
         self.riskpool = DepegRiskpool.deploy(
             s2b(name),
+            SUM_OF_SUM_INSURED_CAP,
+            sum_insured_percentage,
             erc20Token,
             riskpoolWallet,
             instance.getRegistry(),
             {'from': riskpoolKeeper},
             publish_source=publishSource)
-
-        sumOfSumInsuredCap = self.riskpool.getSumOfSumInsuredCap()
 
         print('3) riskpool {} proposing to instance by riskpool keeper {}'.format(
             self.riskpool, riskpoolKeeper))
@@ -89,17 +108,19 @@ class GifDepegRiskpool(object):
             self.riskpool.getId(),
             {'from': instance.getOwner()})
 
-        maxActiveBundles = 10
         print('5) set max number of bundles to {} by riskpool keeper {}'.format(
-            maxActiveBundles, riskpoolKeeper))
+            MAX_ACTIVE_BUNDLES, riskpoolKeeper))
 
         self.riskpool.setMaximumNumberOfActiveBundles(
-            maxActiveBundles,
+            MAX_ACTIVE_BUNDLES,
             {'from': riskpoolKeeper})
+
+        sumOfSumInsuredCap = self.riskpool.getSumOfSumInsuredCap()
+        bundleCap = int(sumOfSumInsuredCap / MAX_ACTIVE_BUNDLES)
 
         self.riskpool.setCapitalCaps(
             sumOfSumInsuredCap,
-            int(sumOfSumInsuredCap / maxActiveBundles),
+            bundleCap,
             {'from': riskpoolKeeper})
 
         print('6) riskpool wallet {} set for riskpool id {} by instance operator {}'.format(
@@ -111,15 +132,13 @@ class GifDepegRiskpool(object):
             {'from': instance.getOwner()})
 
         # 7) setup capital fees
-        fixedFee = 0
-        fractionalFee = 0 # corresponds to 0%
         print('7) creating capital fee spec (fixed: {}, fractional: {}) for riskpool id {} by instance operator {}'.format(
-            fixedFee, fractionalFee, self.riskpool.getId(), instance.getOwner()))
+            CAPITAL_FIXED_FEE, CAPITAL_FRACTIONAL_FEE, self.riskpool.getId(), instance.getOwner()))
         
         feeSpec = instanceOperatorService.createFeeSpecification(
             self.riskpool.getId(),
-            fixedFee,
-            fractionalFee,
+            CAPITAL_FIXED_FEE,
+            CAPITAL_FRACTIONAL_FEE,
             b'',
             {'from': instance.getOwner()}) 
 
@@ -207,15 +226,13 @@ class GifDepegProduct(object):
             erc20Token,
             {'from': instance.getOwner()}) 
 
-        fixedFee = 0
-        fractionalFee = instanceService.getFeeFractionFullUnit() / 10 # corresponds to 10%
         print('6) creating premium fee spec (fixed: {}, fractional: {}) for product id {} by instance operator {}'.format(
-            fixedFee, fractionalFee, self.product.getId(), instance.getOwner()))
+            PREMIUM_FIXED_FEE, PREMIUM_FRACTIONAL_FEE, self.product.getId(), instance.getOwner()))
         
         feeSpec = instanceOperatorService.createFeeSpecification(
             self.product.getId(),
-            fixedFee,
-            fractionalFee,
+            PREMIUM_FIXED_FEE,
+            PREMIUM_FRACTIONAL_FEE,
             b'',
             {'from': instance.getOwner()}) 
 
@@ -250,7 +267,8 @@ class GifDepegProductComplete(object):
         erc20Token: Account,
         riskpoolKeeper: Account,
         riskpoolWallet: Account,
-        baseName='Depeg' + str(int(time.time())),  # FIXME
+        baseName='Depeg_' + str(int(time.time())),
+        sum_insured_percentage=100,
         riskpool_address=None,
         product_address=None,
         publishSource=False
@@ -270,7 +288,8 @@ class GifDepegProductComplete(object):
             riskpoolWallet,
             investor, 
             instanceService.getFullCollateralizationLevel(),
-            '{}Riskpool'.format(baseName),
+            '{}_Riskpool'.format(baseName),
+            sum_insured_percentage,
             riskpool_address,
             publishSource)
 
@@ -280,7 +299,7 @@ class GifDepegProductComplete(object):
             erc20Token, 
             productOwner, 
             self.riskpool,
-            '{}Product'.format(baseName),
+            '{}_Product'.format(baseName),
             publishSource)
 
     def getToken(self):

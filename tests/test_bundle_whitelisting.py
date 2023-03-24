@@ -38,8 +38,8 @@ def test_create_whitelisting_story(
 
     bundle_name1 = 'my bundle 1'
     bundleLifetimeDays = 90
-    minSumInsured =  1000
-    maxSumInsured = 10000
+    minProtectedBalance =  2000
+    maxProtectedBalance = 10000
     minDurationDays = 14
     maxDurationDays = 60
     aprPercentage = 5.0
@@ -56,8 +56,8 @@ def test_create_whitelisting_story(
         bundle_funding, 
         bundle_name1,
         bundleLifetimeDays,
-        minSumInsured, 
-        maxSumInsured, 
+        minProtectedBalance, 
+        maxProtectedBalance, 
         minDurationDays, 
         maxDurationDays, 
         aprPercentage)
@@ -84,8 +84,8 @@ def test_create_whitelisting_story(
             bundle_funding, 
             bundle_name1,
             bundleLifetimeDays,
-            minSumInsured, 
-            maxSumInsured, 
+            minProtectedBalance, 
+            maxProtectedBalance, 
             minDurationDays, 
             maxDurationDays, 
             aprPercentage)
@@ -111,8 +111,8 @@ def test_create_whitelisting_story(
         bundle_funding, 
         bundle_name2,
         bundleLifetimeDays,
-        minSumInsured, 
-        maxSumInsured, 
+        minProtectedBalance, 
+        maxProtectedBalance, 
         minDurationDays, 
         maxDurationDays, 
         aprPercentage)
@@ -132,8 +132,8 @@ def test_create_whitelisting_story(
             bundle_funding, 
             bundle_name2,
             bundleLifetimeDays,
-            minSumInsured, 
-            maxSumInsured, 
+            minProtectedBalance, 
+            maxProtectedBalance, 
             minDurationDays, 
             maxDurationDays, 
             aprPercentage)
@@ -154,8 +154,8 @@ def test_create_whitelisting_story(
         bundle_funding, 
         bundle_name3,
         bundleLifetimeDays,
-        minSumInsured, 
-        maxSumInsured, 
+        minProtectedBalance, 
+        maxProtectedBalance, 
         minDurationDays, 
         maxDurationDays, 
         aprPercentage)

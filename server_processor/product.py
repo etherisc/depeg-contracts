@@ -140,7 +140,6 @@ class Product(BaseModel):
         application = instance_service.getApplication(process_id).dict()
         policy = instance_service.getPolicy(process_id).dict()
 
-        # TODO DECODING OF APPLICATION DATA DOESN'T WORK
         return {
             'application.state': APPLICATION_STATE[application['state']],
             'application.sumInsured': application['sumInsuredAmount'],

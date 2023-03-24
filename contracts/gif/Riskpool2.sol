@@ -78,10 +78,8 @@ abstract contract Riskpool2 is
     { 
         _collateralization = collateralization;
 
-        IERC20Metadata token = IERC20Metadata(erc20Token);
-
         require(sumOfSumInsuredCap != 0, "ERROR:RPL-003:SUM_OF_SUM_INSURED_CAP_ZERO");
-        _sumOfSumInsuredCap = sumOfSumInsuredCap * 10 ** token.decimals();
+        _sumOfSumInsuredCap = sumOfSumInsuredCap;
 
         require(erc20Token != address(0), "ERROR:RPL-005:ERC20_ADDRESS_ZERO");
         _erc20Token = erc20Token;

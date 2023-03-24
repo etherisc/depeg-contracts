@@ -1,3 +1,4 @@
+from datetime import datetime
 from web3 import Web3
 
 from brownie import (
@@ -90,3 +91,5 @@ def wait_for_confirmations(
         print('waiting for confirmations ...')
         tx.wait(confirmations)
 
+def get_iso_datetime(timestamp):
+    return datetime.fromtimestamp(timestamp).isoformat()
