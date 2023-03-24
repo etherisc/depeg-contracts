@@ -227,6 +227,7 @@ def get_setup(product_address):
     setup['riskpool']['contract'] = riskpool_contract
     setup['riskpool']['id'] = riskpool_id
     setup['riskpool']['owner'] = riskpool_owner
+    setup['riskpool']['staking'] = riskpool.getStaking()
     setup['riskpool']['deployed_at'] = (get_iso_datetime(get_deploy_timestamp(riskpool_name)), get_deploy_timestamp(riskpool_name))
     setup['riskpool']['capital_fee'] = (cfs['fractionalFee']/instance_service.getFeeFractionFullUnit(), cfs['fixedFee'])
     setup['riskpool']['token'] = (riskpool_token.symbol(), riskpool_token, riskpool_token.decimals())
@@ -267,9 +268,10 @@ def get_setup(product_address):
 
     if nft:
         setup['nft']['contract'] = nft_contract
-
         setup['nft']['name'] = nft.name()
         setup['nft']['symbol'] = nft.symbol()
+        setup['nft']['registry'] = nft.getRegistry()
+
         try:
             setup['nft']['total_minted'] = nft.totalMinted()
         except Exception as e:
@@ -279,26 +281,35 @@ def get_setup(product_address):
 
     if chain_registry:
         chain_id = chain_registry.toChain(web3.chain_id)
+        registry_version = _get_version(chain_registry)
         setup['registry']['contract'] = registry_contract
         setup['registry']['owner'] = registry_owner
+        setup['registry']['nft'] = chain_registry.getNft()
         setup['registry']['instances'] = chain_registry.objects(chain_id, 20)
         setup['registry']['riskpools'] = chain_registry.objects(chain_id, 23)
         setup['registry']['bundles'] = chain_registry.objects(chain_id, 40)
         setup['registry']['stakes'] = chain_registry.objects(chain_id, 10)
+        setup['registry']['version'] = registry_version
     else:
         setup['registry']['setup'] = 'MISSING not ready to use'
 
     if staking:
         staking_rate = staking.stakingRate(chain_id, riskpool_token)
+        staking_version = _get_version(staking)
+        wallet_balance = dip_token.balanceOf(staking.getStakingWallet())
         setup['staking']['contract'] = staking_contract
         setup['staking']['chain'] = chain_id
         setup['staking']['owner'] = staking_owner
+        setup['staking']['registry'] = staking.getRegistry()
         setup['staking']['dip'] = (dip_token.symbol(), dip_token, dip_token.decimals())
         setup['staking']['reward_balance'] = (staking.rewardBalance()/10**dip_token.decimals(), staking.rewardBalance())
         setup['staking']['reward_reserves'] = (staking.rewardReserves()/10**dip_token.decimals(), staking.rewardReserves())
         setup['staking']['reward_rate'] = (staking.rewardRate()/10**staking.rateDecimals(), staking.rewardRate())
-        setup['staking']['staking_rate'] = (staking_rate/10**staking.rateDecimals(), staking_rate)
+        setup['staking']['reward_rate_max'] = (staking.maxRewardRate()/10**staking.rateDecimals(), staking.maxRewardRate())
+        setup['staking']['staking_rate_usdt'] = (staking_rate/10**staking.rateDecimals(), staking_rate)
         setup['staking']['wallet'] = staking.getStakingWallet()
+        setup['staking']['wallet_balance'] = (wallet_balance/10**dip_token.decimals(), wallet_balance)
+        setup['staking']['version'] = staking_version
     else:
         setup['staking']['setup'] = 'MISSING not ready to use'
 
@@ -313,6 +324,11 @@ def get_setup(product_address):
         token,
         instance_service
     )
+
+
+def _get_version(versionable):
+    (major, minor, patch) = versionable.versionParts()
+    return('v{}.{}.{}'.format(major, minor, patch), versionable.version())
 
 
 def get_riskpool(product, instance_service):

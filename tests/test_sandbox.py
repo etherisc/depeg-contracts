@@ -50,6 +50,7 @@ def test_product_sandbox(
     registryOwner: Account,
 ):
     product20 = gifDepegProduct20.getContract()
+    instance_service = instance.getInstanceService()
 
     # just needed to get riskpool and product
     (
@@ -78,6 +79,14 @@ def test_product_sandbox(
     
     bundle = instance_service.getBundle(bundle_id).dict()
     bundle_filter = riskpool.decodeBundleParamsFromFilter(bundle['filter']).dict()
+
+    # "stake" some dips
+    mock = contract_from_address(MockRegistryStaking, riskpool.getStaking())
+    bundle_nft = mock.getBundleNftId(instance_service.getInstanceId(), bundle_id)
+    bundle_stake = 10000 * 10**dip.decimals()
+
+    mock.setStakedDip(bundle_nft, bundle_stake, {'from': instanceOperator})
+    dip.transfer(mock.getStakingWallet(), bundle_stake, {'from': instanceOperator})
 
     # buy policy for wallet to be protected
     protected_wallet = customer
