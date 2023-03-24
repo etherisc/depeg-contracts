@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.2;
 
-import "../IChainNftFacade.sol";
-import "../IChainRegistryFacade.sol";
-import "../IStakingFacade.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
+import {IChainNftFacade} from "../registry/IChainNftFacade.sol";
+import {IChainRegistryFacade} from "../registry/IChainRegistryFacade.sol";
+import {IStakingFacade} from "../staking/IStakingFacade.sol";
+
+// solhint-disable-next-line max-states-count
 contract MockRegistryStaking is
     IChainNftFacade,
     IChainRegistryFacade,
@@ -108,16 +111,20 @@ contract MockRegistryStaking is
         return _rewardRate;
     }
 
-    function rewardBalance() external override view returns(uint256 dipAmount) {
+    function rewardBalance() external override pure returns(uint256 dipAmount) {
         return 0;
     }
 
-    function rewardReserves() external override view returns(uint256 dipAmount) {
+    function rewardReserves() external override pure returns(uint256 dipAmount) {
         return 0;
     }
 
-    function setStakingRate(bytes5 chain, address token, uint256 rate) public override {
+    function setStakingRate(bytes5 chain, address token, uint256 rate) public {
         _stakingRate[chain][token] = rate;
+    }
+
+    function maxRewardRate() external override pure returns(uint256 rate) {
+        return _itof(333, -3);
     }
 
     function stakingRate(bytes5 chain, address token) external override view returns(uint256 rate) {
@@ -152,6 +159,23 @@ contract MockRegistryStaking is
         return uint256(uint8(EXP));
     }
 
+    function version() external override(IChainRegistryFacade, IStakingFacade) pure returns(uint48) {
+        return 1;
+    }
+
+    function versionParts()
+        external
+        override(IChainRegistryFacade, IStakingFacade)
+        pure
+        returns(
+            uint16 major,
+            uint16 minor,
+            uint16 patch
+        )
+    {
+        return (0, 0, 1);
+    }
+
     //--- registry functions ------------------------------------------------//
 
     function mockRegisterRiskpool(
@@ -165,6 +189,7 @@ contract MockRegistryStaking is
     }
 
 
+    /* solhint-disable no-unused-vars */
     function registerBundle(
         bytes32 instanceId,
         uint256 riskpoolId,
@@ -172,6 +197,7 @@ contract MockRegistryStaking is
         string memory displayName,
         uint256 expiryAt
     )
+    /* solhint-enable no-unused-vars */
         external
         override
         returns(uint96 nftId)
@@ -208,6 +234,7 @@ contract MockRegistryStaking is
 
     //--- nft functions ------------------------------------------------------//
 
+    // solhint-disable-next-line no-unused-vars
     function mint(address to, string memory uri) public override returns(uint256 tokenId) {
         tokenId = _getNextTokenId();
         _isMinted[tokenId] = true;

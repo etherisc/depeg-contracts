@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-pragma solidity ^0.8.19;
+pragma solidity 0.8.2;
 
 /**
  * @dev this facade is intended for user contracts with limited 

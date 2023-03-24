@@ -9,8 +9,8 @@ import "@etherisc/gif-interface/contracts/modules/IPolicy.sol";
 import "@etherisc/gif-interface/contracts/tokens/IBundleToken.sol";
 
 import "./gif/BasicRiskpool2.sol";
-import "./IChainRegistryFacade.sol";
-import "./IStakingFacade.sol";
+import "./registry/IChainRegistryFacade.sol";
+import "./staking/IStakingFacade.sol";
 
 
 contract DepegRiskpool is 
@@ -330,7 +330,7 @@ contract DepegRiskpool is
         returns(bool)
     {
         bytes32 instanceId = _instanceService.getInstanceId();
-        uint256 componentNftId = _chainRegistry.getComponentNftId(instanceId, componentId);
+        uint96 componentNftId = _chainRegistry.getComponentNftId(instanceId, componentId);
         return _chainRegistry.exists(componentNftId);
     }
 
@@ -618,7 +618,7 @@ contract DepegRiskpool is
         }
 
         // otherwise: get amount supported by staking
-        uint256 bundleNftId = _chainRegistry.getBundleNftId(
+        uint96 bundleNftId = _chainRegistry.getBundleNftId(
             _instanceService.getInstanceId(),
             bundleId);
 

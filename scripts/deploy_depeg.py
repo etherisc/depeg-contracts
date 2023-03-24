@@ -8,8 +8,6 @@ from brownie import (
     DIP,
     USD1,
     USD2,
-    BundleRegistry,
-    Staking,
     UsdcPriceDataProvider,
     DepegProduct,
     DepegRiskpool
@@ -413,89 +411,8 @@ def verify_deploy(
     print('TODO add additional price data provider checks')
 
     staking = contract_from_address(Staking, riskpool.getStaking())
-    bundle_registry = contract_from_address(BundleRegistry, staking.getBundleRegistry())
     instance_id = instanceService.getInstanceId()
     riskpool_id = riskpool.getId()
-
-    verify_element(
-        'BundleRegistryInstances',
-        bundle_registry.instances(),
-        1)
-
-    verify_element(
-        'BundleRegistryInstanceId',
-        bundle_registry.getInstanceId(0),
-        instance_id)
-
-    verify_element(
-        'BundleRegistryInstanceRegistered',
-        bundle_registry.isRegisteredInstance(instance_id),
-        True)
-
-    verify_element(
-        'BundleRegistryComponents',
-        bundle_registry.components(instance_id),
-        1)
-
-    verify_element(
-        'BundleRegistryComponentId',
-        bundle_registry.getComponentId(instance_id, 0),
-        riskpool_id)
-
-    verify_element(
-        'BundleRegistryRiskpoolRegistered',
-        bundle_registry.isRegisteredComponent(instance_id, riskpool_id), 
-        True)
-
-    bundle_ids = riskpool.getActiveBundleIds()
-
-    verify_element(
-        'BundleRegistryBundles',
-        bundle_registry.bundles(instance_id, riskpool_id),
-        len(bundle_ids))
-
-    r = staking.getRewardRate()
-    (value,divisor) = staking.fromRate(r)
-    reward_rate = value/divisor
-    verify_element(
-        'StakingRewardRate',
-        reward_rate,
-        0.042
-    )
-
-    r = staking.getStakingRate(erc20_token, web3.chain_id)
-    (value,divisor) = staking.fromRate(r)
-    staking_rate = value/divisor
-    verify_element(
-        'StakingStakingRate',
-        staking_rate,
-        0.1
-    )
-
-    for idx, bundle_id in enumerate(bundle_ids):
-        verify_element(
-            'BundleRegistryBundleId{}'.format(idx),
-            bundle_registry.getBundleId(instance_id, riskpool_id, idx),
-            bundle_id)
-
-        bundle_target_id = staking.toBundleTargetId(instance_id, riskpool_id, bundle_id)
-        staked_dips = staking.stakes(bundle_target_id)
-        stakes_ok = 'OK' if staked_dips > 0 else 'ERROR'
-        print('StakingBundleStakedDip{} {} {} {:.2f}'.format(
-            idx,
-            stakes_ok,
-            bundle_id,
-            staked_dips/10**dip.decimals()
-        ))
-
-        capital_support = staking.capitalSupport(bundle_target_id)
-        support_ok = 'OK' if capital_support > 0 else 'ERROR'
-        print('StakingBundleCapitalSupport{} {} {} {:.2f}'.format(
-            idx,
-            support_ok,
-            bundle_id,
-            capital_support/10**erc20_token.decimals()
-        ))
 
 
 def verify_element(
@@ -1004,29 +921,29 @@ def all_in_1(
         print('====== registry/staking disabled (nothing to check/deploy) ======')
     else:
         print('====== deploy registry/staking (if not provided) ======')
-        from_owner = {'from':a[REGISTRY_OWNER]}
+        print('TO BE IMPLEMENTED USING MockRegistryStaking')
+        # from_owner = {'from':a[REGISTRY_OWNER]}
         
-        if staking_address is None:
-            staking_address = get_address('staking')
+        # if staking_address is None:
+        #     staking_address = get_address('staking')
 
-            if staking_address is None:
-                bundle_registry = BundleRegistry.deploy(from_owner)
-                staking = Staking.deploy(bundle_registry, from_owner)
-                staking_address = staking.address
+        #     if staking_address is None:
+                # bundle_registry = BundleRegistry.deploy(from_owner)
+                # staking = Staking.deploy(bundle_registry, from_owner)
+                # staking_address = staking.address
+                # staking.setDipContract(dip, from_owner)
 
-                staking.setDipContract(dip, from_owner)
+        # staking = contract_from_address(Staking, staking_address)
+        # bundle_registry = contract_from_address(BundleRegistry, staking.getBundleRegistry())
+        # staking_rate = staking.toRate(1, -1) # 1 dip unlocks 10 cents (usd1)
 
-        staking = contract_from_address(Staking, staking_address)
-        bundle_registry = contract_from_address(BundleRegistry, staking.getBundleRegistry())
-        staking_rate = staking.toRate(1, -1) # 1 dip unlocks 10 cents (usd1)
+        # bundle_registry.registerToken(usd2.address, from_owner)
 
-        bundle_registry.registerToken(usd2.address, from_owner)
-
-        staking.setStakingRate(
-            usd2.address,
-            instance_service.getChainId(),
-            staking_rate,
-            from_owner)
+        # staking.setStakingRate(
+        #     usd2.address,
+        #     instance_service.getChainId(),
+        #     staking_rate,
+        #     from_owner)
 
     print('--- create riskpool setup ---')
     mult = 10**usd2.decimals()
@@ -1050,40 +967,41 @@ def all_in_1(
 
     # link riskpool to staking
     if not disable_staking:
-        riskpool.setStakingAddress(staking, {'from': a[RISKPOOL_KEEPER]})
+        print('TO BE IMPLEMENTED USING MockRegistryStaking')
+        # riskpool.setStakingAddress(staking, {'from': a[RISKPOOL_KEEPER]})
 
-        print('--- register instance and bundles for staking ---')
-        bundle_registry.registerInstance(
-            instance.getRegistry(),
-            from_owner)
+        # print('--- register instance and bundles for staking ---')
+        # bundle_registry.registerInstance(
+        #     instance.getRegistry(),
+        #     from_owner)
 
-        bundle_registry.registerComponent(instance_id, riskpool_id, from_owner)
+        # bundle_registry.registerComponent(instance_id, riskpool_id, from_owner)
 
-        bundle = instance_service.getBundle(bundle_id1).dict()
-        expiredAt = bundle['createdAt'] + bundleLifetimeDays  * 24 * 3600
+        # bundle = instance_service.getBundle(bundle_id1).dict()
+        # expiredAt = bundle['createdAt'] + bundleLifetimeDays  * 24 * 3600
 
-        bundle_registry.registerBundle(instance_id, riskpool_id, bundle_id1, 'bundle-1', expiredAt, from_owner)
-        bundle_registry.registerBundle(instance_id, riskpool_id, bundle_id2, 'bundle-2', expiredAt, from_owner)
+        # bundle_registry.registerBundle(instance_id, riskpool_id, bundle_id1, 'bundle-1', expiredAt, from_owner)
+        # bundle_registry.registerBundle(instance_id, riskpool_id, bundle_id2, 'bundle-2', expiredAt, from_owner)
 
-        print('--- fund staker with dips and stake to bundles ---')
-        target_usd2 = 2 * initial_funding
-        target_amount = target_usd2 * 10**usd2.decimals()
-        required_dip = staking.calculateRequiredStaking(usd2, chain_id, target_amount)
+        # print('--- fund staker with dips and stake to bundles ---')
+        # target_usd2 = 2 * initial_funding
+        # target_amount = target_usd2 * 10**usd2.decimals()
+        # required_dip = staking.calculateRequiredStaking(usd2, chain_id, target_amount)
 
-        dip.transfer(a[STAKER], required_dip, {'from': a[INSTANCE_OPERATOR]})
-        dip.approve(staking.getStakingWallet(), required_dip, {'from':a[STAKER]}) 
+        # dip.transfer(a[STAKER], required_dip, {'from': a[INSTANCE_OPERATOR]})
+        # dip.approve(staking.getStakingWallet(), required_dip, {'from':a[STAKER]}) 
 
-        type_bundle = 4
-        (bundle_target_id1, bt1) = staking.toTarget(type_bundle, instance_id, riskpool_id, bundle_id1, '')
-        (bundle_target_id2, bt2) = staking.toTarget(type_bundle, instance_id, riskpool_id, bundle_id2, '')
+        # type_bundle = 4
+        # (bundle_target_id1, bt1) = staking.toTarget(type_bundle, instance_id, riskpool_id, bundle_id1, '')
+        # (bundle_target_id2, bt2) = staking.toTarget(type_bundle, instance_id, riskpool_id, bundle_id2, '')
 
-        # register bundles as staking targets
-        staking.register(bundle_target_id1, bt1, {'from': a[STAKER]})
-        staking.register(bundle_target_id2, bt2, {'from': a[STAKER]})
+        # # register bundles as staking targets
+        # staking.register(bundle_target_id1, bt1, {'from': a[STAKER]})
+        # staking.register(bundle_target_id2, bt2, {'from': a[STAKER]})
 
-        # leave staker with 0.1 * required_dip as 'play' funding for later use
-        staking.stake(bundle_target_id1, 0.4 * required_dip, {'from': a[STAKER]})
-        staking.stake(bundle_target_id2, 0.5 * required_dip, {'from': a[STAKER]})
+        # # leave staker with 0.1 * required_dip as 'play' funding for later use
+        # staking.stake(bundle_target_id1, 0.4 * required_dip, {'from': a[STAKER]})
+        # staking.stake(bundle_target_id2, 0.5 * required_dip, {'from': a[STAKER]})
 
     print('--- create policy ---')
     customer_funding=1000 * mult

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.2;
 
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 contract USD1 is ERC20 {
 
@@ -29,6 +29,7 @@ contract USD1 is ERC20 {
 
     function transfer(address to, uint256 amount) public virtual override returns (bool) {
         address from = _msgSender();
+        // solhint-disable-next-line not-rely-on-time
         emit LogUsd1TransferFrom(from, to, amount, block.timestamp, block.number);
         return super.transfer(to, amount);
     }
@@ -36,6 +37,7 @@ contract USD1 is ERC20 {
     function transferFrom(address from, address to, uint256 amount) 
         public virtual override returns (bool) 
     {
+        // solhint-disable-next-line not-rely-on-time
         emit LogUsd1TransferFrom(from, to, amount, block.timestamp, block.number);
         return super.transferFrom(from, to, amount);
     }    

@@ -13,10 +13,6 @@ from brownie import (
     UsdcPriceDataProvider,
     DepegProduct,
     DepegRiskpool,
-    InstanceRegistry,
-    ComponentRegistry,
-    BundleRegistry,
-    Staking,
     MockRegistryStaking,
     DIP
 )
@@ -263,22 +259,3 @@ def product20(gifDepegProduct20) -> DepegProduct: return gifDepegProduct20.getCo
 def riskpool20(gifDepegProduct20) -> DepegRiskpool: return gifDepegProduct20.getRiskpool().getContract()
 
 #=== staking fixtures ====================================================#
-
-@pytest.fixture(scope="module")
-def instanceRegistry(registryOwner) -> InstanceRegistry: 
-    return InstanceRegistry.deploy({'from': registryOwner})
-
-
-@pytest.fixture(scope="module")
-def componentRegistry(registryOwner) -> ComponentRegistry: 
-    return ComponentRegistry.deploy({'from': registryOwner})
-
-
-@pytest.fixture(scope="module")
-def bundleRegistry(registryOwner) -> BundleRegistry: 
-    return BundleRegistry.deploy({'from': registryOwner})
-
-
-@pytest.fixture(scope="module")
-def staking(registryOwner, bundleRegistry) -> BundleRegistry: 
-    return Staking.deploy(bundleRegistry, {'from': registryOwner})
