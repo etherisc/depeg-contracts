@@ -104,9 +104,11 @@ class GifDepegRiskpool(object):
         print('4) approval of riskpool id {} by instance operator {}'.format(
             self.riskpool.getId(), instance.getOwner()))
         
-        instanceOperatorService.approve(
+        tx = instanceOperatorService.approve(
             self.riskpool.getId(),
             {'from': instance.getOwner()})
+
+        wait_for_confirmations(tx)
 
         print('5) set max number of bundles to {} by riskpool keeper {}'.format(
             MAX_ACTIVE_BUNDLES, riskpoolKeeper))
@@ -214,9 +216,11 @@ class GifDepegProduct(object):
         print('4) approval of product id {} by instance operator {}'.format(
             self.product.getId(), instance.getOwner()))
 
-        instanceOperatorService.approve(
+        tx = instanceOperatorService.approve(
             self.product.getId(),
             {'from': instance.getOwner()})
+
+        wait_for_confirmations(tx)
 
         print('5) setting erc20 product token {} for product id {} by instance operator {}'.format(
             erc20Token, self.product.getId(), instance.getOwner()))
