@@ -117,15 +117,21 @@ class GifDepegRiskpool(object):
             MAX_ACTIVE_BUNDLES,
             {'from': riskpoolKeeper})
 
+        # TODO set these to desired initial config
         sumOfSumInsuredCap = self.riskpool.getSumOfSumInsuredCap()
         bundleCap = int(sumOfSumInsuredCap / MAX_ACTIVE_BUNDLES)
+
+        print('6) set capital caps [{}], sum of sum insured: {:.2f}, bundle cap: {:.2f}'.format(
+            erc20Token.symbol(),
+            sumOfSumInsuredCap/10**erc20Token.decimals(),
+            bundleCap/10**erc20Token.decimals()))
 
         self.riskpool.setCapitalCaps(
             sumOfSumInsuredCap,
             bundleCap,
             {'from': riskpoolKeeper})
 
-        print('6) riskpool wallet {} set for riskpool id {} by instance operator {}'.format(
+        print('7) riskpool wallet {} set for riskpool id {} by instance operator {}'.format(
             riskpoolWallet, self.riskpool.getId(), instance.getOwner()))
         
         instanceOperatorService.setRiskpoolWallet(
@@ -134,7 +140,7 @@ class GifDepegRiskpool(object):
             {'from': instance.getOwner()})
 
         # 7) setup capital fees
-        print('7) creating capital fee spec (fixed: {}, fractional: {}) for riskpool id {} by instance operator {}'.format(
+        print('8) creating capital fee spec (fixed: {}, fractional: {}) for riskpool id {} by instance operator {}'.format(
             CAPITAL_FIXED_FEE, CAPITAL_FRACTIONAL_FEE, self.riskpool.getId(), instance.getOwner()))
         
         feeSpec = instanceOperatorService.createFeeSpecification(
@@ -144,7 +150,7 @@ class GifDepegRiskpool(object):
             b'',
             {'from': instance.getOwner()}) 
 
-        print('8) setting capital fee spec by instance operator {}'.format(
+        print('9) setting capital fee spec by instance operator {}'.format(
             instance.getOwner()))
         
         instanceOperatorService.setCapitalFees(

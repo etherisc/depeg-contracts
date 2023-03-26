@@ -495,13 +495,13 @@ def check_funds(
         checkedAccounts += 1
 
         if balance >= gp * GAS_DEPEG[accountName]:
-            print('{} funding ok'.format(accountName))
+            print('{} funding OK, has [ETH]{:.5f}'.format(accountName, balance/10**18))
         else:
             fundsMissing += gp * GAS_DEPEG[accountName] - balance
-            print('{} needs {} but has {}'.format(
+            print('{} needs [ETH]{:.5f}, has [ETH]{:.5f}'.format(
                 accountName,
-                gp * GAS_DEPEG[accountName],
-                balance
+                (gp * GAS_DEPEG[accountName])/10**18,
+                balance/10**18
             ))
     
     if fundsMissing > 0:
@@ -576,8 +576,8 @@ def get_gas_price():
 
 def _print_constants(gas_price, safety_factor, gp):
     print('chain id: {}'.format(web3.eth.chain_id))
-    print('gas price [Mwei]: {}'.format(gas_price/10**6))
-    print('safe gas price [Mwei]: {}'.format(gp/10**6))
+    print('gas price [GWei]: {}'.format(gas_price/10**9))
+    print('safe gas price [GWei]: {}'.format(gp/10**9))
     print('gas price safety factor: {}'.format(safety_factor))
 
     print('gas S: {}'.format(GAS_S))
