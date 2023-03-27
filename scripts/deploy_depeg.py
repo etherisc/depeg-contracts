@@ -149,9 +149,6 @@ def get_setup(product_address):
     riskpool_bundle_cap = riskpool.getBundleCapitalCap()
     riskpool_token = contract_from_address(interface.IERC20Metadata, riskpool.getErc20Token())
 
-    pfs = treasury.getFeeSpecification(product_id).dict()
-    cfs = treasury.getFeeSpecification(riskpool_id).dict()
-
     (staking, chain_registry, nft, dip_token) = (None, None, None, None)
 
     if riskpool.getStaking() != ZERO_ADDRESS:
@@ -199,7 +196,7 @@ def get_setup(product_address):
     setup['product']['owner'] = product_owner
     setup['product']['riskpool_id'] = product.getRiskpoolId()
     setup['product']['deployed_at'] = (get_iso_datetime(get_deploy_timestamp(product_name)), get_deploy_timestamp(product_name))
-    setup['product']['premium_fee'] = (pfs['fractionalFee']/instance_service.getFeeFractionFullUnit(), pfs['fixedFee'])
+    setup['product']['premium_fee'] = _get_fee_spec(product_id, treasury, instance_service)
     setup['product']['token'] = (token.symbol(), token, token.decimals())
     setup['product']['protected_token'] = (protected_token.symbol(), protected_token, protected_token.decimals())
     setup['product']['applications'] = product.applications()
@@ -229,7 +226,7 @@ def get_setup(product_address):
     setup['riskpool']['owner'] = riskpool_owner
     setup['riskpool']['staking'] = riskpool.getStaking()
     setup['riskpool']['deployed_at'] = (get_iso_datetime(get_deploy_timestamp(riskpool_name)), get_deploy_timestamp(riskpool_name))
-    setup['riskpool']['capital_fee'] = (cfs['fractionalFee']/instance_service.getFeeFractionFullUnit(), cfs['fixedFee'])
+    setup['riskpool']['capital_fee'] = _get_fee_spec(riskpool_id, treasury, instance_service)
     setup['riskpool']['token'] = (riskpool_token.symbol(), riskpool_token, riskpool_token.decimals())
 
     setup['riskpool']['sum_insured_cap'] = (riskpool_sum_insured_cap / 10**riskpool_token.decimals(), riskpool_sum_insured_cap)
@@ -277,7 +274,7 @@ def get_setup(product_address):
         except Exception as e:
             setup['nft']['total_minted'] = 'n/a'
     else:
-        setup['nft']['setup'] = 'MISSING not ready to use'
+        setup['nft']['setup'] = 'WARNING nft contract not linked, not ready to use'
 
     if chain_registry:
         chain_id = chain_registry.toChain(web3.chain_id)
@@ -291,7 +288,7 @@ def get_setup(product_address):
         setup['registry']['stakes'] = chain_registry.objects(chain_id, 10)
         setup['registry']['version'] = registry_version
     else:
-        setup['registry']['setup'] = 'MISSING not ready to use'
+        setup['registry']['setup'] = 'WARNING registry contract not linked, not ready to use'
 
     if staking:
         staking_rate = staking.stakingRate(chain_id, riskpool_token)
@@ -303,15 +300,34 @@ def get_setup(product_address):
         setup['staking']['registry'] = staking.getRegistry()
         setup['staking']['dip'] = (dip_token.symbol(), dip_token, dip_token.decimals())
         setup['staking']['reward_balance'] = (staking.rewardBalance()/10**dip_token.decimals(), staking.rewardBalance())
-        setup['staking']['reward_reserves'] = (staking.rewardReserves()/10**dip_token.decimals(), staking.rewardReserves())
         setup['staking']['reward_rate'] = (staking.rewardRate()/10**staking.rateDecimals(), staking.rewardRate())
         setup['staking']['reward_rate_max'] = (staking.maxRewardRate()/10**staking.rateDecimals(), staking.maxRewardRate())
         setup['staking']['staking_rate_usdt'] = (staking_rate/10**staking.rateDecimals(), staking_rate)
         setup['staking']['wallet'] = staking.getStakingWallet()
         setup['staking']['wallet_balance'] = (wallet_balance/10**dip_token.decimals(), wallet_balance)
         setup['staking']['version'] = staking_version
+
+        swa_raw = dip_token.allowance(staking.getStakingWallet(), staking)
+        swa = [swa_raw/10**dip_token.decimals(), swa_raw]
+        if staking.address == staking.getStakingWallet():
+            setup['staking']['wallet_allowance'] = (swa[0], swa[1], "OK wallet address is contract address")
+        else:
+            if swa_raw == 0:
+                setup['staking']['wallet_allowance'] = (0, 0, "WARNING wallet allowance missing for staking contract, not ready to use")
+            elif swa_raw < wallet_balance:            
+                setup['staking']['wallet_allowance'] = (swa[0], swa[1], "WARNING wallet allowance not sufficient to cover wallet balance, make sure you know what you are doing")
+            else:
+                setup['staking']['wallet_allowance'] = (swa[0], swa[1], "OK wallet allowance covers wallet balance")
+
+        if staking.rewardBalance() <= staking.rewardReserves():
+            setup['staking']['reward_reserves'] = (staking.rewardReserves()/10**dip_token.decimals(), staking.rewardReserves())
+        else:
+            reward_reserves_warning = 'WARNING reward reserves missing [DIP]{:.2f} to payout full reward balance'.format(
+                (staking.rewardBalance() - staking.rewardReserves())/10**dip_token.decimals())
+
+            setup['staking']['reward_reserves'] = (staking.rewardReserves()/10**dip_token.decimals(), staking.rewardReserves(), reward_reserves_warning)
     else:
-        setup['staking']['setup'] = 'MISSING not ready to use'
+        setup['staking']['setup'] = 'WARNING staking contract not linked, not ready to use'
 
     return (
         setup,
@@ -329,6 +345,16 @@ def get_setup(product_address):
 def _get_version(versionable):
     (major, minor, patch) = versionable.versionParts()
     return('v{}.{}.{}'.format(major, minor, patch), versionable.version())
+
+
+def _get_fee_spec(component_id, treasury, instance_service):
+    spec = treasury.getFeeSpecification(component_id).dict()
+
+    if spec['componentId'] == 0:
+        return 'WARNING no fee spec available, not ready to use'
+
+    return (
+        spec['fractionalFee']/instance_service.getFeeFractionFullUnit(), spec['fixedFee'])
 
 
 def get_riskpool(product, instance_service):
