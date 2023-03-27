@@ -6,8 +6,69 @@
 
 This repository holds the smart contracts for a depeg insurance for stable coins.
 
-## Address for Test Görli ETH
+## Address for Test Goerli ETH
 0x0E458906446AfB6fB388b1a5E1cE6598d077dfB5
+
+## Explore Mumbai Setup
+
+Preparation steps:
+* Compile contracts
+* Start the Brownie console connecting to Mumbai
+
+```bash
+brownie compile --all
+brownie console --network=polygon-test
+```
+
+In the Brownie console run the following commands.
+Given the Depeg product address (at the end of the commands) the function `get_setup` "crawls" the relevant deployed contracts and report their current configuration.
+
+The resulting configuration (JSON) is stored in variable `setup`.
+
+```python
+from scripts.util import contract_from_address, get_package
+from scripts.deploy_depeg import get_setup, contract_from_address
+
+gif = get_package('gif-contracts')
+usd1 = contract_from_address(USD1, '0x5B70915CA7De9c21229AE5E18A64f6cF36dc11Fb')
+usd2 = contract_from_address(USD2, '0x268131A1A7639F8F918d4a17A74C79209b2C645D')
+dip = contract_from_address(DIP, '0x0c3EA45c5290FCCB528109b167A5e66734d2578c')
+
+product_address='0x43687bd425E02E375Dee3D22903878CdbB2eD019'
+(setup, product, feeder, riskpool, registry, staking, dip, usdt, instance_service) = get_setup(product_address)
+
+setup
+```
+## Explore Goerli Setup
+
+Preparation steps:
+* Compile contracts
+* Start the Brownie console connecting to Mumbai
+
+```bash
+brownie compile --all
+brownie console --network=goerli
+```
+
+In the Brownie console run the following commands.
+Given the Depeg product address (at the end of the commands) the function `get_setup` "crawls" the relevant deployed contracts and report their current configuration.
+
+The resulting configuration (JSON) is stored in variable `setup`.
+
+```python
+from scripts.util import contract_from_address, get_package
+from scripts.deploy_depeg import get_setup, contract_from_address
+
+gif = get_package('gif-contracts')
+usd1 = contract_from_address(USD1, '0x00B7cA1167bCc1CfEe30dF946B9C2Df7F36F2fB3')
+usd2 = contract_from_address(USD2, '0x6baCCf5b80000fDc3B5925eB65253D0a73aeF882')
+dip = contract_from_address(DIP, '0x47678b3aC8336dc3fE390d81ef80593D0c6b28B9')
+
+product_address='0x33A7785D9EEB78e33A9587E9De075aB11A354387'
+(setup, product, feeder, riskpool, registry, staking, dip, usdt, instance_service) = get_setup(product_address)
+
+setup
+```
 
 ## Product Considerations
 
