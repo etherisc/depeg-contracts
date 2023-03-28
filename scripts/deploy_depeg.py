@@ -1,3 +1,5 @@
+import time
+
 from brownie.network import accounts
 from brownie.network.account import Account
 
@@ -10,7 +12,8 @@ from brownie import (
     USD2,
     UsdcPriceDataProvider,
     DepegProduct,
-    DepegRiskpool
+    DepegRiskpool,
+    MockRegistryStaking
 )
 
 from scripts.const import ZERO_ADDRESS
@@ -51,51 +54,43 @@ COMPONENT_OWNER_SERVICE = 'componentOwnerService'
 PRODUCT = 'product'
 RISKPOOL = 'riskpool'
 
-BUNDLE_REGISTRY = 'bundleRegistry'
+REGISTRY = 'registry'
 STAKING = 'staking'
 
 PROCESS_ID1 = 'processId1'
 PROCESS_ID2 = 'processId2'
 
-# GAS_PRICE = web3.eth.gas_price
-GAS_PRICE = 25000000
-GAS_PRICE_SAFETY_FACTOR = 1.25
-
-GAS_S = 15 * 10**6
-GAS_M = 20 * 10**6
-GAS_L = 30 * 10**6
-
-REQUIRED_FUNDS_S = int(GAS_PRICE * GAS_PRICE_SAFETY_FACTOR * GAS_S)
-REQUIRED_FUNDS_M = int(GAS_PRICE * GAS_PRICE_SAFETY_FACTOR * GAS_M)
-REQUIRED_FUNDS_L = int(GAS_PRICE * GAS_PRICE_SAFETY_FACTOR * GAS_L)
-
 INITIAL_ERC20_BUNDLE_FUNDING = 100000
 
-REQUIRED_FUNDS = {
-    INSTANCE_OPERATOR: REQUIRED_FUNDS_L,
-    INSTANCE_WALLET:   REQUIRED_FUNDS_S,
-    PRODUCT_OWNER:     REQUIRED_FUNDS_L,
-    RISKPOOL_KEEPER:   REQUIRED_FUNDS_M,
-    RISKPOOL_WALLET:   REQUIRED_FUNDS_S,
-    INVESTOR:          REQUIRED_FUNDS_S,
-    CUSTOMER1:         REQUIRED_FUNDS_S,
-    CUSTOMER2:         REQUIRED_FUNDS_S,
-}
+# GAS_PRICE = web3.eth.gas_price
+GAS_PRICE = 25 * 10**9 # 25 gwei, mainnet: https://owlracle.info/eth, goerli: https://owlracle.info/goerli
+GAS_PRICE_SAFETY_FACTOR = 1.25
+
+GAS_0 = 0
+GAS_S = 1 * 10**6
+GAS_M = 6 * 10**6
+GAS_L = 10 * 10**6
+GAS_XL = 60 * 10**6
 
 GAS_DEPEG = {
-    INSTANCE_OPERATOR: GAS_L,
+    INSTANCE_OPERATOR: GAS_XL,
     INSTANCE_WALLET:   GAS_S,
-    PRODUCT_OWNER:     GAS_M,
-    RISKPOOL_KEEPER:   GAS_M,
+    PRODUCT_OWNER:     GAS_L,
+    RISKPOOL_KEEPER:   GAS_L,
     RISKPOOL_WALLET:   GAS_S,
-    INVESTOR:          GAS_S,
-    CUSTOMER1:         GAS_S,
-    CUSTOMER2:         GAS_S,
+    INVESTOR:          GAS_M,
+    CUSTOMER1:         GAS_M,
+    CUSTOMER2:         GAS_0,
 }
 
 def help():
-    print('from scripts.deploy_depeg import all_in_1, get_setup, verify_deploy, check_funds, amend_funds, new_bundle, best_quote, new_policy, inspect_bundle, inspect_bundles_d, inspect_applications_d, help')
-    print('(customer, customer2, product, riskpool, riskpoolWallet, investor, bundleRegistry, staking, staker, dip, usd1, usd2, instanceService, instanceOperator, processId, d) = all_in_1(deploy_all=True)')
+    print('from scripts.deploy_depeg import all_in_1, get_setup, stakeholders_accounts_ganache, check_funds, amend_funds, new_bundle, best_quote, new_policy, inspect_bundle, inspect_bundles_d, inspect_applications_d, help')
+    print("usd2 = USD2.deploy({'from': accounts[0]})")
+    print('a = stakeholders_accounts_ganache()')
+    print('check_funds(a, usd2)')
+    print('(customer, customer2, product, riskpool, riskpoolWallet, investor, bundleRegistry, staking, staker, dip, usd1, usd2, instanceService, instanceOperator, processId, d) = all_in_1(stakeholders_accounts=a, deploy_all=True)')
+    print('check_funds(a, usd2)')
+    print('')
     print('(setup, product, feeder, riskpool, registry, staking, dip, usdt, instance_service) = get_setup(product_address)')
     print('instanceService.getPolicy(processId).dict()')
     print('instanceService.getBundle(1).dict()')
@@ -149,7 +144,7 @@ def get_setup(product_address):
     riskpool_bundle_cap = riskpool.getBundleCapitalCap()
     riskpool_token = contract_from_address(interface.IERC20Metadata, riskpool.getErc20Token())
 
-    (staking, chain_registry, nft, dip_token) = (None, None, None, None)
+    (staking, registry, nft, dip_token) = (None, None, None, None)
 
     if riskpool.getStaking() != ZERO_ADDRESS:
         staking = contract_from_address(interface.IStakingFacade, riskpool.getStaking())
@@ -157,11 +152,11 @@ def get_setup(product_address):
         staking_owner = staking.owner()
         dip_token = contract_from_address(DIP, staking.getDip())
 
-        chain_registry = contract_from_address(interface.IChainRegistryFacade, staking.getRegistry())
-        registry_contract = (interface.IChainRegistryFacade._name, chain_registry)
-        registry_owner = chain_registry.owner()
+        registry = contract_from_address(interface.IChainRegistryFacade, staking.getRegistry())
+        registry_contract = (interface.IChainRegistryFacade._name, registry)
+        registry_owner = registry.owner()
 
-        nft = contract_from_address(interface.IChainNftFacade, chain_registry.getNft())
+        nft = contract_from_address(interface.IChainNftFacade, registry.getNft())
         nft_contract = (interface.IChainNftFacade._name, nft)
 
     setup = {}
@@ -276,16 +271,16 @@ def get_setup(product_address):
     else:
         setup['nft']['setup'] = 'WARNING nft contract not linked, not ready to use'
 
-    if chain_registry:
-        chain_id = chain_registry.toChain(web3.chain_id)
-        registry_version = _get_version(chain_registry)
+    if registry:
+        chain_id = registry.toChain(web3.chain_id)
+        registry_version = _get_version(registry)
         setup['registry']['contract'] = registry_contract
         setup['registry']['owner'] = registry_owner
-        setup['registry']['nft'] = chain_registry.getNft()
-        setup['registry']['instances'] = chain_registry.objects(chain_id, 20)
-        setup['registry']['riskpools'] = chain_registry.objects(chain_id, 23)
-        setup['registry']['bundles'] = chain_registry.objects(chain_id, 40)
-        setup['registry']['stakes'] = chain_registry.objects(chain_id, 10)
+        setup['registry']['nft'] = registry.getNft()
+        setup['registry']['instances'] = registry.objects(chain_id, 20)
+        setup['registry']['riskpools'] = registry.objects(chain_id, 23)
+        setup['registry']['bundles'] = registry.objects(chain_id, 40)
+        setup['registry']['stakes'] = registry.objects(chain_id, 10)
         setup['registry']['version'] = registry_version
     else:
         setup['registry']['setup'] = 'WARNING registry contract not linked, not ready to use'
@@ -334,7 +329,7 @@ def get_setup(product_address):
         product,
         feeder,
         riskpool,
-        chain_registry,
+        registry,
         staking,
         dip_token,
         token,
@@ -468,18 +463,29 @@ def verify_element(
         print('{} ERROR {} expected {}'.format(element, value, expected_value))
 
 
-def stakeholders_accounts_ganache():
+def stakeholders_accounts_ganache(accs=None, use_default_accounts=True):
+
+    a = accounts
+
+    if accs and len(accs) >= 13:
+        print('... using provided account list with {} accounts'.format(len(accs)))
+        a = accs
+    elif not use_default_accounts:
+        sample_phrase = 'candy maple cake sugar pudding cream honey rich smooth crumble sweet treat'
+        print('... using new empty accounts from: {}'.format(sample_phrase))
+        a = accounts.from_mnemonic(sample_phrase, count=20)
+
     # define stakeholder accounts  
-    instanceOperator=accounts[0]
-    instanceWallet=accounts[1]
-    riskpoolKeeper=accounts[2]
-    riskpoolWallet=accounts[3]
-    investor=accounts[4]
-    productOwner=accounts[5]
-    customer=accounts[6]
-    customer2=accounts[7]
-    registryOwner=accounts[13]
-    staker=accounts[8]
+    instanceOperator=a[0]
+    instanceWallet=a[1]
+    riskpoolKeeper=a[2]
+    riskpoolWallet=a[3]
+    investor=a[4]
+    productOwner=a[5]
+    customer=a[6]
+    customer2=a[7]
+    registryOwner=a[13]
+    staker=a[8]
 
     return {
         INSTANCE_OPERATOR: instanceOperator,
@@ -500,6 +506,7 @@ def check_funds(
     erc20_token,
     gas_price=None,
     safety_factor=GAS_PRICE_SAFETY_FACTOR,
+    print_requirements=False
 ):
     a = stakeholders_accounts
 
@@ -509,6 +516,20 @@ def check_funds(
     gp = int(safety_factor * gas_price)
 
     _print_constants(gas_price, safety_factor, gp)
+
+    if print_requirements:
+        print('--- funding requirements ---')
+        print('Name;Address;ETH')
+
+        for accountName, requiredAmount in GAS_DEPEG.items():
+            print('{};{};{:.4f}'.format(
+                accountName,
+                a[accountName],
+                gp * requiredAmount / 10**18
+            ))
+
+        print('--- end of funding requirements ---')
+
 
     checkedAccounts = 0
     fundsAvailable = 0
@@ -521,13 +542,17 @@ def check_funds(
         checkedAccounts += 1
 
         if balance >= gp * GAS_DEPEG[accountName]:
-            print('{} funding OK, has [ETH]{:.5f}'.format(accountName, balance/10**18))
+            print('{} funding OK, has [ETH]{:.5f} ([wei]{})'.format(
+                accountName,
+                balance/10**18,
+                balance))
         else:
             fundsMissing += gp * GAS_DEPEG[accountName] - balance
-            print('{} needs [ETH]{:.5f}, has [ETH]{:.5f}'.format(
+            print('{} needs [ETH]{:.5f}, has [ETH]{:.5f} ([wei]{})'.format(
                 accountName,
                 (gp * GAS_DEPEG[accountName])/10**18,
-                balance/10**18
+                balance/10**18,
+                balance
             ))
     
     if fundsMissing > 0:
@@ -551,8 +576,8 @@ def check_funds(
     else:
         print('WARNING: no erc20 token defined, skipping erc20 funds checking')
 
-    print('total funds available ({} accounts) [ETH]: {:.6f}'
-        .format(checkedAccounts, fundsAvailable/10**18))
+    print('total funds available ({} accounts) [ETH] {:.6f}, [wei] {}'
+        .format(checkedAccounts, fundsAvailable/10**18, fundsAvailable))
 
     return native_token_success & erc20_success
 
@@ -562,6 +587,10 @@ def amend_funds(
     gas_price=None,
     safety_factor=GAS_PRICE_SAFETY_FACTOR,
 ):
+    if web3.chain_id == 1:
+        print('amend_funds not available on mainnet')
+        return
+
     a = stakeholders_accounts
 
     if not gas_price:
@@ -594,9 +623,6 @@ def check_erc20_funds(a, erc20_token):
 
 
 def get_gas_price():
-    if web3.eth.chain_id == 1337:
-        return 1
-    
     return web3.eth.gas_price
 
 
@@ -609,10 +635,12 @@ def _print_constants(gas_price, safety_factor, gp):
     print('gas S: {}'.format(GAS_S))
     print('gas M: {}'.format(GAS_M))
     print('gas L: {}'.format(GAS_L))
+    print('gas XL: {}'.format(GAS_XL))
 
     print('required S [ETH]: {}'.format(gp * GAS_S / 10**18))
     print('required M [ETH]: {}'.format(gp * GAS_M / 10**18))
     print('required L [ETH]: {}'.format(gp * GAS_L / 10**18))
+    print('required XL [ETH]: {}'.format(gp * GAS_XL / 10**18))
 
 
 def _get_balances(stakeholders_accounts):
@@ -935,7 +963,9 @@ def all_in_1(
             {'from': productOwner},
             publish_source=publish_source)
 
-    print('====== deploy depeg product/riskpool ======')
+    base_name = 'Depeg_' + str(int(time.time()))
+
+    print('====== deploy depeg product/riskpool (base name: {}) ======'.format(base_name))
     depegDeploy = GifDepegProductComplete(
         instance,
         productOwner,
@@ -944,6 +974,7 @@ def all_in_1(
         usd2,
         riskpoolKeeper,
         riskpoolWallet,
+        baseName=base_name,
         sum_insured_percentage=sum_insured_percentage,
         riskpool_address=riskpool_address,
         publishSource=publish_source)
@@ -959,33 +990,37 @@ def all_in_1(
 
     deployment = _add_product_to_deployment(deployment, product, riskpool)
 
+    mock = None
+    staking_rate = 1.0
+
     if disable_staking:
         print('====== registry/staking disabled (nothing to check/deploy) ======')
     else:
         print('====== deploy registry/staking (if not provided) ======')
-        print('TO BE IMPLEMENTED USING MockRegistryStaking')
-        # from_owner = {'from':a[REGISTRY_OWNER]}
+        from_owner = {'from':a[REGISTRY_OWNER]}
         
-        # if staking_address is None:
-        #     staking_address = get_address('staking')
+        if staking_address is None or registry_address is None:
+            print('--- deploy MockRegistryStaking')
+            mock = MockRegistryStaking.deploy(dip, usd2, from_owner)
+            staking_address = mock.address
+            registry_address = mock.address
 
-        #     if staking_address is None:
-                # bundle_registry = BundleRegistry.deploy(from_owner)
-                # staking = Staking.deploy(bundle_registry, from_owner)
-                # staking_address = staking.address
-                # staking.setDipContract(dip, from_owner)
+        staking = contract_from_address(interface.IStakingFacade, staking_address)
+        registry = contract_from_address(interface.IChainRegistryFacade, registry_address)
 
-        # staking = contract_from_address(Staking, staking_address)
-        # bundle_registry = contract_from_address(BundleRegistry, staking.getBundleRegistry())
-        # staking_rate = staking.toRate(1, -1) # 1 dip unlocks 10 cents (usd1)
+        chain_id = staking.toChain(instance_service.getChainId())
+        reward_rate = staking.rewardRate()/10**staking.rateDecimals()
+        staking_rate = staking.stakingRate(chain_id, usd2)/10**staking.rateDecimals()
 
-        # bundle_registry.registerToken(usd2.address, from_owner)
+        if reward_rate > 0:
+            print('available reward rate is {:.4f}. expected value 0.125'.format(reward_rate))
+        else:
+            print('WARNING reward rate is {:.4f}. expected value 0.125, or at least > 0'.format(reward_rate))
 
-        # staking.setStakingRate(
-        #     usd2.address,
-        #     instance_service.getChainId(),
-        #     staking_rate,
-        #     from_owner)
+        if staking_rate > 0:
+            print('available usd2/dip staking rate is {:.4f}. expected value 0.1'.format(staking_rate))
+        else:
+            print('WARNING staking rate is {}. expected value 0.1, or at least > 0'.format(staking_rate))
 
     print('--- create riskpool setup ---')
     mult = 10**usd2.decimals()
@@ -1009,41 +1044,20 @@ def all_in_1(
 
     # link riskpool to staking
     if not disable_staking:
-        print('TO BE IMPLEMENTED USING MockRegistryStaking')
-        # riskpool.setStakingAddress(staking, {'from': a[RISKPOOL_KEEPER]})
+        riskpool.setStakingAddress(staking, {'from': a[RISKPOOL_KEEPER]})
 
-        # print('--- register instance and bundles for staking ---')
-        # bundle_registry.registerInstance(
-        #     instance.getRegistry(),
-        #     from_owner)
+        bundle = instance_service.getBundle(bundle_id1).dict()
+        expiredAt = bundle['createdAt'] + bundleLifetimeDays  * 24 * 3600
 
-        # bundle_registry.registerComponent(instance_id, riskpool_id, from_owner)
+        if registry.getBundleNftId(instance_id, bundle_id1) == 0:
+            registry.registerBundle(instance_id, riskpool_id, bundle_id1, 'bundle-1', expiredAt, from_owner)
 
-        # bundle = instance_service.getBundle(bundle_id1).dict()
-        # expiredAt = bundle['createdAt'] + bundleLifetimeDays  * 24 * 3600
+        print('--- fund staker with dips and stake to bundles ---')
+        target_usd2 = 2 * initial_funding
+        target_amount = target_usd2 * 10**usd2.decimals() / staking_rate
 
-        # bundle_registry.registerBundle(instance_id, riskpool_id, bundle_id1, 'bundle-1', expiredAt, from_owner)
-        # bundle_registry.registerBundle(instance_id, riskpool_id, bundle_id2, 'bundle-2', expiredAt, from_owner)
-
-        # print('--- fund staker with dips and stake to bundles ---')
-        # target_usd2 = 2 * initial_funding
-        # target_amount = target_usd2 * 10**usd2.decimals()
-        # required_dip = staking.calculateRequiredStaking(usd2, chain_id, target_amount)
-
-        # dip.transfer(a[STAKER], required_dip, {'from': a[INSTANCE_OPERATOR]})
-        # dip.approve(staking.getStakingWallet(), required_dip, {'from':a[STAKER]}) 
-
-        # type_bundle = 4
-        # (bundle_target_id1, bt1) = staking.toTarget(type_bundle, instance_id, riskpool_id, bundle_id1, '')
-        # (bundle_target_id2, bt2) = staking.toTarget(type_bundle, instance_id, riskpool_id, bundle_id2, '')
-
-        # # register bundles as staking targets
-        # staking.register(bundle_target_id1, bt1, {'from': a[STAKER]})
-        # staking.register(bundle_target_id2, bt2, {'from': a[STAKER]})
-
-        # # leave staker with 0.1 * required_dip as 'play' funding for later use
-        # staking.stake(bundle_target_id1, 0.4 * required_dip, {'from': a[STAKER]})
-        # staking.stake(bundle_target_id2, 0.5 * required_dip, {'from': a[STAKER]})
+        if mock:
+            mock.setStakedDip(mock.getBundleNftId(instance_id, bundle_id1), target_amount)
 
     print('--- create policy ---')
     customer_funding=1000 * mult
@@ -1064,12 +1078,12 @@ def all_in_1(
     inspect_bundles_d(deployment)
     inspect_applications_d(deployment)
 
-    deployment[BUNDLE_REGISTRY] = None
+    deployment[REGISTRY] = None
     deployment[STAKING] = None
     deployment[STAKER] = a[CUSTOMER1]
 
     if not disable_staking:
-        deployment[BUNDLE_REGISTRY] = bundle_registry
+        deployment[REGISTRY] = registry
         deployment[STAKING] = staking
 
     return (
@@ -1079,7 +1093,7 @@ def all_in_1(
         deployment[RISKPOOL],
         deployment[RISKPOOL_WALLET],
         deployment[INVESTOR],
-        deployment[BUNDLE_REGISTRY],
+        deployment[REGISTRY],
         deployment[STAKING],
         deployment[STAKER],
         deployment[DIP_TOKEN],
