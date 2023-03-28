@@ -155,7 +155,7 @@ class GifInstance(GifRegistry):
 
 
     def createFromRegistry(self):
-        gif = self.gif
+        gif = get_package('gif-contracts')
         registry = self.getRegistry()
         instanceOperator = self.getOwner()
 
