@@ -1,3 +1,6 @@
+import sys
+import io
+from contextlib import redirect_stdout
 from datetime import datetime
 from web3 import Web3
 
@@ -82,6 +85,19 @@ def encode_function_data(*args, initializer=None):
 
 def contract_from_address(contractClass, contractAddress):
     return Contract.from_abi(contractClass._name, contractAddress, contractClass.abi)
+
+
+def new_accounts(count=20):
+    buffer = io.StringIO()
+
+    with redirect_stdout(buffer):
+        account = accounts.add()
+
+    output = buffer.getvalue()
+    mnemonic = output.split('\x1b')[1][8:]
+
+    return accounts.from_mnemonic(mnemonic, count=count), mnemonic
+
 
 def wait_for_confirmations(
     tx,

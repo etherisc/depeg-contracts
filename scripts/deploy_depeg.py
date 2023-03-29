@@ -23,6 +23,7 @@ from scripts.setup import create_bundle
 
 from scripts.util import (
     contract_from_address,
+    new_accounts,
     get_package,
     get_iso_datetime,
     b2s,
@@ -84,9 +85,10 @@ GAS_DEPEG = {
 }
 
 def help():
+    print('from scripts.util import contract_from_address, get_package')
     print('from scripts.deploy_depeg import all_in_1, get_setup, stakeholders_accounts_ganache, check_funds, amend_funds, new_bundle, best_quote, new_policy, inspect_bundle, inspect_bundles_d, inspect_applications_d, help')
     print("usd2 = USD2.deploy({'from': accounts[0]})")
-    print('a = stakeholders_accounts_ganache()')
+    print('a = stakeholders_accounts_ganache() # opt param new=True to create fresh unfunded accounts')
     print('check_funds(a, usd2)')
     print('(customer, customer2, product, riskpool, riskpoolWallet, investor, bundleRegistry, staking, staker, dip, usd1, usd2, instanceService, instanceOperator, processId, d) = all_in_1(stakeholders_accounts=a, deploy_all=True)')
     print('check_funds(a, usd2)')
@@ -463,17 +465,16 @@ def verify_element(
         print('{} ERROR {} expected {}'.format(element, value, expected_value))
 
 
-def stakeholders_accounts_ganache(accs=None, use_default_accounts=True):
+def stakeholders_accounts_ganache(accs=None, new=False):
 
     a = accounts
 
     if accs and len(accs) >= 13:
         print('... using provided account list with {} accounts'.format(len(accs)))
         a = accs
-    elif not use_default_accounts:
-        sample_phrase = 'candy maple cake sugar pudding cream honey rich smooth crumble sweet treat'
-        print('... using new empty accounts from: {}'.format(sample_phrase))
-        a = accounts.from_mnemonic(sample_phrase, count=20)
+    elif new:
+        (a, mnemonic) = new_accounts()
+        print('... using new empty accounts from: {}'.format(mnemonic))
 
     # define stakeholder accounts  
     instanceOperator=a[0]
