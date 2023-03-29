@@ -884,6 +884,7 @@ def all_in_1(
     usd2_address=None,
     deploy_all=False,
     disable_staking=False,
+    create_riskpool_setup=True,
     sum_insured_percentage=20,
     publish_source=False
 ):
@@ -925,11 +926,16 @@ def all_in_1(
         else:
             usd2 = USD2.deploy({'from':a[INSTANCE_OPERATOR]}, publish_source=publish_source)
 
-        instance = GifInstance(
-            # TODO cleanup commented out lines below if no problems observed
-            # instanceOperator=a[INSTANCE_OPERATOR], 
-            # instanceWallet=a[INSTANCE_WALLET],
-            registryAddress=registry_address or get_address('registry'))
+        reg_addr = registry_address or get_address('registry')
+        instance = None
+
+        if reg_addr:
+            instance = GifInstance(registryAddress=reg_addr)
+        else:
+            instance = GifInstance(
+                instanceOperator=a[INSTANCE_OPERATOR], 
+                instanceWallet=a[INSTANCE_WALLET],
+                publish_source=publish_source)
 
     print('====== token setup ======')
     print('- dip {} {}'.format(dip.symbol(), dip))
@@ -1024,6 +1030,37 @@ def all_in_1(
             print('available usd2/dip staking rate is {:.4f}. expected value 0.1'.format(staking_rate))
         else:
             print('WARNING staking rate is {}. expected value 0.1, or at least > 0'.format(staking_rate))
+
+    if not create_riskpool_setup:
+        print('--- skipping riskpool setup creation ---')
+
+        process_id = None
+
+        deployment[REGISTRY] = None
+        deployment[STAKING] = None
+        deployment[STAKER] = a[CUSTOMER1]
+
+        if not disable_staking:
+            deployment[REGISTRY] = registry
+            deployment[STAKING] = staking
+
+        return (
+            deployment[CUSTOMER1],
+            deployment[CUSTOMER2],
+            deployment[PRODUCT],
+            deployment[RISKPOOL],
+            deployment[RISKPOOL_WALLET],
+            deployment[INVESTOR],
+            deployment[REGISTRY],
+            deployment[STAKING],
+            deployment[STAKER],
+            deployment[DIP_TOKEN],
+            deployment[ERC20_PROTECTED_TOKEN],
+            deployment[ERC20_TOKEN],
+            deployment[INSTANCE_SERVICE],
+            deployment[INSTANCE_OPERATOR],
+            process_id,
+            deployment)
 
     print('--- create riskpool setup ---')
     mult = 10**usd2.decimals()
