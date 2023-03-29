@@ -32,6 +32,7 @@ interface IStakingFacade {
     function rewardBalance() external view returns(uint256 dipAmount);
     function rewardReserves() external view returns(uint256 dipAmount);
 
+    function stakeBalance() external view returns(uint256 dipAmount);
     function stakingRate(bytes5 chain, address token) external view returns(uint256 rate);
 
     function capitalSupport(uint96 targetNftId) external view returns(uint256 capitalAmount);

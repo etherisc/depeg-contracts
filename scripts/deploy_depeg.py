@@ -290,6 +290,7 @@ def get_setup(product_address):
     if staking:
         staking_rate = staking.stakingRate(chain_id, riskpool_token)
         staking_version = _get_version(staking)
+        stake_balance = staking.stakeBalance()
         wallet_balance = dip_token.balanceOf(staking.getStakingWallet())
         setup['staking']['contract'] = staking_contract
         setup['staking']['chain'] = chain_id
@@ -299,6 +300,7 @@ def get_setup(product_address):
         setup['staking']['reward_balance'] = (staking.rewardBalance()/10**dip_token.decimals(), staking.rewardBalance())
         setup['staking']['reward_rate'] = (staking.rewardRate()/10**staking.rateDecimals(), staking.rewardRate())
         setup['staking']['reward_rate_max'] = (staking.maxRewardRate()/10**staking.rateDecimals(), staking.maxRewardRate())
+        setup['staking']['stake_balance'] = (stake_balance/10**dip_token.decimals(), stake_balance)
         setup['staking']['staking_rate_usdt'] = (staking_rate/10**staking.rateDecimals(), staking_rate)
         setup['staking']['wallet'] = staking.getStakingWallet()
         setup['staking']['wallet_balance'] = (wallet_balance/10**dip_token.decimals(), wallet_balance)

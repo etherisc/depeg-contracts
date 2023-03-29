@@ -50,6 +50,7 @@ contract MockRegistryStaking is
 
     // rates
     uint256 private _rewardRate;
+    uint256 private _stakeBalance;
     mapping(bytes5 /* chain id*/ => mapping(address /* token */ => uint256 /* rate */)) private _stakingRate;
 
     // owner, nft token id stuff
@@ -119,6 +120,10 @@ contract MockRegistryStaking is
         return 0;
     }
 
+    function stakeBalance() external override view returns(uint256 dipAmount) {
+        return _stakeBalance;
+    }
+
     function setStakingRate(bytes5 chain, address token, uint256 rate) public {
         _stakingRate[chain][token] = rate;
     }
@@ -133,6 +138,11 @@ contract MockRegistryStaking is
 
     function setStakedDip(uint96 targetNftId, uint256 dipAmount) public {
         _stakes[targetNftId] = dipAmount;
+        setStakeBalance(dipAmount);
+    }
+
+    function setStakeBalance(uint256 dipAmount) public {
+        _stakeBalance = dipAmount;
     }
 
 
