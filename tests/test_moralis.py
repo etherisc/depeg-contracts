@@ -1,10 +1,20 @@
 import pytest
 
+from brownie import (
+    web3
+)
+
 from moralis import evm_api
+
+from scripts.const import (
+    USDT_ADDRESS_MAINNET,
+    USDC_ADDRESS_MAINNET,
+)
 
 from scripts.util_moralis import (
     get_block_number,
-    get_erc20_balance
+    get_erc20_balance,
+    get_erc20_balance_in_block
 )
 
 PRICE_POINT_USDC = "36893488147419103255 100802792 1618719123 1618719123 36893488147419103255 2 23"
@@ -185,3 +195,26 @@ def test_erc20_balance_mumbai(moralis_api_key):
         checks += 1
 
     assert checks == len(MUMBAI_BLOCK_NUMBERS)
+
+
+# command to use sandboxr (wihout 'STOP=Y' at the beginning: just a normal test that should pass)
+# STOP=Y brownie test tests/test_moralis.py::test_historical_mainnet_token_balance --interactive
+def test_historical_mainnet_token_balance(
+    gifDepegProduct,
+    moralis_api_key
+):
+    gifDepegRiskpool = gifDepegProduct.getRiskpool()
+
+    product = gifDepegProduct.getContract()
+    riskpool = gifDepegRiskpool.getContract()
+
+    block_number = 16949662
+    wallet_address = '0xCe7D8e035A46a6510a7f98CaE333C62bfAac9733'
+
+    assert False
+
+    balance_usdt = get_erc20_balance_in_block('eth', USDT_ADDRESS_MAINNET, wallet_address, block_number, moralis_api_key)
+    balance_usdc = get_erc20_balance_in_block('eth', USDC_ADDRESS_MAINNET, wallet_address, block_number, moralis_api_key)
+
+    if os.getenv('STOP','N') == 'Y':
+        assert False

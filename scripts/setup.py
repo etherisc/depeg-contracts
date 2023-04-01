@@ -123,7 +123,9 @@ def apply_for_policy_with_bundle(
     tf = 10 ** token.decimals()
 
     # transfer premium funds to customer and create allowance
-    token.transfer(customer, maxPremium * tf, {'from': instanceOperator})
+    if maxPremium > 0:
+        token.transfer(customer, maxPremium * tf, {'from': instanceOperator})
+
     token.approve(instance.getTreasury(), maxPremium * tf, {'from': customer})
 
     if not wallet:

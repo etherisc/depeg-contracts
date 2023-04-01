@@ -44,6 +44,17 @@ ORACLE_SERVICE_NAME = 'OracleService'
 INSTANCE_OPERATOR_SERVICE_NAME = 'InstanceOperatorService'
 INSTANCE_SERVICE_NAME = 'InstanceService'
 
+# Component States
+COMPONENT_STATE = {
+    0: "Created",
+    1: "Proposed",
+    2: "Declined",
+    3: "Active",
+    4: "Paused",
+    5: "Suspended",
+    6: "Archived"
+}
+
 # === GIF testing =========================================================== #
 
 # ZERO_ADDRESS = accounts.at('0x0000000000000000000000000000000000000000')
@@ -59,3 +70,6 @@ RISKPOOL_NAME = 'Test.Riskpool'
 ORACLE_NAME = 'Test.Oracle'
 ORACLE_INPUT_FORMAT = '(bytes input)'
 ORACLE_OUTPUT_FORMAT = '(bool output)'
+
+USDT_ADDRESS_MAINNET = '0xdAC17F958D2ee523a2206206994597C13D831ec7'
+USDC_ADDRESS_MAINNET = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48'

@@ -16,7 +16,11 @@ from brownie import (
     MockRegistryStaking
 )
 
-from scripts.const import ZERO_ADDRESS
+from scripts.const import (
+    COMPONENT_STATE,
+    ZERO_ADDRESS
+)
+
 from scripts.depeg_product import GifDepegProductComplete
 from scripts.instance import GifInstance
 from scripts.setup import create_bundle
@@ -93,7 +97,10 @@ def help():
     print('(customer, customer2, product, riskpool, riskpoolWallet, investor, bundleRegistry, staking, staker, dip, usd1, usd2, instanceService, instanceOperator, processId, d) = all_in_1(stakeholders_accounts=a, deploy_all=True)')
     print('check_funds(a, usd2)')
     print('')
-    print('(setup, product, feeder, riskpool, registry, staking, dip, usdt, instance_service) = get_setup(product_address)')
+    print('# check mainnet setup')
+    print("(setup, product, feeder, riskpool, registry, staking, dip, usdt, usdc, instance_service) = get_setup('0x8E43A861e9F270b58b1801171C627421Eb956cbA')")
+    print('')
+    print('(setup, product, feeder, riskpool, registry, staking, dip, usdt, usdc, instance_service) = get_setup(product_address)')
     print('instanceService.getPolicy(processId).dict()')
     print('instanceService.getBundle(1).dict()')
     print('inspect_bundle(d, 1)')
@@ -191,6 +198,7 @@ def get_setup(product_address):
     setup['product']['contract'] = product_contract
     setup['product']['id'] = product_id
     setup['product']['owner'] = product_owner
+    setup['product']['state'] = _getComponentState(product.getId(), instance_service)
     setup['product']['riskpool_id'] = product.getRiskpoolId()
     setup['product']['deployed_at'] = (get_iso_datetime(get_deploy_timestamp(product_name)), get_deploy_timestamp(product_name))
     setup['product']['premium_fee'] = _get_fee_spec(product_id, treasury, instance_service)
@@ -221,6 +229,7 @@ def get_setup(product_address):
     setup['riskpool']['contract'] = riskpool_contract
     setup['riskpool']['id'] = riskpool_id
     setup['riskpool']['owner'] = riskpool_owner
+    setup['riskpool']['state'] = _getComponentState(riskpool.getId(), instance_service)
     setup['riskpool']['staking'] = riskpool.getStaking()
     setup['riskpool']['deployed_at'] = (get_iso_datetime(get_deploy_timestamp(riskpool_name)), get_deploy_timestamp(riskpool_name))
     setup['riskpool']['capital_fee'] = _get_fee_spec(riskpool_id, treasury, instance_service)
@@ -245,6 +254,7 @@ def get_setup(product_address):
 
     riskpool_wallet = instance_service.getRiskpoolWallet(riskpool_id)
     setup['riskpool']['wallet'] = riskpool_wallet
+    setup['riskpool']['wallet_allowance'] = (riskpool_token.allowance(riskpool_wallet, instance_service.getTreasuryAddress()) / 10**riskpool_token.decimals(), riskpool_token.balanceOf(riskpool_wallet))
     setup['riskpool']['wallet_balance'] = (riskpool_token.balanceOf(riskpool_wallet) / 10**riskpool_token.decimals(), riskpool_token.balanceOf(riskpool_wallet))
 
     # bundle specifics
@@ -337,8 +347,14 @@ def get_setup(product_address):
         staking,
         dip_token,
         token,
+        protected_token,
         instance_service
     )
+
+
+def _getComponentState(component_id, instance_service):
+    state = instance_service.getComponentState(component_id)
+    return (COMPONENT_STATE[state], state)
 
 
 def _get_version(versionable):

@@ -1,5 +1,5 @@
 # command to use sandboxr (wihout 'STOP=Y' at the beginning: just a normal test that should pass)
-# STOP=Y brownie test tests/test_sandbox.py --interactive
+# STOP=Y brownie test tests/test_sandbox.py::test_product_sandbox --interactive
 
 import brownie
 import pytest
@@ -7,6 +7,7 @@ import os
 
 from brownie.network.account import Account
 from brownie import (
+    web3,
     chain,
     history,
     interface,
@@ -21,7 +22,8 @@ from brownie import (
 
 from scripts.util import (
     b2s,
-    contract_from_address
+    contract_from_address,
+    get_package
 )
 
 from scripts.depeg_product import GifDepegProduct
@@ -38,10 +40,38 @@ def isolation(fn_isolation):
     pass
 
 
+def test_mainnet_setup():
+
+    if web3.chain_id != 1:
+        return
+    
+    product_address = '0x8E43A861e9F270b58b1801171C627421Eb956cbA'
+
+    gif = get_package('gif-contracts')
+    gifi = get_package('gif-interface')
+
+    (
+        setup,
+        product,
+        feeder,
+        riskpool,
+        registry,
+        staking,
+        dip,
+        usdt,
+        usdc,
+        instance_service
+    ) = get_setup(product_address)
+
+    assert False
+
+
 def test_product_sandbox(
     instance,
     instanceOperator: Account,
     gifDepegProduct20: GifDepegProduct,
+    usd1,
+    usd2,
     productOwner: Account,
     riskpoolKeeper: Account,
     riskpoolWallet: Account,
@@ -62,6 +92,7 @@ def test_product_sandbox(
         staking,
         dip,
         usdt,
+        usdc,
         instance_service
     ) = get_setup(product20)
 
@@ -88,27 +119,39 @@ def test_product_sandbox(
     mock.setStakedDip(bundle_nft, bundle_stake, {'from': instanceOperator})
     dip.transfer(mock.getStakingWallet(), bundle_stake, {'from': instanceOperator})
 
-    # buy policy for wallet to be protected
-    protected_wallet = customer
-    protected_balance = 5000
-    duration_days = 60
-    max_premium = 100
+    # "reset" customer, set balance and allowance
+    usd2.transfer(instanceOperator, usd2.balanceOf(customer), {'from': customer})
 
-    process_id = apply_for_policy_with_bundle(
-        instance,
-        instanceOperator,
-        product,
-        customer,
-        bundle_id,
-        protected_wallet,
-        protected_balance,
-        duration_days,
-        max_premium)
+    tf = 10**usd2.decimals()
+    balance = 100 * tf
+    allowance = 100 * tf
+
+    usd2.transfer(customer, balance, {'from': instanceOperator})
+    usd2.approve(instance_service.getTreasuryAddress(), allowance, {'from': customer})
+
+    assert usd2.balanceOf(customer) == balance
+    assert usd2.allowance(customer, instance_service.getTreasuryAddress()) == allowance
+
+    # specify policy buying parameters and customer setup
+    protected_wallet = customer
+    protected_balance = 5000 * 10**usd1.decimals()
+    duration_days = 60
+    duration = duration_days * 24 * 3600
+
+    # buy policy
+    tx = product.applyForPolicyWithBundle(
+        protected_wallet, 
+        protected_balance, 
+        duration, 
+        bundle_id, 
+        {'from': customer})
+    
+    process_id = tx.events['LogApplicationCreated']['processId']
 
     metadata = instance_service.getMetadata(process_id).dict()
     application = instance_service.getApplication(process_id).dict()
     application_data = riskpool.decodeApplicationParameterFromData(application['data']).dict()
-    policy = instance_service.getPolicy(process_id).dict()      
+    policy = instance_service.getPolicy(process_id).dict()
 
     (
         setup,
@@ -119,6 +162,7 @@ def test_product_sandbox(
         staking,
         dip,
         usdt,
+        usdc,
         instance_service
     ) = get_setup(product20)
 
