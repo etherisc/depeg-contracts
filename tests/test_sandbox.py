@@ -40,32 +40,6 @@ def isolation(fn_isolation):
     pass
 
 
-def test_mainnet_setup():
-
-    if web3.chain_id != 1:
-        return
-    
-    product_address = '0x8E43A861e9F270b58b1801171C627421Eb956cbA'
-
-    gif = get_package('gif-contracts')
-    gifi = get_package('gif-interface')
-
-    (
-        setup,
-        product,
-        feeder,
-        riskpool,
-        registry,
-        staking,
-        dip,
-        usdt,
-        usdc,
-        instance_service
-    ) = get_setup(product_address)
-
-    assert False
-
-
 def test_product_sandbox(
     instance,
     instanceOperator: Account,

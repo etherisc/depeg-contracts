@@ -1,3 +1,7 @@
+# interactive balance checking
+# STOP=Y brownie test tests/test_moralis.py::test_historical_mainnet_token_balance --interactive
+
+import os
 import pytest
 
 from brownie import (
@@ -211,10 +215,11 @@ def test_historical_mainnet_token_balance(
     block_number = 16949662
     wallet_address = '0xCe7D8e035A46a6510a7f98CaE333C62bfAac9733'
 
-    assert False
-
     balance_usdt = get_erc20_balance_in_block('eth', USDT_ADDRESS_MAINNET, wallet_address, block_number, moralis_api_key)
     balance_usdc = get_erc20_balance_in_block('eth', USDC_ADDRESS_MAINNET, wallet_address, block_number, moralis_api_key)
+
+    assert balance_usdt == 20 * 10**6
+    assert balance_usdc == 0
 
     if os.getenv('STOP','N') == 'Y':
         assert False

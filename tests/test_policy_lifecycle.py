@@ -533,7 +533,7 @@ def test_over_protected_with_single_policy(
     # buy protection for double of the wallet balance
     protected_balance = 2 * wallet_balance
     duration_days = 60
-    max_premium = 80 # might need to actually calculate this ...
+    max_premium = 87 # actually 86515789/1000000
 
     process_id = apply_for_policy_with_bundle(
         instance,

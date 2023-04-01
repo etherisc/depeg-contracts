@@ -150,7 +150,9 @@ def test_application_with_expired_bundle(
     protectedWallet,
     protectedWallet2,
     product,
-    riskpool
+    riskpool,
+    usd1,
+    usd2
 ):
     instanceWallet = instanceService.getInstanceWallet()
     riskpoolWallet = instanceService.getRiskpoolWallet(riskpool.getId())
@@ -184,21 +186,17 @@ def test_application_with_expired_bundle(
     chain.sleep(riskpool.getMaxBundleLifetime() + 1)
     chain.mine(1)
 
-    processId2 = apply_for_policy_with_bundle(
-        instance, 
-        instanceOperator,
-        product,
-        customer,
-        bundleId,
-        protectedWallet2,
-        protectedBalance,
-        durationDays,
-        maxPremium)
-
-    print('application2: {}'.format(instanceService.getApplication(processId2).dict()))
-
-    with brownie.reverts("ERROR:POC-102:POLICY_DOES_NOT_EXIST"):
-        instanceService.getPolicy(processId2)
+    with brownie.reverts("ERROR:DP-014:UNDERWRITING_FAILED"):
+        apply_for_policy_with_bundle(
+            instance, 
+            instanceOperator,
+            product,
+            customer,
+            bundleId,
+            protectedWallet2,
+            protectedBalance,
+            durationDays,
+            maxPremium)
 
 
 def get_bundle_id(

@@ -209,6 +209,15 @@ contract DepegProduct is
 
         bool success = _underwrite(processId);
 
+        // ensure underwriting is successful
+        require(success, "ERROR:DP-014:UNDERWRITING_FAILED");
+
+        // ensure premium has been fully paid
+        IPolicy.Policy memory policy = _getPolicy(processId);
+        require(
+            policy.premiumPaidAmount == policy.premiumExpectedAmount,
+            "ERROR:DP-015:PREMIUM_NOT_FULLY_PAID");
+
         if (success) {
             _policies.push(processId);
 
