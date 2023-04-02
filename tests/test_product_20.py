@@ -119,19 +119,12 @@ def test_product_20_create_policy(
     product20,
     riskpool20,
     riskpoolWallet,
+    usd1: USD1,
     usd2: USD2,
 ):
-    protected_token_address = product20.getProtectedToken()
-    protected_token = interface.IERC20Metadata(protected_token_address)
-    tf = 10 ** protected_token.decimals()
-
-    riskpool_id = riskpool20.getId()
-    token_address = instanceService.getComponentToken(riskpool_id)
-    token = interface.IERC20Metadata(token_address)
-
+    tf = 10**usd2.decimals()
     max_protected_balance = 10000
     bundle_funding = (max_protected_balance * 2) / 5
-
     bundle_id = create_bundle(
         instance, 
         instanceOperator, 
@@ -142,7 +135,7 @@ def test_product_20_create_policy(
 
     # setup up wallet to protect with some coins
     protected_balance = 5000
-    protected_token.transfer(protectedWallet, protected_balance * tf, {'from': instanceOperator})
+    usd1.transfer(protectedWallet, protected_balance * tf, {'from': instanceOperator})
 
     # buy policy for wallet to be protected
     duration_days = 60
@@ -203,6 +196,171 @@ def test_product_20_create_policy(
 
     # check riskpool wallet
     assert usd2.balanceOf(riskpoolWallet) == riskpool20.getBalance()
+
+
+def test_premium_payment(
+    instance,
+    instanceService,
+    instanceOperator,
+    instanceWallet,
+    productOwner,
+    investor,
+    theOutsider,
+    product20,
+    riskpool20,
+    riskpoolWallet,
+    usd1: USD1,
+    usd2: USD2,
+):
+    tf = 10**usd2.decimals()
+    max_protected_balance = 10000
+    bundle_funding = (max_protected_balance * 2) / 5
+    bundle_amount = bundle_funding * tf
+
+    bundle_id = create_bundle(
+        instance, 
+        instanceOperator, 
+        investor, 
+        riskpool20,
+        maxProtectedBalance = max_protected_balance,
+        funding = bundle_funding)
+
+    # policy application setup
+    duration_days = 30
+    protected_balance = 5000
+    (premium, net_premium, protected_amount, sum_insured, duration) = calculate_premium(protected_balance, duration_days, bundle_id, product20, riskpool20, usd2)
+
+    # setup with correct balance and allowance
+    usd2.transfer(theOutsider, premium, {'from': instanceOperator})
+    usd2.approve(instance.getTreasury(), premium, {'from': theOutsider})
+
+    # check actual account balances before 
+    assert usd2.balanceOf(theOutsider) == premium
+    assert usd2.balanceOf(instanceWallet) == 0
+    assert usd2.balanceOf(riskpoolWallet) == bundle_amount
+
+    tx = product20.applyForPolicyWithBundle(
+        theOutsider,
+        protected_amount,
+        duration,
+        bundle_id, 
+        {'from': theOutsider})
+
+    # check account balances after 
+    assert usd2.balanceOf(theOutsider) == 0
+    assert usd2.balanceOf(instanceWallet) == premium - net_premium
+    assert usd2.balanceOf(riskpoolWallet) == bundle_amount + net_premium
+
+    # check policy book keeping
+    assert 'LogDepegPolicyCreated' in tx.events
+
+    process_id = tx.events['LogDepegPolicyCreated']['processId']
+    policy = instanceService.getPolicy(process_id).dict()
+    assert policy['premiumExpectedAmount'] == premium
+    assert policy['premiumPaidAmount'] == policy['premiumExpectedAmount']
+
+    # check bundle book keeping
+    bundle = instanceService.getBundle(bundle_id).dict()
+    assert bundle['capital'] == bundle_amount
+    assert bundle['balance'] == bundle_amount + net_premium
+    assert bundle['lockedCapital'] == sum_insured
+
+
+def test_create_policy_bad_balance_or_allowance(
+    instance,
+    instanceService,
+    instanceOperator,
+    instanceWallet,
+    productOwner,
+    investor,
+    theOutsider,
+    product20,
+    riskpool20,
+    riskpoolWallet,
+    usd1: USD1,
+    usd2: USD2,
+):
+    tf = 10**usd2.decimals()
+    max_protected_balance = 10000
+    bundle_funding = (max_protected_balance * 2) / 5
+    bundle_id = create_bundle(
+        instance, 
+        instanceOperator, 
+        investor, 
+        riskpool20,
+        maxProtectedBalance = max_protected_balance,
+        funding = bundle_funding)
+
+    # policy application setup
+    duration_days = 30
+    protected_balance = 5000
+    (premium, net_premium, protected_amount, sum_insured, duration) = calculate_premium(protected_balance, duration_days, bundle_id, product20, riskpool20, usd2)
+
+    # set balance and allowance
+    missing_from_balance = 1
+    missing_from_allowance = 1
+
+    # failure case 1: balance too small, allowance ok
+    usd2.transfer(theOutsider, premium - missing_from_balance, {'from': instanceOperator})
+    usd2.approve(instance.getTreasury(), premium, {'from': theOutsider})
+
+    with brownie.reverts('ERROR:DP-014:BALANCE_INSUFFICIENT'):
+        product20.applyForPolicyWithBundle(
+            theOutsider,
+            protected_amount,
+            duration,
+            bundle_id, 
+            {'from': theOutsider})
+
+    # failure case 2: balance and allowance too small
+    usd2.approve(instance.getTreasury(), premium - missing_from_allowance, {'from': theOutsider})
+
+    with brownie.reverts('ERROR:DP-014:BALANCE_INSUFFICIENT'):
+        product20.applyForPolicyWithBundle(
+            theOutsider,
+            protected_amount,
+            duration,
+            bundle_id, 
+            {'from': theOutsider})
+
+    # failure case 3: balance ok, allowance too small
+    usd2.transfer(theOutsider, missing_from_balance, {'from': instanceOperator})
+
+    with brownie.reverts('ERROR:DP-015:ALLOWANCE_INSUFFICIENT'):
+        product20.applyForPolicyWithBundle(
+            theOutsider,
+            protected_amount,
+            duration,
+            bundle_id, 
+            {'from': theOutsider})
+
+    # ok case 1: balance ok,, allowance ok
+    usd2.approve(instance.getTreasury(), premium, {'from': theOutsider})
+
+    tx = product20.applyForPolicyWithBundle(
+        theOutsider,
+        protected_amount,
+        duration,
+        bundle_id, 
+        {'from': theOutsider})
+
+    assert 'LogDepegPolicyCreated' in tx.events
+
+
+def calculate_premium(protected_balance, duration_days, bundle_id, product20, riskpool20, usd2):
+    protected_amount = protected_balance * 10**usd2.decimals()
+    duration = duration_days * 24 * 3600
+    sum_insured = int(riskpool20.getSumInsuredPercentage() * protected_amount / 100)
+    net_premium = product20.calculateNetPremium(sum_insured, duration, bundle_id)
+    premium = product20.calculatePremium(net_premium)
+
+    return (
+        premium,
+        net_premium,
+        protected_amount,
+        sum_insured,
+        duration
+    )
 
 
 def test_product_20_depeg_normal(

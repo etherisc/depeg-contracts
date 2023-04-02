@@ -186,7 +186,7 @@ def test_application_with_expired_bundle(
     chain.sleep(riskpool.getMaxBundleLifetime() + 1)
     chain.mine(1)
 
-    with brownie.reverts("ERROR:DP-014:UNDERWRITING_FAILED"):
+    with brownie.reverts("ERROR:DP-016:UNDERWRITING_FAILED"):
         apply_for_policy_with_bundle(
             instance, 
             instanceOperator,

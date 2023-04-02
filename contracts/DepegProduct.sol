@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.2;
 
+import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
 import "@etherisc/gif-interface/contracts/components/IComponent.sol";
@@ -49,6 +50,7 @@ contract DepegProduct is
     EnumerableSet.Bytes32Set private _policiesWithConfirmedClaims;
 
     IPriceDataProvider private _priceDataProvider;
+    IERC20Metadata private _tokenContract;
     address private _protectedToken;
     DepegState private _state;
 
@@ -126,6 +128,7 @@ contract DepegProduct is
         require(priceDataProvider != address(0), "ERROR:DP-001:PRIZE_DATA_PROVIDER_ZERO");
         _priceDataProvider = IPriceDataProvider(priceDataProvider);
 
+        _tokenContract = IERC20Metadata(token);
         _protectedToken = _priceDataProvider.getToken();
         require(_protectedToken != address(0), "ERROR:DP-002:PROTECTED_TOKEN_ZERO");
         require(_protectedToken != token, "ERROR:DP-003:PROTECTED_TOKEN_AND_TOKEN_IDENTICAL");
@@ -166,14 +169,21 @@ contract DepegProduct is
         IBundle.Bundle memory bundle = _instanceService.getBundle(bundleId);
         require(
             bundle.riskpoolId == _riskpool.getId(),
-            "ERROR:DP-013:BUNDLE_RISKPOOL_MISMATCH"
-        );
-
+            "ERROR:DP-013:BUNDLE_RISKPOOL_MISMATCH");
 
         // calculate premium for specified bundle
         (,,,,,,uint256 annualPercentageReturn) = _riskpool.decodeBundleParamsFromFilter(bundle.filter);
         maxNetPremium = _riskpool.calculatePremium(sumInsured, duration, annualPercentageReturn);
         maxPremium = calculatePremium(maxNetPremium);
+
+        // ensure policy holder has sufficient balance and allowance
+        require(
+            _tokenContract.balanceOf(policyHolder) >= maxPremium, 
+            "ERROR:DP-014:BALANCE_INSUFFICIENT");
+
+        require(
+            _tokenContract.allowance(policyHolder, _instanceService.getTreasuryAddress()) >= maxPremium, 
+            "ERROR:DP-015:ALLOWANCE_INSUFFICIENT");
 
         bytes memory metaData = "";
         bytes memory applicationData = _riskpool.encodeApplicationParameterAsData(
@@ -210,13 +220,7 @@ contract DepegProduct is
         bool success = _underwrite(processId);
 
         // ensure underwriting is successful
-        require(success, "ERROR:DP-014:UNDERWRITING_FAILED");
-
-        // ensure premium has been fully paid
-        IPolicy.Policy memory policy = _getPolicy(processId);
-        require(
-            policy.premiumPaidAmount == policy.premiumExpectedAmount,
-            "ERROR:DP-015:PREMIUM_NOT_FULLY_PAID");
+        require(success, "ERROR:DP-016:UNDERWRITING_FAILED");
 
         if (success) {
             _policies.push(processId);

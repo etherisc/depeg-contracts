@@ -207,6 +207,10 @@ def test_historical_mainnet_token_balance(
     gifDepegProduct,
     moralis_api_key
 ):
+    # skip test if no api key is provided
+    if moralis_api_key is None or len(moralis_api_key) == 0:
+        return
+
     gifDepegRiskpool = gifDepegProduct.getRiskpool()
 
     product = gifDepegProduct.getContract()

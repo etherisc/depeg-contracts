@@ -2,6 +2,7 @@ import difflib
 import os
 import requests
 import subprocess
+import sys
 
 from scripts.cksum import cksum
 
@@ -78,8 +79,11 @@ def run_command(command, description, max_lines=5):
 
     return output
 
+if '--no_unit_tests' not in sys.argv:
+    run_command(TESTS, '#### run unit tests...')
+else:
+    print('#### NOT running unit tests')
 
-run_command(TESTS, '#### run unit tests...')
 run_command(LINTING, '#### run linting check...')
 run_command(ERRORCODES, '#### run error code check...')
 run_command(EVENTNAMES, '#### run event name check...')
