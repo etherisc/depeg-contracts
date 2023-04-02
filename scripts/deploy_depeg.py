@@ -17,6 +17,9 @@ from brownie import (
 )
 
 from scripts.const import (
+    BUNDLE_STATE,
+    APPLICATION_STATE,
+    POLICY_STATE,
     COMPONENT_STATE,
     ZERO_ADDRESS
 )
@@ -90,7 +93,7 @@ GAS_DEPEG = {
 
 def help():
     print('from scripts.util import contract_from_address, get_package')
-    print('from scripts.deploy_depeg import all_in_1, get_setup, stakeholders_accounts_ganache, check_funds, amend_funds, new_bundle, best_quote, new_policy, inspect_bundle, inspect_bundles_d, inspect_applications_d, help')
+    print('from scripts.deploy_depeg import all_in_1, get_setup, stakeholders_accounts_ganache, check_funds, amend_funds, new_bundle, best_quote, new_policy, get_bundle, inspect_applications_d, help')
     print("usd2 = USD2.deploy({'from': accounts[0]})")
     print('a = stakeholders_accounts_ganache() # opt param new=True to create fresh unfunded accounts')
     print('check_funds(a, usd2)')
@@ -122,6 +125,103 @@ def get_deploy_timestamp(name):
         return int(timestamp[1:-1])
     
     return int(timestamp[:-2])
+
+
+def get_policy(process_id, product_address):
+    product = contract_from_address(DepegProduct, product_address)
+    product_contract = (DepegProduct._name, product.getId(), str(product))
+
+    token = contract_from_address(interface.IERC20Metadata, product.getToken())
+    protected_token = contract_from_address(interface.IERC20Metadata, product.getProtectedToken())
+    tf = 10**token.decimals()
+
+    (instance_service, instance_operator, treasury, instance_registry) = get_instance(product)
+    riskpool = get_riskpool(product, instance_service)
+
+    meta = instance_service.getMetadata(process_id).dict()
+    application = instance_service.getApplication(process_id).dict()
+    application_params = riskpool.decodeApplicationParameterFromData(application['data']).dict()
+    policy = instance_service.getPolicy(process_id).dict()
+
+    policy_setup = {}
+    policy_setup['application'] = {}
+    policy_setup['application']['process_id'] = str(process_id)
+    policy_setup['application']['product_id'] = meta['productId']
+    policy_setup['application']['owner'] = meta['owner']
+    policy_setup['application']['state'] = _get_application_state(application['state'])
+    policy_setup['application']['premium'] = (application['premiumAmount']/10**token.decimals(), application['premiumAmount'])
+    policy_setup['application']['sum_insured'] = (application['sumInsuredAmount']/10**token.decimals(), application['sumInsuredAmount'])
+
+    policy_setup['application']['bundle_id'] = application_params['bundleId']
+    policy_setup['application']['duration'] = (application_params['duration']/(24*3600), application_params['duration'])
+    policy_setup['application']['protected_balance'] = (application_params['protectedBalance']/10**token.decimals(), application_params['protectedBalance'])
+    policy_setup['application']['protected_wallet'] = application_params['wallet']
+
+    policy_setup['policy'] = {}
+    policy_setup['policy']['claims'] = policy['claimsCount']
+    policy_setup['policy']['claims_open'] = policy['openClaimsCount']
+    policy_setup['policy']['payout'] = (policy['payoutAmount']/10**token.decimals(), policy['payoutAmount'])
+    policy_setup['policy']['premium_paid'] = (policy['premiumPaidAmount']/10**token.decimals(), policy['premiumPaidAmount'])
+    policy_setup['policy']['state'] = _get_policy_state(policy['state'])
+
+    policy_setup['timestamps'] = {}
+    policy_setup['timestamps']['created_at'] = (get_iso_datetime(meta['createdAt']), meta['createdAt'])
+    policy_setup['timestamps']['updated_at'] = (get_iso_datetime(policy['updatedAt']), policy['updatedAt'])
+
+    expiry_at = meta['createdAt'] + application_params['duration']
+    policy_setup['timestamps']['expiry_at'] = (get_iso_datetime( expiry_at), expiry_at)
+
+    return policy_setup
+
+
+def get_bundle(bundle_id, product_address):
+    product = contract_from_address(DepegProduct, product_address)
+
+    token = contract_from_address(interface.IERC20Metadata, product.getToken())
+    protected_token = contract_from_address(interface.IERC20Metadata, product.getProtectedToken())
+    tf = 10**token.decimals()
+
+    (instance_service, instance_operator, treasury, instance_registry) = get_instance(product)
+    riskpool = get_riskpool(product, instance_service)
+    riskpool_contract = (DepegRiskpool._name, riskpool.getId(), str(riskpool))
+
+    bundle = instance_service.getBundle(bundle_id).dict()
+    bundle_params = riskpool.decodeBundleParamsFromFilter(bundle['filter']).dict()
+    capacity = bundle['capital'] - bundle['lockedCapital']
+    protection_factor = 100/riskpool.getSumInsuredPercentage()
+    available = protection_factor * capacity
+
+    bundle_setup = {}
+    bundle_setup['bundle'] = {}
+    bundle_setup['bundle']['id'] = bundle['id']
+    bundle_setup['bundle']['name'] = bundle_params['name']
+    bundle_setup['bundle']['lifetime'] = (bundle_params['lifetime']/(24 * 3600), bundle_params['lifetime'])
+    bundle_setup['bundle']['riskpool_id'] = bundle['riskpoolId']
+    bundle_setup['bundle']['riskpool'] = riskpool_contract
+    bundle_setup['bundle']['state'] = _get_bundle_state(bundle['state'])
+
+    bundle_setup['filter'] = {}
+    bundle_setup['filter']['apr'] = (bundle_params['annualPercentageReturn']/riskpool.APR_100_PERCENTAGE(), bundle_params['annualPercentageReturn'])
+    bundle_setup['filter']['duration_min'] = (bundle_params['minDuration']/(24 * 3600), bundle_params['minDuration'])
+    bundle_setup['filter']['duration_max'] = (bundle_params['maxDuration']/(24 * 3600), bundle_params['maxDuration'])
+    bundle_setup['filter']['protection_min'] = (protection_factor * bundle_params['minSumInsured']/tf, protection_factor * bundle_params['minSumInsured'])
+    bundle_setup['filter']['protection_max'] = (protection_factor * bundle_params['maxSumInsured']/tf, protection_factor * bundle_params['maxSumInsured'])
+
+    bundle_setup['financials'] = {}
+    bundle_setup['financials']['available'] = (available/tf, available)
+    bundle_setup['financials']['balance'] = (bundle['balance']/tf, bundle['balance'])
+    bundle_setup['financials']['capacity'] = (capacity/tf, capacity)
+    bundle_setup['financials']['capital'] = (bundle['capital']/tf, bundle['capital'])
+    bundle_setup['financials']['capital_locked'] = (bundle['lockedCapital']/tf, bundle['lockedCapital'])
+
+    bundle_setup['timestamps'] = {}
+    bundle_setup['timestamps']['created_at'] = (get_iso_datetime(bundle['createdAt']), bundle['createdAt'])
+    bundle_setup['timestamps']['updated_at'] = (get_iso_datetime(bundle['updatedAt']), bundle['updatedAt'])
+
+    open_until = bundle['createdAt'] + bundle_params['lifetime']
+    bundle_setup['timestamps']['open_until'] = (get_iso_datetime(open_until), open_until)
+
+    return bundle_setup
 
 
 def get_setup(product_address):
@@ -365,6 +465,17 @@ def _getStakeBalance(staking, dip):
 
     return (stake_balance/10**dip.decimals(), stake_balance)
 
+
+def _get_application_state(state):
+    return (APPLICATION_STATE[state], state)
+
+
+def _get_policy_state(state):
+    return (POLICY_STATE[state], state)
+
+
+def _get_bundle_state(state):
+    return (BUNDLE_STATE[state], state)
 
 def _getComponentState(component_id, instance_service):
     state = instance_service.getComponentState(component_id)

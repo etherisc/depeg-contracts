@@ -44,7 +44,40 @@ ORACLE_SERVICE_NAME = 'OracleService'
 INSTANCE_OPERATOR_SERVICE_NAME = 'InstanceOperatorService'
 INSTANCE_SERVICE_NAME = 'InstanceService'
 
-# Component States
+# GIF States
+
+# enum BundleState {Active, Locked, Closed, Burned}
+BUNDLE_STATE = {
+    0: "Active",
+    1: "Locked",
+    2: "Closed",
+    3: "Burned",
+}
+
+# enum ApplicationState {Applied, Revoked, Underwritten, Declined}
+APPLICATION_STATE = {
+    0: "Applied",
+    1: "Revoked",
+    2: "Underwritten",
+    3: "Declined",
+}
+
+# enum PolicyState {Active, Expired, Closed}
+POLICY_STATE = {
+    0: "Active",
+    1: "Expired",
+    2: "Closed",
+}
+
+# enum ComponentState {
+#     Created,
+#     Proposed,
+#     Declined,
+#     Active,
+#     Paused,
+#     Suspended,
+#     Archived
+# }
 COMPONENT_STATE = {
     0: "Created",
     1: "Proposed",

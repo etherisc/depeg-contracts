@@ -27,7 +27,12 @@ from scripts.util import (
 )
 
 from scripts.depeg_product import GifDepegProduct
-from scripts.deploy_depeg import get_setup
+
+from scripts.deploy_depeg import (
+    get_setup,
+    get_bundle,
+    get_policy,
+)
 
 from scripts.setup import (
     create_bundle, 
@@ -139,6 +144,9 @@ def test_product_sandbox(
         usdc,
         instance_service
     ) = get_setup(product20)
+
+    bundle_details = get_bundle(bundle_id, product)
+    policy_details = get_policy(process_id, product)
 
     if os.getenv('STOP','N') == 'Y':
         assert False
