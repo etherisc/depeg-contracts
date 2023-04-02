@@ -101,6 +101,10 @@ def help():
     print("(setup, product, feeder, riskpool, registry, staking, dip, usdt, usdc, instance_service) = get_setup('0x8E43A861e9F270b58b1801171C627421Eb956cbA')")
     print('')
     print('(setup, product, feeder, riskpool, registry, staking, dip, usdt, usdc, instance_service) = get_setup(product_address)')
+    print('')
+    print('import json')
+    print("json.dump(setup, open('setup_demo.json', 'w'), indent=4)")
+    print('')
     print('instanceService.getPolicy(processId).dict()')
     print('instanceService.getBundle(1).dict()')
     print('inspect_bundle(d, 1)')
@@ -125,7 +129,7 @@ def get_setup(product_address):
     product = contract_from_address(DepegProduct, product_address)
     product_id = product.getId()
     product_name = b2s(product.getName())
-    product_contract = (DepegProduct._name, product)
+    product_contract = (DepegProduct._name, str(product))
     product_owner = product.owner()
 
     token = contract_from_address(interface.IERC20Metadata, product.getToken())
@@ -133,14 +137,14 @@ def get_setup(product_address):
 
     feeder_address = product.getPriceDataProvider()
     feeder = contract_from_address(UsdcPriceDataProvider, feeder_address)
-    feeder_contract = (UsdcPriceDataProvider._name, feeder)
+    feeder_contract = (UsdcPriceDataProvider._name, str(feeder))
     feeder_token = contract_from_address(interface.IERC20Metadata, feeder.getToken())
 
     (instance_service, instance_operator, treasury, instance_registry) = get_instance(product)
     riskpool = get_riskpool(product, instance_service)
     riskpool_id = riskpool.getId()
     riskpool_name = b2s(riskpool.getName())
-    riskpool_contract = (DepegRiskpool._name, riskpool)
+    riskpool_contract = (DepegRiskpool._name, str(riskpool))
     riskpool_sum_insured_cap = riskpool.getSumOfSumInsuredCap()
     riskpool_owner = riskpool.owner()
 
@@ -157,16 +161,16 @@ def get_setup(product_address):
 
     if riskpool.getStaking() != ZERO_ADDRESS:
         staking = contract_from_address(interface.IStakingFacade, riskpool.getStaking())
-        staking_contract = (interface.IStakingFacade._name, staking)
+        staking_contract = (interface.IStakingFacade._name, str(staking))
         staking_owner = staking.owner()
         dip_token = contract_from_address(DIP, staking.getDip())
 
         registry = contract_from_address(interface.IChainRegistryFacade, staking.getRegistry())
-        registry_contract = (interface.IChainRegistryFacade._name, registry)
+        registry_contract = (interface.IChainRegistryFacade._name, str(registry))
         registry_owner = registry.owner()
 
         nft = contract_from_address(interface.IChainNftFacade, registry.getNft())
-        nft_contract = (interface.IChainNftFacade._name, nft)
+        nft_contract = (interface.IChainNftFacade._name, str(nft))
 
     setup = {}
     setup['instance'] = {}
@@ -180,7 +184,7 @@ def get_setup(product_address):
     setup['staking'] = {}
 
     # instance specifics
-    setup['instance']['id'] = instance_service.getInstanceId()
+    setup['instance']['id'] = str(instance_service.getInstanceId())
     setup['instance']['chain'] = (instance_service.getChainName(), instance_service.getChainId())
     setup['instance']['instance_registry'] = instance_service.getRegistry()
     setup['instance']['instance_operator'] = instance_operator
@@ -202,8 +206,8 @@ def get_setup(product_address):
     setup['product']['riskpool_id'] = product.getRiskpoolId()
     setup['product']['deployed_at'] = (get_iso_datetime(get_deploy_timestamp(product_name)), get_deploy_timestamp(product_name))
     setup['product']['premium_fee'] = _get_fee_spec(product_id, treasury, instance_service)
-    setup['product']['token'] = (token.symbol(), token, token.decimals())
-    setup['product']['protected_token'] = (protected_token.symbol(), protected_token, protected_token.decimals())
+    setup['product']['token'] = (token.symbol(), str(token), token.decimals())
+    setup['product']['protected_token'] = (protected_token.symbol(), str(protected_token), protected_token.decimals())
     setup['product']['applications'] = product.applications()
     setup['product']['policies'] = product.policies()
 
@@ -223,7 +227,7 @@ def get_setup(product_address):
     setup['feeder']['latest_timestamp'] = (get_iso_datetime(feeder.latestTimestamp()), feeder.latestTimestamp())
     setup['feeder']['triggered_at'] = (get_iso_datetime(feeder.getTriggeredAt()), feeder.getTriggeredAt())
     setup['feeder']['depegged_at'] = (get_iso_datetime(feeder.getDepeggedAt()), feeder.getDepeggedAt())
-    setup['feeder']['token'] = (feeder_token.symbol(), feeder_token, feeder_token.decimals())
+    setup['feeder']['token'] = (feeder_token.symbol(), str(feeder_token), feeder_token.decimals())
 
     # riskpool specifics
     setup['riskpool']['contract'] = riskpool_contract
@@ -233,7 +237,7 @@ def get_setup(product_address):
     setup['riskpool']['staking'] = riskpool.getStaking()
     setup['riskpool']['deployed_at'] = (get_iso_datetime(get_deploy_timestamp(riskpool_name)), get_deploy_timestamp(riskpool_name))
     setup['riskpool']['capital_fee'] = _get_fee_spec(riskpool_id, treasury, instance_service)
-    setup['riskpool']['token'] = (riskpool_token.symbol(), riskpool_token, riskpool_token.decimals())
+    setup['riskpool']['token'] = (riskpool_token.symbol(), str(riskpool_token), riskpool_token.decimals())
 
     setup['riskpool']['sum_insured_cap'] = (riskpool_sum_insured_cap / 10**riskpool_token.decimals(), riskpool_sum_insured_cap)
 
@@ -300,17 +304,16 @@ def get_setup(product_address):
     if staking:
         staking_rate = staking.stakingRate(chain_id, riskpool_token)
         staking_version = _get_version(staking)
-        stake_balance = staking.stakeBalance()
         wallet_balance = dip_token.balanceOf(staking.getStakingWallet())
         setup['staking']['contract'] = staking_contract
-        setup['staking']['chain'] = chain_id
+        setup['staking']['chain'] = (web3.chain_id, str(chain_id))
         setup['staking']['owner'] = staking_owner
         setup['staking']['registry'] = staking.getRegistry()
-        setup['staking']['dip'] = (dip_token.symbol(), dip_token, dip_token.decimals())
+        setup['staking']['dip'] = (dip_token.symbol(), str(dip_token), dip_token.decimals())
         setup['staking']['reward_balance'] = (staking.rewardBalance()/10**dip_token.decimals(), staking.rewardBalance())
         setup['staking']['reward_rate'] = (staking.rewardRate()/10**staking.rateDecimals(), staking.rewardRate())
         setup['staking']['reward_rate_max'] = (staking.maxRewardRate()/10**staking.rateDecimals(), staking.maxRewardRate())
-        setup['staking']['stake_balance'] = (stake_balance/10**dip_token.decimals(), stake_balance)
+        setup['staking']['stake_balance'] = _getStakeBalance(staking, dip_token)
         setup['staking']['staking_rate_usdt'] = (staking_rate/10**staking.rateDecimals(), staking_rate)
         setup['staking']['wallet'] = staking.getStakingWallet()
         setup['staking']['wallet_balance'] = (wallet_balance/10**dip_token.decimals(), wallet_balance)
@@ -350,6 +353,17 @@ def get_setup(product_address):
         protected_token,
         instance_service
     )
+
+
+def _getStakeBalance(staking, dip):
+    stake_balance = 0
+
+    try: 
+        stake_balance = staking.stakeBalance()
+    except Exception as e:
+        return ('n/a', 0)
+
+    return (stake_balance/10**dip.decimals(), stake_balance)
 
 
 def _getComponentState(component_id, instance_service):
