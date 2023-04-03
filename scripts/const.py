@@ -88,6 +88,27 @@ COMPONENT_STATE = {
     6: "Archived"
 }
 
+# === Global registry/staking  =========================================================== #
+
+# enum ObjectState {
+#     Undefined,
+#     Proposed,
+#     Approved,
+#     Suspended,
+#     Archived,
+#     Burned
+# }
+OBJECT_STATE = {
+    0: "Undefined",
+    1: "Proposed",
+    2: "Approved",
+    3: "Suspended",
+    4: "Archived",
+    5: "Burned",
+}
+
+
+
 # === GIF testing =========================================================== #
 
 # ZERO_ADDRESS = accounts.at('0x0000000000000000000000000000000000000000')

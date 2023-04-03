@@ -93,7 +93,7 @@ GAS_DEPEG = {
 
 def help():
     print('from scripts.util import contract_from_address, get_package')
-    print('from scripts.deploy_depeg import all_in_1, get_setup, stakeholders_accounts_ganache, check_funds, amend_funds, new_bundle, best_quote, new_policy, get_bundle, inspect_applications_d, help')
+    print('from scripts.deploy_depeg import all_in_1, get_setup, stakeholders_accounts_ganache, check_funds, amend_funds, new_bundle, best_quote, new_policy, get_policy, get_bundle, inspect_applications_d, help')
     print("usd2 = USD2.deploy({'from': accounts[0]})")
     print('a = stakeholders_accounts_ganache() # opt param new=True to create fresh unfunded accounts')
     print('check_funds(a, usd2)')
@@ -185,6 +185,9 @@ def get_bundle(bundle_id, product_address):
     riskpool = get_riskpool(product, instance_service)
     riskpool_contract = (DepegRiskpool._name, riskpool.getId(), str(riskpool))
 
+    chain_registry = contract_from_address(interface.IChainRegistryFacadeExt, riskpool.getChainRegistry())
+    staking = contract_from_address(interface.IStakingFacade, riskpool.getStaking())
+
     bundle = instance_service.getBundle(bundle_id).dict()
     bundle_params = riskpool.decodeBundleParamsFromFilter(bundle['filter']).dict()
     capacity = bundle['capital'] - bundle['lockedCapital']
@@ -213,6 +216,20 @@ def get_bundle(bundle_id, product_address):
     bundle_setup['financials']['capacity'] = (capacity/tf, capacity)
     bundle_setup['financials']['capital'] = (bundle['capital']/tf, bundle['capital'])
     bundle_setup['financials']['capital_locked'] = (bundle['lockedCapital']/tf, bundle['lockedCapital'])
+
+    bundle_nft_id = chain_registry.getBundleNftId(instance_service.getInstanceId(), bundle['id'])
+    bundle_nft_info = None
+
+    try:
+        bundle_nft_info = chain_registry.getNftInfo(bundle_nft_id).dict()
+    except Exception as e:
+        bundle_nft_info = {'message': 'n/a'}
+
+    bundle_cs = staking.capitalSupport(bundle_nft_id)
+    bundle_setup['staking'] = {}
+    bundle_setup['staking']['nft_id'] = bundle_nft_id
+    bundle_setup['staking']['nft_info'] = bundle_nft_info
+    bundle_setup['staking']['capital_support'] = (bundle_cs/tf, bundle_cs)
 
     bundle_setup['timestamps'] = {}
     bundle_setup['timestamps']['created_at'] = (get_iso_datetime(bundle['createdAt']), bundle['createdAt'])
@@ -265,8 +282,8 @@ def get_setup(product_address):
         staking_owner = staking.owner()
         dip_token = contract_from_address(DIP, staking.getDip())
 
-        registry = contract_from_address(interface.IChainRegistryFacade, staking.getRegistry())
-        registry_contract = (interface.IChainRegistryFacade._name, str(registry))
+        registry = contract_from_address(interface.IChainRegistryFacadeExt, staking.getRegistry())
+        registry_contract = (interface.IChainRegistryFacadeExt._name, str(registry))
         registry_owner = registry.owner()
 
         nft = contract_from_address(interface.IChainNftFacade, registry.getNft())
