@@ -32,6 +32,7 @@ from scripts.util import (
     contract_from_address,
     new_accounts,
     get_package,
+    is_forked_network,
     get_iso_datetime,
     b2s,
     s2b,
@@ -1047,6 +1048,10 @@ def all_in_1(
     publish_source=False
 ):
     a = stakeholders_accounts or stakeholders_accounts_ganache()
+
+    # don't try to publish source on forked networks
+    if publish_source and is_forked_network():
+        publish_source = False
 
     # assess balances at beginning of deploy
     balances_before = _get_balances(a)

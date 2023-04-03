@@ -1,11 +1,12 @@
-import sys
 import io
+import sys
 from contextlib import redirect_stdout
 from datetime import datetime
 from web3 import Web3
 
 from brownie import (
     web3,
+    network,
     Contract, 
 )
 
@@ -107,8 +108,16 @@ def wait_for_confirmations(
     confirmations=REQUIRED_TX_CONFIRMATIONS_DEFAULT
 ):
     if web3.chain_id in CHAIN_IDS_REQUIRING_CONFIRMATIONS:
-        print('waiting for confirmations ...')
-        tx.wait(confirmations)
+        if not is_forked_network():
+            print('waiting for confirmations ...')
+            tx.wait(confirmations)
+        else:
+            print('not waiting for confirmations in a forked network...')
+
+
+def is_forked_network():
+    return 'fork' in network.show_active()
+
 
 def get_iso_datetime(timestamp):
     return datetime.fromtimestamp(timestamp).isoformat()
