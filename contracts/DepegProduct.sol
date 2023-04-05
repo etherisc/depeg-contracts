@@ -19,6 +19,15 @@ contract DepegProduct is
 {
     using EnumerableSet for EnumerableSet.Bytes32Set;
 
+    // EIP-712 Domain
+    string private constant EIP712_DOMAIN_TYPE = "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)";
+    string private constant EIP712_DOMAIN_NAME = "EtheriscDepeg";
+    string private constant EIP712_DOMAIN_VERSION = "1";
+    uint256 private constant EIP712_CHAIN_ID = 1; 
+    // The EIP-712 Payload type
+    string private constant POLICY_TYPE = "Policy(address wallet,uint256 protectedBalance,uint256 duration,uint256 bundleId)";
+    bytes32 private constant POLICY_TYPEHASH = keccak256(abi.encodePacked(POLICY_TYPE));
+    
     enum DepegState {
         Undefined,
         Active, // normal operation
@@ -139,6 +148,14 @@ contract DepegProduct is
         _riskpool = DepegRiskpool(poolAddress);
         _treasury = TreasuryModule(_instanceService.getTreasuryAddress());
         _depeggedBlockNumber = 0;
+        
+        EIP712_DOMAIN_SEPARATOR = keccak256(abi.encodePacked(
+            EIP712_DOMAIN_TYPE,
+            keccak256(bytes(EIP712_DOMAIN_NAME)),
+            keccak256(bytes(EIP712_DOMAIN_VERSION)),
+            EIP712_CHAIN_ID,
+            address(this)
+        ));
     }
 
 
@@ -147,10 +164,12 @@ contract DepegProduct is
     // this percentage (25% in the example above) needs to be used to 
     // cap claim amount should price feed fall below 1 - %value at depeggedAt
     function applyForPolicyWithBundle(
+        address policyHolder,
         address wallet,
         uint256 protectedBalance,
         uint256 duration,
-        uint256 bundleId
+        uint256 bundleId, 
+        bytes calldata signature
     ) 
         external 
         returns(bytes32 processId)
@@ -161,7 +180,21 @@ contract DepegProduct is
         require(wallet != address(0), "ERROR:DP-011:WALLET_ADDRESS_ZERO");
         require(bundleId > 0, "ERROR:DP-012:BUNDLE_ID_ZERO");
 
-        address policyHolder = msg.sender;
+        bytes32 digest = keccak256(abi.encodePacked(
+            "\x19\x01",
+            EIP712_DOMAIN_SEPARATOR,
+            keccak256(abi.encode(
+                POLICY_TYPEHASH,
+                wallet,
+                protectedBalance,
+                duration,
+                bundleId
+            ))
+        ));
+
+        address _policyHolder = ECDSA.recover(digest, signature);
+        require(policyHolder = _policyHolder, "ERROR: Signature invalid");
+
         uint256 sumInsured = _riskpool.calculateSumInsured(protectedBalance);
         uint256 maxPremium = 0;
         uint256 maxNetPremium = 0;
