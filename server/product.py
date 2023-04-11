@@ -1,3 +1,6 @@
+
+import os
+
 from typing import Optional
 
 from loguru import logger
@@ -12,7 +15,13 @@ from brownie.project.Project import (
 )
 
 from server.account import BrownieAccount
-from server.util import contract_from_address
+from server.settings import settings
+from server.util import contract_from_address, b2s
+
+MONITOR_MNEMONIC = 'MONITOR_MNEMONIC'
+PRODUCT_OWNER_MNEMONIC = 'PRODUCT_OWNER_MNEMONIC'
+
+PRICE_DECIMALS = 8
 
 STATE_PRODUCT = {}
 STATE_PRODUCT[0] = 'Undefined'
@@ -42,16 +51,39 @@ STATE_STABILITY[3] = 'Triggered'
 STATE_STABILITY[4] = 'Depegged'
 
 
+product_contract = None
+feeder_contract = None
+
+
+def process_latest_price():
+    global product_contract
+
+    if not product_contract:
+        if not product:
+            logger.warning('no product')
+        
+        product.connect()
+
+    logger.debug(product_contract.isNewPriceInfoEventAvailable().dict())
+
+    if product_contract.isNewPriceInfoEventAvailable()[0]:
+        logger.info('contract call: product.processLatestPriceInfo')
+        product_contract.processLatestPriceInfo({'from': monitor_account.get_account()})
+    else:
+        logger.info('no new price event: skipping processing')
+
+    return {}
+
+
 class ProductStatus(BaseModel):
 
     depeg_state:Optional[str]
     triggered_at:Optional[int]
     depegged_at:Optional[int]
     owner_address:Optional[str]
+    owner_balance:Optional[float]
     product_address:Optional[str]
     provider_address:Optional[str]
-    token_address:Optional[str]
-    token_decimals:Optional[int]
     chain_id:int
     connected:bool
 
@@ -72,88 +104,95 @@ class Product(BaseModel):
 
     owner:BrownieAccount = BrownieAccount()
 
-    product_address:str = None
+    contract_address:str = None
     provider_address:str = None
-    token_address:str = None
-    token_decimals:int = 0
 
 
-    def connect_to_contract(
-        self,
-        contract_address:str,
-        owner_id:int,
-        owner_mnemonic:str
-    ) -> (DepegProduct, UsdcPriceDataProvider, USD1):
+    def connect(self):
+        global product_contract
+        global feeder_contract
+
         if not network.is_connected():
             raise RuntimeError('connect to network first')
+
+        if not self.contract_address or len(self.contract_address) == 0:
+            logger.info("reading product address from settings '{}'".format(settings.product_contract_address))
+            self.contract_address = settings.product_contract_address
+
+        if self.contract_address and len(self.contract_address) > 0:
+            logger.info("connecting to address {} ...", self.contract_address)
+            product_contract = contract_from_address(DepegProduct, self.contract_address)
+            logger.info("connected to product '{}' ({})".format(b2s(product_contract.getName()), product_contract.getId()))
+
+            self.provider_address = product_contract.getPriceDataProvider()
+            feeder_contract = contract_from_address(UsdcPriceDataProvider, self.provider_address)
+        else:
+            raise RuntimeError('depeg product address missing in .env file')
+
+
+    def get_product_contract(self):
+        return product_contract
+
+
+    def get_provider_contract(self):
+        return feeder_contract
+
+
+    def reactivate(self) -> ProductStatus:
+        if not product_contract:
+            raise RuntimeError('connect to product')
         
-        self.product_address = contract_address
-        if owner_mnemonic: 
-            self.owner = BrownieAccount(offset=owner_id, mnemonic=owner_mnemonic) 
-        else: 
-            self.owner = BrownieAccount(offset=owner_id)
+        if product_contract.getDepegState() == 1:
+            logger.info('product in active state, not doing anything ...')
+            return self.get_status()
 
-        if self.product_address and len(self.product_address) > 0:
-            logger.info("connecting to contracts via '{}'", self.product_address)
+        logger.info('contract call: product.reactivateProduct')
+        product_contract.reactivateProduct({'from': product_owner_account.get_account()})
 
-            product = contract_from_address(DepegProduct, self.product_address)
-
-            self.provider_address = product.getPriceDataProvider()
-            provider = contract_from_address(UsdcPriceDataProvider, self.provider_address)
-
-            self.token_address = provider.getToken()
-            token = contract_from_address(USD1, self.token_address)
-            self.token_decimals = provider.decimals()
-
-            return (product, provider, token)
-
-        raise RuntimeError('depeg product address missing in .env file')
+        return self.get_status()
 
 
-    def reactivate(self, depeg_product: DepegProduct, account: Account) -> ProductStatus:
-        if depeg_product:
-            logger.info('contract call: product.reactivateProduct')
-            depeg_product.reactivateProduct({'from': account})
+    def is_new_event_available(self) -> str:
+        if not product_contract:
+            raise RuntimeError('connect to product')
 
-        else:
-            logger.warning('no product')
-
-        return self.get_status(depeg_product)
-
-
-    def process_latest_price_info(self, depeg_product: DepegProduct, account: Account) -> PriceInfo:
-        if depeg_product:
-            logger.debug(depeg_product.isNewPriceInfoEventAvailable().dict())
-
-            if depeg_product.isNewPriceInfoEventAvailable()[0]:
-                logger.info('contract call: product.processLatestPriceInfo')
-                depeg_product.processLatestPriceInfo({'from': account})
-                return self.get_latest_price_info(depeg_product)
-
-            logger.info('no new price event: skipping processing')
-            return self.get_latest_price_info(depeg_product)
-
-        else:
-            logger.warning('no product')
+        price_event = product_contract.isNewPriceInfoEventAvailable()
+        if price_event[0]:
+            logger.warning('no price event: {}'.format(price_event))
+            raise RuntimeError('NEW EVENT {}. EXECUTE TX DepegProduct.processLatestPriceInfo()')
+        
+        return 'OK - no new price event available'
 
 
-    def get_status(self, depeg_product: DepegProduct) -> ProductStatus:
+    def process_latest_price_info(self) -> PriceInfo:
+        process_latest_price()
+
+        if product_contract:
+            return self.get_latest_price_info()
+        
+        return None
+
+
+    def get_status(self) -> ProductStatus:
         if network.is_connected():
-            product_owner = self.owner.get_account()
+            product_owner = product_owner_account.get_account()
             logger.info("product owner account {}", product_owner)
 
-            return ProductStatus(
-                depeg_state = STATE_PRODUCT[depeg_product.getDepegState()],
-                triggered_at = depeg_product.getTriggeredAt(),
-                depegged_at = depeg_product.getDepeggedAt(),
-                owner_address = self.owner.get_account().address,
-                product_address = self.product_address,
-                provider_address = self.provider_address,
-                token_address = self.token_address,
-                token_decimals = self.token_decimals,
-                chain_id = network.chain.id,
-                connected = True
-            )
+            prod_contract = product.get_product_contract()
+            prov_contract = product.get_provider_contract()
+
+            if prod_contract and prov_contract:
+                return ProductStatus(
+                    depeg_state = STATE_PRODUCT[prod_contract.getDepegState()],
+                    triggered_at = prod_contract.getTriggeredAt(),
+                    depegged_at = prod_contract.getDepeggedAt(),
+                    owner_address = product_owner.address,
+                    owner_balance = product_owner.balance()/10**18,
+                    product_address = prod_contract.address,
+                    provider_address = prov_contract.address,
+                    chain_id = network.chain.id,
+                    connected = True
+                )
 
         return ProductStatus(
             product_address = self.product_address,
@@ -163,7 +202,8 @@ class Product(BaseModel):
         )
 
 
-    def get_price_info(self, provider: UsdcPriceDataProvider) -> dict:
+    def get_price_info(self) -> dict:
+        provider = self.get_provider_contract()
 
         if provider:
             latest_price_info = provider.getLatestPriceInfo().dict()
@@ -183,20 +223,22 @@ class Product(BaseModel):
         raise RuntimeError('connect product contract first')
 
 
-    def get_latest_price_info(self, depeg_product: DepegProduct) -> PriceInfo:
-        price_info_dict = depeg_product.getLatestPriceInfo().dict()
+    def get_latest_price_info(self) -> PriceInfo:
+        product_contract = self.get_product_contract()
+        price_info_dict = product_contract.getLatestPriceInfo().dict()
         return self.to_price_info(price_info_dict)
 
 
-    def get_depeg_price_info(self, depeg_product: DepegProduct):
-        depeg_price_info = depeg_product.getDepegPriceInfo().dict()
+    def get_depeg_price_info(self):
+        product_contract = self.get_product_contract()
+        depeg_price_info = product_contract.getDepegPriceInfo().dict()
         return self.to_price_info(depeg_price_info)
 
 
     def to_price_info(self, price_info: dict) -> PriceInfo:
         return PriceInfo(
             id = price_info['id'],
-            price = price_info['price'] / 10 ** self.token_decimals,
+            price = price_info['price'] / 10 ** PRICE_DECIMALS,
             event_type = EVENT_TYPE[price_info['eventType']],
             compliance = STATE_COMPLIANCE[price_info['compliance']],
             stability = STATE_STABILITY[price_info['stability']],
@@ -204,3 +246,8 @@ class Product(BaseModel):
             depegged_at = price_info['depeggedAt'],
             created_at = price_info['createdAt']
         )
+
+
+product = Product(contract_address = settings.product_contract_address)
+product_owner_account = BrownieAccount.create_via_env(PRODUCT_OWNER_MNEMONIC, offset=5)
+monitor_account = BrownieAccount.create_via_env(MONITOR_MNEMONIC)

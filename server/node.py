@@ -4,6 +4,7 @@ from pydantic import BaseModel
 
 
 NETWORK_DEFAULT = 'ganache'
+CHAIN_ID_DEFAULT = 1337
 
 
 class NodeStatus(BaseModel):
@@ -16,6 +17,7 @@ class NodeStatus(BaseModel):
 class BrownieNode(BaseModel):
 
     network_id:str = NETWORK_DEFAULT
+    chain_id:int = CHAIN_ID_DEFAULT
 
     def is_connected(self) -> bool:
         return network.is_connected()
@@ -23,12 +25,16 @@ class BrownieNode(BaseModel):
 
     def connect(self) -> NodeStatus:
         if network.is_connected():
-            logger.info("already connected to network '{}'", self.network_id)
+            # logger.info("already connected to network '{}' (chain_id: {})", self.network_id, network.chain.id)
+            logger.info("already connected to network '{}' (chain_id: {})", self.network_id, network.chain)
             return self.get_status()
 
+        # logger.info("connecting to network '{}' (chain_id: {})", self.network_id, network.chain.id)
         logger.info("connecting to network '{}'", self.network_id)
         network.connect(self.network_id)
-        logger.info("successfully connected")
+        self.chain_id = network.chain.id
+
+        logger.info("successfully connected (chain_id: {})", self.chain_id)
         return self.get_status()
 
 
