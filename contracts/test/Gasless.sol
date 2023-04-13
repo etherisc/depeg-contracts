@@ -7,7 +7,7 @@ contract Gasless is
     EIP712
 {
 
-    // EIP-712 Depeg specidfics
+    // EIP-712 Depeg specifics
     string public constant EIP712_DOMAIN_NAME = "EtheriscDepeg";
     string public constant EIP712_DOMAIN_VERSION = "1";
 

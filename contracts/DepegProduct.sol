@@ -921,7 +921,7 @@ contract DepegProduct is
         bytes32 signatureId,
         bytes calldata signature
     )
-        internal
+        public
         view
         returns(address)
     {
@@ -948,30 +948,7 @@ contract DepegProduct is
         view
         returns(bytes32)
     {
-        bytes32 structHash = getStructHash(
-            protectedWallet,
-            protectedBalance,
-            duration,
-            bundleId,
-            signatureId
-        );
-
-        return getTypedDataV4Hash(structHash);
-    }
-
-
-    function getStructHash(
-        address protectedWallet,
-        uint256 protectedBalance,
-        uint256 duration,
-        uint256 bundleId,
-        bytes32 signatureId
-    )
-        internal
-        pure
-        returns(bytes32)
-    {
-        return keccak256(
+        bytes32 structHash = keccak256(
             abi.encode(
                 EIP712_POLICY_TYPE_HASH,
                 protectedWallet,
@@ -981,5 +958,7 @@ contract DepegProduct is
                 signatureId
             )
         );
+
+        return getTypedDataV4Hash(structHash);
     }
 }
