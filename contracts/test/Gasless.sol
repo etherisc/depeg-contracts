@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.2;
 
-import {EIP712} from "./EIP712.sol";
+import {EIP712} from "../EIP712.sol";
 
 contract Gasless is
     EIP712
