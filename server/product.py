@@ -20,6 +20,7 @@ from server.util import contract_from_address, b2s
 
 MONITOR_MNEMONIC = 'MONITOR_MNEMONIC'
 PRODUCT_OWNER_MNEMONIC = 'PRODUCT_OWNER_MNEMONIC'
+PRODUCT_OWNER_OFFSET = 5
 
 PRICE_DECIMALS = 8
 
@@ -249,5 +250,5 @@ class Product(BaseModel):
 
 
 product = Product(contract_address = settings.product_contract_address)
-product_owner_account = BrownieAccount.create_via_env(PRODUCT_OWNER_MNEMONIC, offset=5)
+product_owner_account = BrownieAccount.create_via_env(PRODUCT_OWNER_MNEMONIC, offset=PRODUCT_OWNER_OFFSET)
 monitor_account = BrownieAccount.create_via_env(MONITOR_MNEMONIC)
