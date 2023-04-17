@@ -15,19 +15,6 @@ class BrownieAccount(BaseModel):
     mnemonic:str = MNEMONIC_DEFAULT
     offset:int = OFFSET_DEFAULT
 
-
-    # TODO cleanup
-    # def get_address(self) -> str:
-    #     return self.get_account_with_offset(
-    #         self.mnemonic,
-    #         self.offset).address
-
-
-    # def get_balance(self) -> str:
-    #     return self.get_account_with_offset(
-    #         self.mnemonic,
-    #         self.offset).balance()
-
     def get_account(self) -> Account:
         return self.get_account_with_offset(
             self.mnemonic,
@@ -36,22 +23,27 @@ class BrownieAccount(BaseModel):
 
     @classmethod
     def create_via_env(self, env_variable_mnemonic, env_variable_offset=None):
-        logger.info('creating accoung using env variable {} ...'.format(env_variable))
+        logger.info('creating accoung using env variable {}/{}'.format(env_variable_mnemonic, env_variable_offset))
+
+        account = None
         mnemonic = os.getenv(env_variable_mnemonic)
         offset = 0
 
         if env_variable_offset:
-            offset = int(os.getenv(env_variable_offset))
+            offset = int(os.getenv(env_variable_offset, '0'))
 
         if mnemonic: 
-            return BrownieAccount(mnemonic=mnemonic, offset=offset) 
+            account = BrownieAccount(mnemonic=mnemonic, offset=offset) 
         else: 
-            return BrownieAccount(offset=offset)
+            account = BrownieAccount(offset=offset)
+        
+        logger.info('account created: {}'.format(account.get_account()))
+
+        return account
 
 
     def get_account_with_offset(self, mnemonic:str, offset:int) -> Account:
         try:
-            logger.info('creating account ...')
             return Accounts().from_mnemonic(
                 mnemonic,
                 count=1,

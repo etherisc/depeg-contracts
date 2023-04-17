@@ -2,7 +2,7 @@
 # 0. define setup in server/.env file
 # 1. open new terminal
 # 2. start uvicorn server
-#    - uvicorn server.main:app --reload
+#    - uvicorn --env-file server/.env server.main:app --reload
 # 3. switch back to original terminal
 # 4. test api (command line)
 #    - curl localhost:8000/<your-endpoint> (for get requests)
