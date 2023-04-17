@@ -35,9 +35,13 @@ class BrownieAccount(BaseModel):
 
 
     @classmethod
-    def create_via_env(self, env_variable, offset=0):
+    def create_via_env(self, env_variable_mnemonic, env_variable_offset=None):
         logger.info('creating accoung using env variable {} ...'.format(env_variable))
-        mnemonic = os.getenv(env_variable)
+        mnemonic = os.getenv(env_variable_mnemonic)
+        offset = 0
+
+        if env_variable_offset:
+            offset = int(os.getenv(env_variable_offset))
 
         if mnemonic: 
             return BrownieAccount(mnemonic=mnemonic, offset=offset) 
