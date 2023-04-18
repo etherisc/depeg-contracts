@@ -38,6 +38,10 @@ python3 -m pipx ensurepath
 echo "ensurepath finished"
 pip install eth-brownie
 echo "eth-brownie installed"
+pip install coincurve
+echo "coincurve installed"
+pip install eip712-structs
+echo "eip712-structs installed"
 pip install moralis
 echo "moralis installed"
 
