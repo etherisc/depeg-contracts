@@ -39,6 +39,10 @@ RUN pip install "uvicorn[standard]"
 # install brownie
 RUN pip install eth-brownie
 
+# install signing libraries
+RUN pip install coincurve
+RUN pip install eip712-structs
+
 # install moralis
 RUN pip install moralis
 

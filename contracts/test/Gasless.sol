@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.2;
 
-import {EIP712} from "./EIP712.sol";
+import {EIP712} from "../EIP712.sol";
 
 contract Gasless is
     EIP712
 {
 
-    // EIP-712 Depeg specidfics
+    // EIP-712 Depeg specifics
     string public constant EIP712_DOMAIN_NAME = "EtheriscDepeg";
     string public constant EIP712_DOMAIN_VERSION = "1";
 
@@ -28,9 +28,10 @@ contract Gasless is
         bytes calldata signature
     )
         external
-        view
+        returns(bool success)
     {
-        
+        success = false;
+
         address signer = getSignerFromDigestAndSignature(
             protectedWallet,
             protectedBalance,
@@ -39,6 +40,7 @@ contract Gasless is
             signature);
 
         require(policyHolder == signer, "ERROR: Signature invalid");
+        success = true;
     }
 
 
