@@ -203,10 +203,14 @@ contract DepegProduct is
 
         _applications.push(processId);
 
-        // remember for which policy holder and protected wallets 
-        // we have applications / policies
+        // remember for which policy holder this application is
         _processIdsForHolder[policyHolder].push(processId);
-        _processIdsForHolder[wallet].push(processId);
+
+        // in case the protected wallet is different from policy holder:
+        // also remember for which wallet address the appplication is
+        if(wallet != policyHolder) {
+            _processIdsForHolder[wallet].push(processId);
+        }
 
         emit LogDepegApplicationCreated(
             processId, 
