@@ -1,17 +1,25 @@
 import brownie
 import pytest
 
+from eip712_structs import EIP712Struct, Address, Bytes, String, Uint
+from eip712_structs import make_domain
+from eth_utils import big_endian_to_int
+from coincurve import PrivateKey, PublicKey
+
 from brownie import (
     web3,
     chain,
     history,
-    interface
+    interface,
+    Gasless
 )
+
+from web3 import Web3
 
 from brownie.network import accounts
 from brownie.network.account import Account
 
-from scripts.util import b2s
+from scripts.util import b2s, s2b
 
 from scripts.depeg_product import (
     GifDepegProduct,
@@ -28,41 +36,57 @@ from scripts.setup import (
 def isolation(fn_isolation):
     pass
 
+keccak_hash = lambda x : Web3.keccak(x)
 
-def test_signature_and_signer(product):
+# "Policy(address wallet,uint256 protectedBalance,uint256 duration,uint256 bundleId)"
+class Policy(EIP712Struct):
+    wallet = Address()
+    protectedBalance = Uint(256)
+    duration = Uint(256)
+    bundleId = Uint(256)
+    signatureId = Bytes(32)
 
-    # TODO fix this test
-    return
 
-    # {
-    #     "wallet": "0x2CeC4C063Fef1074B0CD53022C3306A6FADb4729",
-    #     "protectedBalance": "2000000000",
-    #     "duration": 2592000,
-    #     "bundleId": 4,
-    #     "signatureId": "0x6a71447a5a44676b4d76453169515a564f346336770000000000000000000000"
-    # }
-    # signature
-    # 0xe22c77faa4a6b338f30218edfd322193f8a6f32fa32cb523592ecc874f8d14e85a798e321a81bbdc2a1ff6e4b17274a0ec3d1a86faa74124a9ef9a7b728dfb3c1c
+def create_policy_signature(wallet, protectedBalance, duration, bundleId, signatureId, product, policy_holder):
+    # prepare messsage
+    message = Policy()
+    message['wallet'] = wallet.address
+    message['protectedBalance'] = protectedBalance
+    message['duration'] = duration
+    message['bundleId'] = bundleId
+    message['signatureId'] = signatureId
 
-    protectedWallet = accounts.at('0x2CeC4C063Fef1074B0CD53022C3306A6FADb4729', force=True)
-    policyHolder = protectedWallet
-    protectedBalance = 2000000000
-    durationDays = 30
-    duration = durationDays * 24 * 3600
+    depeg_domain = make_domain(
+        name='EtheriscDepeg',
+        version='1',
+        chainId=web3.chain_id,
+        verifyingContract=product.address)
+
+    signable_bytes = message.signable_bytes(depeg_domain)
+
+    pk = PrivateKey.from_int(int(policy_holder.private_key, 16))
+    sig = pk.sign_recoverable(signable_bytes, hasher=keccak_hash)
+    v = sig[64] + 27
+    r = big_endian_to_int(sig[0:32])
+    s = big_endian_to_int(sig[32:64])    
+
+    signature_raw = r.to_bytes(32, 'big') + s.to_bytes(32, 'big') + v.to_bytes(1, 'big')
+    signature = '0x{}'.format(signature_raw.hex())
+
+    return signature
+
+
+def test_signature_and_signer(product, customer, customer2, protectedWallet):
+
+    # prepare application parameters
+    protectedBalance = 20000 * 10**6
+    duration = 30 * 24 * 3600
     bundleId = 4
+    signatureId = s2b('some-unique-signature')
 
-    signer1 = product.getSignerFromDigestAndSignature(
-        protectedWallet,
-        protectedBalance,
-        duration,
-        bundleId,
-        0x6a71447a5a44676b4d76453169515a564f346336770000000000000000000000,
-        0xe22c77faa4a6b338f30218edfd322193f8a6f32fa32cb523592ecc874f8d14e85a798e321a81bbdc2a1ff6e4b17274a0ec3d1a86faa74124a9ef9a7b728dfb3c1c)
+    signature = create_policy_signature(protectedWallet, protectedBalance, duration, bundleId, signatureId, product, customer)
 
-    signatureId = 0x6a71447a5a44676b4d76453169515a564f346336770000000000000000000001
-    signature = 0xe22c77faa4a6b338f30218edfd322193f8a6f32fa32cb523592ecc874f8d14e85a798e321a81bbdc2a1ff6e4b17274a0ec3d1a86faa74124a9ef9a7b728dfb3c1c
-
-    signer2 = product.getSignerFromDigestAndSignature(
+    signer_from_signature = product.getSignerFromDigestAndSignature(
         protectedWallet,
         protectedBalance,
         duration,
@@ -70,39 +94,83 @@ def test_signature_and_signer(product):
         signatureId,
         signature)
 
-    signatureIdBytes = web3.toBytes(signatureId)
-    signatureBytes = web3.toBytes(signature)
+    assert signer_from_signature == customer
 
-    signer3 = product.getSignerFromDigestAndSignature(
-        protectedWallet,
-        protectedBalance,
-        duration,
-        bundleId,
-        signatureIdBytes,
-        signatureBytes)
+    # same assertion rerwitten
+    assert customer == product.getSignerFromDigestAndSignature(protectedWallet, protectedBalance, duration, bundleId, signatureId, signature)
 
-    # check signer against expected signer
-    assert signer1 == policyHolder
+    # failure cases
+    assert customer != product.getSignerFromDigestAndSignature(customer, protectedBalance, duration, bundleId, signatureId, signature)
+    assert customer != product.getSignerFromDigestAndSignature(protectedWallet, protectedBalance+1, duration, bundleId, signatureId, signature)
+    assert customer != product.getSignerFromDigestAndSignature(protectedWallet, protectedBalance, duration+1, bundleId, signatureId, signature)
+    assert customer != product.getSignerFromDigestAndSignature(protectedWallet, protectedBalance, duration, bundleId+1, signatureId, signature)
+
+    signatureId_wrong = s2b('some-other-signature')
+    assert customer != product.getSignerFromDigestAndSignature(protectedWallet, protectedBalance, duration, bundleId, signatureId_wrong, signature)
 
 
-def test_create_application(
+def test_apply_for_policy(product, customer, customer2, protectedWallet):
+
+    # prepare application parameters
+    protectedBalance = 20000 * 10**6
+    duration = 30 * 24 * 3600
+    bundleId = 4
+    signatureId = s2b('some-unique-signature')
+    signature = create_policy_signature(protectedWallet, protectedBalance, duration, bundleId, signatureId, product, customer)
+
+    # "happy" case (reverts in bundle controller well past signature checks)
+    with brownie.reverts('ERROR:BUC-060:BUNDLE_DOES_NOT_EXIST'):
+        product.applyForPolicyWithBundleAndSignature(customer, protectedWallet, protectedBalance, duration, bundleId, signatureId, signature, {'from': customer})
+
+    # attempt to use different policy holder (customer2 instead of customer)
+    with brownie.reverts("ERROR:DP-006:SIGNATURE_INVALID"):
+        product.applyForPolicyWithBundleAndSignature(customer2, protectedWallet, protectedBalance, duration, bundleId, signatureId, signature, {'from': customer})
+
+    # attempt to use different wallet address (customer2 instead of wallet)
+    with brownie.reverts("ERROR:DP-006:SIGNATURE_INVALID"):
+        product.applyForPolicyWithBundleAndSignature(customer, customer2, protectedBalance, duration, bundleId, signatureId, signature, {'from': customer})
+
+    # attempt to use different protected balance
+    with brownie.reverts("ERROR:DP-006:SIGNATURE_INVALID"):
+        product.applyForPolicyWithBundleAndSignature(customer, protectedWallet, 2 * protectedBalance, duration, bundleId, signatureId, signature, {'from': customer})
+
+    # attempt to use different duration
+    with brownie.reverts("ERROR:DP-006:SIGNATURE_INVALID"):
+        product.applyForPolicyWithBundleAndSignature(customer, protectedWallet, protectedBalance, 2 * duration, bundleId, signatureId, signature, {'from': customer})
+
+    # attempt to use different bundle id
+    with brownie.reverts("ERROR:DP-006:SIGNATURE_INVALID"):
+        product.applyForPolicyWithBundleAndSignature(customer, protectedWallet, protectedBalance, duration, bundleId - 1, signatureId, signature, {'from': customer})
+
+    # attempt to use different bundle id
+    with brownie.reverts("ERROR:DP-006:SIGNATURE_INVALID"):
+        product.applyForPolicyWithBundleAndSignature(customer, protectedWallet, protectedBalance, duration, bundleId, s2b('bad'), signature, {'from': customer})
+
+    # attempt to use changed signature
+    with brownie.reverts("ECDSA: invalid signature 'v' value"):
+        product.applyForPolicyWithBundleAndSignature(customer, protectedWallet, protectedBalance, duration, bundleId, signatureId, signature[:-4] + '0000', {'from': customer})
+
+    # attempt to use shortened signature
+    with brownie.reverts("ECDSA: invalid signature 's' value"):
+        product.applyForPolicyWithBundleAndSignature(customer, protectedWallet, protectedBalance, duration, bundleId, signatureId, signature[:-1], {'from': customer})
+
+
+def test_create_policy(
     instance,
     instanceService,
     instanceOperator,
     instanceWallet,
     investor,
     customer,
+    protectedWallet,
     product,
     riskpool
 ):
-    # TODO fix this test
-    return
-
-    instanceWallet = instanceService.getInstanceWallet()
-    riskpoolWallet = instanceService.getRiskpoolWallet(riskpool.getId())
+    # instanceWallet = instanceService.getInstanceWallet()
+    # riskpoolWallet = instanceService.getRiskpoolWallet(riskpool.getId())
     tokenAddress = instanceService.getComponentToken(riskpool.getId())
     token = interface.IERC20Metadata(tokenAddress)
-    tf = 10 ** token.decimals()
+    # tf = 10 ** token.decimals()
 
     bundleId = create_bundle(
         instance, 
@@ -110,51 +178,36 @@ def test_create_application(
         investor, 
         riskpool)
 
-    riskpoolBalanceBefore = instanceService.getBalance(riskpool.getId())
-    instanceBalanceBefore = token.balanceOf(instanceWallet)
+    # prepare application parameters
+    protectedBalance = 2000 * 10**6
+    duration = 30 * 24 * 3600
+    signatureId = s2b('some-unique-signature')
+    signature = create_policy_signature(protectedWallet, protectedBalance, duration, bundleId, signatureId, product, customer)
 
-    # {
-    #     "wallet": "0x2CeC4C063Fef1074B0CD53022C3306A6FADb4729",
-    #     "protectedBalance": "2000000000",
-    #     "duration": 2592000,
-    #     "bundleId": 4,
-    #     "signatureId": "0x6a71447a5a44676b4d76453169515a564f346336770000000000000000000000"
-    # }
-    # signature
-    # 0xe22c77faa4a6b338f30218edfd322193f8a6f32fa32cb523592ecc874f8d14e85a798e321a81bbdc2a1ff6e4b17274a0ec3d1a86faa74124a9ef9a7b728dfb3c1c
+    # transfer some tokens to pay for premium
+    premiumFunds = protectedBalance / 10
+    token.transfer(customer, premiumFunds, {'from': instanceOperator})
+    token.approve(instanceService.getTreasuryAddress(), premiumFunds, {'from': customer})
 
-    protectedWallet = accounts.at('0x2CeC4C063Fef1074B0CD53022C3306A6FADb4729', force=True)
-    policyHolder = protectedWallet
-    protectedBalance = 2000000000
-    sumInsured = riskpool.calculateSumInsured(protectedBalance)
-    durationDays = 30
-    duration = durationDays * 24 * 3600
-    bundleId = 4
-
-    signatureId = 0x6a71447a5a44676b4d76453169515a564f346336770000000000000000000000
-    signature = 0xe22c77faa4a6b338f30218edfd322193f8a6f32fa32cb523592ecc874f8d14e85a798e321a81bbdc2a1ff6e4b17274a0ec3d1a86faa74124a9ef9a7b728dfb3c1c
-
-    signatureIdBytes = web3.toBytes(signatureId)
-    signatureBytes = web3.toBytes(signature)
+    # create application/policy for customer
+    customerBalanceBefore = customer.balance()
 
     tx = product.applyForPolicyWithBundleAndSignature(
-        policyHolder, 
+        customer, # = policy holder
         protectedWallet, 
         protectedBalance, 
         duration, 
         bundleId, 
-        signatureIdBytes, 
-        signatureBytes, 
-        {'from': customer})
+        signatureId, 
+        signature, 
+        {'from': instanceOperator})
 
-    assert False
+    process_id = tx.events['LogDepegPolicyCreated']['processId']
 
+    # verify customer didn't have to pay gas fees
+    customerBalanceAfter = customer.balance()
+    assert customerBalanceBefore == customerBalanceAfter
 
-def get_bundle_id(
-    instance_service,
-    riskpool,
-    process_id
-):
-    data = instance_service.getApplication(process_id).dict()['data']
-    params = riskpool.decodeApplicationParameterFromData(data).dict()
-    return params['bundleId']
+    # verify customer is policy holder
+    metadata = instanceService.getMetadata(process_id).dict()
+    assert metadata['owner'] == customer

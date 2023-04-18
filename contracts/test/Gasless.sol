@@ -28,9 +28,10 @@ contract Gasless is
         bytes calldata signature
     )
         external
-        view
+        returns(bool success)
     {
-        
+        success = false;
+
         address signer = getSignerFromDigestAndSignature(
             protectedWallet,
             protectedBalance,
@@ -39,6 +40,7 @@ contract Gasless is
             signature);
 
         require(policyHolder == signer, "ERROR: Signature invalid");
+        success = true;
     }
 
 
