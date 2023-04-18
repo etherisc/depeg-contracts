@@ -38,6 +38,8 @@ def isolation(fn_isolation):
 
 keccak_hash = lambda x : Web3.keccak(x)
 
+# https://medium.com/treum_io/introducing-eip-712-structs-in-python-27eac7f38281
+# https://gist.github.com/alexisrobert/9facb3d21d4f04946f3a41b5a3c0a9a1
 # "Policy(address wallet,uint256 protectedBalance,uint256 duration,uint256 bundleId)"
 class Policy(EIP712Struct):
     wallet = Address()
