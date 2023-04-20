@@ -51,6 +51,9 @@ jobs:
   publish:
     name: Publish package to npmjs
     runs-on: ubuntu-latest
+    permissions:
+        contents: read
+        id-token: write
     needs: [test]
     # only run if tests successful
     if: ${{ github.ref != 'refs/heads/main' && contains(join(needs.*.result, ','), 'success') }}
@@ -75,7 +78,7 @@ jobs:
       - name: Set build version identifier
         run: npm version "`npm version patch --no-git-tag-version`-`git rev-parse --short HEAD`" --no-git-tag-version
 
-      - run: npm publish --tag next
+      - run: npm publish --tag next --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPMJS_ACCESS_TOKEN }}
   
