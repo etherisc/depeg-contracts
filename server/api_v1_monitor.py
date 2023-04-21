@@ -21,7 +21,7 @@ router = APIRouter(prefix='/v1')
 
 
 @router.get('/monitor/account', tags=['monitor'])
-async def get_account_state() -> dict:
+async def get_account_state(threshold:float=0.0) -> dict:
     try:
         account = monitor_account.get_account()
         balance = None
@@ -30,6 +30,9 @@ async def get_account_state() -> dict:
         if network.is_connected():
             balance = account.balance()
             balance_eth = balance/10**18
+
+            if balance_eth < float(threshold):
+                raise RuntimeError('balance [ETH] {:.4f} < threshold of [ETH] {}'.format(balance_eth, threshold))
 
         return {
             'account': account.address,
