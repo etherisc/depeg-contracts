@@ -56,7 +56,7 @@ class Job(BaseModel):
 
     def execute(self):
         if self.method_to_run:
-            logger.info('executîng job {}'.format(self))
+            logger.info('executing job {}'.format(self))
             self.method_to_run()
         else:
             logger.warning('execute job {}: method missing'.format(self))

@@ -329,15 +329,51 @@ The code for the depeg monitor is in `server`. It exposes a FastAPI api at `/doc
 
 The Dockerfile to run the depeg monitor is `Dockerfile.depeg-monitor`. It requires these environment variables to be set:
 
-```
-product_contract_address=
-product_owner_id=
-product_owner_mnemonic=
-feeder_interval=60
+```bash
+APPLICATION_TITLE = "Depeg API Monitoring"
+APPLICATION_VERSION = 1.0
+APPLICATION_DESCRIPTION = "API Server to Monitor and access price feed data"
+
+LOGGING_FORMAT="<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <cyan>{file}</cyan>:<cyan>{line}</cyan> <cyan>[{name}.{function}]</cyan> - <level>{message}</level>"
+LOGGING_LEVEL="INFO"
+
+# only for neworks that use fake price feeder like mumbai
+FEEDER_INTERVAL=60
 checker_interval=30
-application_title=depegmonitor
-application_version=0.1
+
+# web3 coordinates
+PRODUCT_CONTRACT_ADDRESS="0xa93CE853aAD898cd04547EEceAf48dBA93A70b97"
+# only on test chains
+PRODUCT_OWNER_MNEMONIC=
+PRODUCT_OWNER_OFFSET=
+# on all chains
+MONITOR_MNEMONIC=
+
 NODE__NETWORK_ID=
 WEB3_INFURA_PROJECT_ID=
 ```
 
+Dokku deployment steps
+
+Checking current setup on cloud server
+
+```bash
+dokku apps:list
+dokku apps:report <app-name>
+dokku domains:report <app-name>
+dokku config:show <app-name>
+```
+
+Push/deploy current state form local repo
+```bash
+git push <app-name> develop:main
+```
+
+Set and check env variables on cloud server. 
+
+```bash
+dokku config:set <app-name> name=value
+dokku config:show <app-name>
+dokku logs -t <app-name>
+```
+To remove an unused env variable use `dokku config:unset <app-name> key1 [key2 ...]`

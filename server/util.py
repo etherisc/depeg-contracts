@@ -7,6 +7,8 @@ from web3 import Web3
 def s2b(text: str):
     return '{:0<66}'.format(Web3.toHex(text.encode('ascii')))[:66]
 
+def b2s(b32: bytes):
+    return b32.decode().split('\x00')[0]
 
 def get_block_time() -> int:
     return get_unix_time()

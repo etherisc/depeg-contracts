@@ -24,8 +24,6 @@ class Settings(BaseSettings):
     node: BrownieNode = BrownieNode()
 
     product_contract_address: str = ''
-    product_owner_id: int = -1
-    product_owner_mnemonic: str = ''
 
     scheduler_interval: int = SCHEDULER_INTERVAL
     checker_interval: int = CHECKER_INTERVAL

@@ -1,3 +1,4 @@
+import json
 import random
 
 from datetime import datetime
@@ -17,10 +18,30 @@ from brownie.project.Project import (
 from server.util import get_block_time
 
 
+UNDEFINED = 'undefined'
+UPDATE = 'update'
 STABLE = 'stable'
 TRIGGERED = 'triggered'
 DEPEGGED = 'depegged'
+RECOVERED = 'recovered'
+
 STATES = [STABLE, TRIGGERED, DEPEGGED]
+
+# enum EventType {
+#     Undefined,
+#     Update,
+#     TriggerEvent,
+#     RecoveryEvent,
+#     DepegEvent
+# }
+
+EVENT_TYPE = {
+    0: UNDEFINED,
+    1: UPDATE,
+    2: TRIGGERED,
+    3: RECOVERED,
+    4: DEPEGGED
+}
 
 PRICE_MAX = 1.02
 PRICE_TRIGGER = 0.995
@@ -75,9 +96,16 @@ class PriceFeed(BaseModel):
 
 
     def reset_depeg(self, provider: UsdcPriceDataProvider, account: Account):
+        if self.state == STABLE:
+            logger.info('feeder state already stable, not doing anyting...')
+            return
+
         logger.info('provider {} account {}', provider, account)
 
         if provider:
+            logger.info('set feeder state back to stable')
+            self.set_state(STABLE, provider, account)
+
             logger.info('smart contract call: provider.resetDepeg()')
             provider.resetDepeg({'from': account})
 
