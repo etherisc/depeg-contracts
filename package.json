@@ -1,6 +1,6 @@
 {
   "name": "@etherisc/depeg-contracts",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Etherisc's smart contracts for a depeg insurance for stable coins.",
   "repository": {
     "type": "git",
