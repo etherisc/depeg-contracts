@@ -78,9 +78,9 @@ contract DepegProduct is
     mapping(address /* wallet */ => uint256 /* processed total claims so far */) private _processedBalance;
 
     // tracking of signatures
-    mapping(bytes32 /* signature hash */ => bool /* used */) _signatureIsUsed;
+    mapping(bytes32 /* signature hash */ => bool /* used */) private _signatureIsUsed;
 
-    event LogDepegApplicationCreated(bytes32 processId, address policyHolder, address protectedWallet, uint256 protectedBalance, uint256 sumInsuredAmount, uint256 premiumAmount, uint256 netPremiumAmount);
+    event LogDepegApplicationCreated(bytes32 processId, address policyHolder, address protectedWallet, uint256 protectedBalance, uint256 sumInsuredAmount, uint256 premiumAmount);
     event LogDepegPolicyCreated(bytes32 processId, address policyHolder, uint256 sumInsuredAmount);
     event LogDepegClaimCreated(bytes32 processId, uint256 claimId, uint256 claimAmount);
     event LogDepegProtectedAmountReduction(bytes32 processId, uint256 protectedAmount, uint256 depegBalance);
@@ -139,13 +139,13 @@ contract DepegProduct is
         // initial product state is active
         _state = DepegState.Active;
 
-        require(priceDataProvider != address(0), "ERROR:DP-001:PRIZE_DATA_PROVIDER_ZERO");
+        require(priceDataProvider != address(0), "ERROR:DP-001:DATA_PROVIDER_ZERO");
         _priceDataProvider = IPriceDataProvider(priceDataProvider);
 
         _tokenContract = IERC20Metadata(token);
         _protectedToken = _priceDataProvider.getToken();
         require(_protectedToken != address(0), "ERROR:DP-002:PROTECTED_TOKEN_ZERO");
-        require(_protectedToken != token, "ERROR:DP-003:PROTECTED_TOKEN_AND_TOKEN_IDENTICAL");
+        require(_protectedToken != token, "ERROR:DP-003:TOKEN_NOT_DIFFERENT");
 
         IComponent poolComponent = _instanceService.getComponent(riskpoolId); 
         address poolAddress = address(poolComponent);
@@ -280,8 +280,7 @@ contract DepegProduct is
             wallet,
             protectedBalance,
             sumInsured,
-            maxPremium, 
-            maxNetPremium); 
+            maxPremium); 
 
         bool success = _underwrite(processId);
 
@@ -296,6 +295,19 @@ contract DepegProduct is
                 policyHolder, 
                 sumInsured);
         }
+    }
+
+
+    function close(bytes32 processId)
+        external 
+    {
+        (, uint256 expiredAt) = getPolicyExpirationData(processId);
+        require(expiredAt < block.timestamp, "ERROR:DP-018:NOT_YET_EXPIRED");
+
+        _expire(processId);
+        _close(processId);
+
+        emit LogDepegPolicyClosed(processId);
     }
 
 
@@ -871,7 +883,6 @@ contract DepegProduct is
         returns(bytes32 processId)
     {
         require(_processIdsForHolder[policyHolder].length > 0, "ERROR:DP-070:NO_POLICIES");
-        require(idx < _processIdsForHolder[policyHolder].length, "ERROR:DP-071:POLICY_INDEX_TOO_LARGE");
         return _processIdsForHolder[policyHolder][idx];
     }
 
@@ -907,7 +918,7 @@ contract DepegProduct is
     }
 
     function getApplicationDataStructure() external override pure returns(string memory dataStructure) {
-        return "(uint256 duration,uint256 bundleId,uint256 maxPremium)";
+        return "(uint256 duration,uint256 bundleId,uint256 premium)";
     }
 
 

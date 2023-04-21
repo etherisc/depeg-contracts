@@ -163,7 +163,6 @@ def test_product_20_create_policy(
     assert app_evt['protectedBalance'] == protected_amount
     assert app_evt['sumInsuredAmount'] == sum_insured_amount
     assert app_evt['premiumAmount'] == premium_amount
-    assert app_evt['netPremiumAmount'] == net_premium_amount
 
     # check application data
     application = instanceService.getApplication(process_id).dict()

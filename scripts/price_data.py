@@ -147,8 +147,9 @@ def generate_next_data(
     delta_time=None
 ):
     round_id = ROUND_ID_INITIAL + i
-    now = datetime.now()
-    timestamp = int(datetime.timestamp(now))
+    # now = datetime.now()
+    # timestamp = int(datetime.timestamp(now))
+    timestamp = chain.time()
 
     if price is None:
         price = PERFECT_PRICE + random.randint(-10, 10)
