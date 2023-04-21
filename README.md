@@ -366,7 +366,8 @@ dokku config:show <app-name>
 
 Push/deploy current state form local repo
 ```bash
-git push <app-name> develop:main
+git push <remote-repo> <local-branch>:main
+git push dokku-mainnet main:main
 ```
 
 Set and check env variables on cloud server. 
