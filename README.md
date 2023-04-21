@@ -70,6 +70,15 @@ product_address='0x33A7785D9EEB78e33A9587E9De075aB11A354387'
 setup
 ```
 
+## Release new version
+
+- switch to main branch
+- merge all changes to main (develop - `git merge develop`)
+- increase npm package version (`npm version major|minor|patch`)
+- push changes to main (`git push && git push --tags`)
+- publish updated npm package (`npm publish`)
+- check updated package on https://www.npmjs.com/package/@etherisc/depeg-contracts
+
 ## Product Considerations
 
 ### What is insured?
