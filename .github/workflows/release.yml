@@ -1,0 +1,72 @@
+name: Build
+
+on: 
+  push:
+    tags:
+    - '*'
+
+jobs:  
+  test:
+    name: Compile and run tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Set up Python 3.9
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+      - name: Setup node environment
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - name: Prepare environment
+        run: .github/workflows/scripts/prepare_environment.sh
+
+      - name: Compile contracts
+        run: brownie compile --all
+      - run: touch .env
+      - run: .github/workflows/scripts/touch_gif_package_dotenv.sh
+      - name: Execute tests
+        run: brownie test -n auto
+        
+      - name: Archive build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: contracts
+          path: |
+            build
+
+  publish:
+    name: Publish package to npmjs
+    runs-on: ubuntu-latest
+    permissions:
+        contents: read
+        id-token: write
+    needs: [test]
+    # only if tests successful
+    if: ${{ contains(join(needs.*.result, ','), 'success') }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: contracts
+          path: build
+
+      - name: Setup node environment
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+          registry-url: 'https://registry.npmjs.org'
+      # latest npm required for provenance
+      - run: npm install -g npm
+      - run: npm ci
+
+      - run: npm publish --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPMJS_ACCESS_TOKEN }}
