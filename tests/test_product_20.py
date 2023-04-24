@@ -197,6 +197,105 @@ def test_product_20_create_policy(
     assert usd2.balanceOf(riskpoolWallet) == riskpool20.getBalance()
 
 
+def test_product_20_try_to_create_policy_for_locked_bundle(
+    instance,
+    instanceService,
+    instanceOperator,
+    instanceWallet,
+    productOwner,
+    investor,
+    customer,
+    protectedWallet,
+    product20,
+    riskpool20,
+    riskpoolWallet,
+    usd1: USD1,
+    usd2: USD2,
+):
+    tf = 10**usd2.decimals()
+    max_protected_balance = 10000
+    bundle_funding = (max_protected_balance * 2) / 5
+    bundle_id = create_bundle(
+        instance, 
+        instanceOperator, 
+        investor, 
+        riskpool20,
+        maxProtectedBalance = max_protected_balance,
+        funding = bundle_funding)
+
+    # setup up wallet to protect with some coins
+    protected_balance = 5000
+    usd1.transfer(protectedWallet, protected_balance * tf, {'from': instanceOperator})
+
+    # buy policy for wallet to be protected
+    duration_days = 60
+    max_premium = 100
+
+    usd2.transfer(customer, max_premium * tf, {'from': instanceOperator})
+    usd2.approve(instanceService.getTreasuryAddress(), max_premium * tf, {'from': customer})
+
+    # lock bundle
+    riskpool20.lockBundle(bundle_id, {'from': investor})
+
+    # attempt to buy a policy
+    with brownie.reverts('ERROR:BRP-001:NO_ACTIVE_BUNDLES'):
+        product20.applyForPolicyWithBundle(
+            protectedWallet,
+            protected_balance * tf,
+            duration_days * 24 * 3600,
+            bundle_id,
+            {'from': customer})
+
+    # unlock bundle and try again
+    riskpool20.unlockBundle(bundle_id, {'from': investor})
+
+    tx = product20.applyForPolicyWithBundle(
+        protectedWallet,
+        protected_balance * tf,
+        duration_days * 24 * 3600,
+        bundle_id,
+        {'from': customer})
+    
+    assert 'LogDepegPolicyCreated' in tx.events
+
+    # repeat the exercise with a 2nd bundle
+    bundle_id2 = create_bundle(
+        instance, 
+        instanceOperator, 
+        investor, 
+        riskpool20,
+        maxProtectedBalance = max_protected_balance,
+        funding = bundle_funding)
+
+    # check we have a new bundle
+    assert bundle_id != bundle_id2
+
+    # lock the new bundle (the old one is active, we have some active bundles in the riskpool this time)
+    riskpool20.lockBundle(bundle_id2, {'from': investor})
+
+    # attempt to buy a policy with cover from the 2nd bundle
+    with brownie.reverts('ERROR:DP-016:UNDERWRITING_FAILED'):
+        product20.applyForPolicyWithBundle(
+            protectedWallet,
+            protected_balance * tf,
+            duration_days * 24 * 3600,
+            bundle_id2,
+            {'from': customer})
+    
+    # unlock the 2nd bundle and try again
+    riskpool20.unlockBundle(bundle_id2, {'from': investor})
+
+    tx = product20.applyForPolicyWithBundle(
+        protectedWallet,
+        protected_balance * tf,
+        duration_days * 24 * 3600,
+        bundle_id2,
+        {'from': customer})
+
+    assert 'LogBundlePolicyCollateralized' in tx.events
+    assert tx.events['LogBundlePolicyCollateralized']['bundleId'] == bundle_id2
+
+
 def test_premium_payment(
     instance,
     instanceService,
@@ -424,15 +523,46 @@ def test_product_20_depeg_normal(
     protected_amount = protected_balance * tf
     sum_insured_amount = protected_amount / 5
 
+    # attempt to create a depeg claim before trigger state
+    with brownie.reverts('ERROR:DP-030:CLAIM_CONDITION_FAILURE'):
+        product20.createDepegClaim(
+            process_id,
+            {'from': protectedWallet})
+
     # create depeg at 80% of target price (= 30% loss on protected funds)
     depeg_exchange_rate = 0.8
     depeg_price = int(depeg_exchange_rate * product20.getTargetPrice())
+
+    force_product_into_triggered_state(product20, productOwner)
+    assert product20.getDepegState() == 2
+
+    # 2nd attempt to create a depeg claim before depeg state
+    with brownie.reverts('ERROR:DP-030:CLAIM_CONDITION_FAILURE'):
+        product20.createDepegClaim(
+            process_id,
+            {'from': protectedWallet})
+
     (timestamp_trigger, timestamp_depeg) = force_product_into_depegged_state(product20, productOwner, depeg_price)
+    assert product20.getDepegState() == 3
 
     depeg_info = product20.getDepegPriceInfo().dict()
     assert depeg_info['triggeredAt'] == timestamp_trigger
     assert depeg_info['depeggedAt'] == timestamp_depeg
     assert depeg_info['price'] == depeg_price
+
+    # lock bundle in this test and all claim creation and payout
+    # should go through as expected
+    riskpool20.lockBundle(bundle_id, {'from': investor})
+
+    # attempt to close bundle (investor afraid of depeg event)
+    with brownie.reverts('ERROR:BUC-015:BUNDLE_WITH_ACTIVE_POLICIES'):
+        riskpool20.closeBundle(bundle_id, {'from': investor})
+
+    # investor attempts to claim with his own wallet
+    with brownie.reverts('ERROR:PRD-002:NOT_INSURED_WALLET'):
+        tx = product20.createDepegClaim(
+            process_id,
+            {'from': investor})
 
     # create claim from protected wallet
     tx = product20.createDepegClaim(
@@ -640,7 +770,11 @@ def test_product_20_depeg_below_80(
 
 def force_product_into_depegged_state(product, productOwner, depeg_price):
 
-    timestamp_trigger = force_product_into_triggered_state(product, productOwner)
+    timestamp_trigger = 0
+    if product.getDepegState() == STATE_PRODUCT['Active']:
+        timestamp_trigger = force_product_into_triggered_state(product, productOwner)
+    elif product.getDepegState() == STATE_PRODUCT['Paused']:
+        timestamp_trigger = product.getTriggeredAt()
 
     # check pre-conditions (product is triggered now)
     assert product.getTriggeredAt() == timestamp_trigger

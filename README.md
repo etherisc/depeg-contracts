@@ -86,6 +86,19 @@ setup
 * Chainlink USDC/USD price feed
 ## GIF Object Lifecycles
 
+
+###
+
+Check test coverage of policy and bundle states
+```
+policy/bundle |    active     | expired       | closed
+--------------+---------------+---------------+---------------
+active        | lots of tests | can not claim | can not claim
+locked        | some tests    | one test      | one test
+closed        | gif prevents  | gif prevents  | some tests
+burned        | gif prevents  | gif prevents  | one test
+```
+
 ### Application Lifecycle
 
 Product contract functions
@@ -158,19 +171,23 @@ Unit test for expriy/closing without depeg case:
 ```bash
 ❯ find . | grep '.py$' | xargs grep -n "close(" | cut -c-120
 ./tests/test_policy_lifecycle.py:558:        product.close(process_id)
-./tests/test_policy_lifecycle.py:565:    tx = product.close(process_id)
+./tests/test_policy_lifecycle.py:566:    tx = product.close(process_id)
+./tests/test_policy_lifecycle.py:690:        product.close(process_id)
+./tests/test_policy_lifecycle.py:702:    tx = product.close(process_id)
+./tests/test_policy_lifecycle.py:813:        product.close(process_id)
+./tests/test_policy_lifecycle.py:824:    tx = product.close(process_id)
 ```
 
 Unit tests for depeg case
 ```bash
 ❯ find . | grep '.py$' | xargs grep -n "createDepegClaim" | cut -c-120
 ./tests/test_policy_lifecycle.py:262:    tx = product.createDepegClaim(
-./tests/test_policy_lifecycle.py:659:    tx = product.createDepegClaim(
-./tests/test_policy_lifecycle.py:810:    product.createDepegClaim(process_id1, {'from': protectedWallet})
-./tests/test_policy_lifecycle.py:811:    product.createDepegClaim(process_id2, {'from': protectedWallet})
-./tests/test_policy_lifecycle.py:812:    product.createDepegClaim(process_id3, {'from': protectedWallet})
-./tests/test_product_20.py:438:    tx = product20.createDepegClaim(
-./tests/test_product_20.py:576:    tx = product20.createDepegClaim(
+./tests/test_policy_lifecycle.py:912:    tx = product.createDepegClaim(
+./tests/test_policy_lifecycle.py:1063:    product.createDepegClaim(process_id1, {'from': protectedWallet})
+./tests/test_policy_lifecycle.py:1064:    product.createDepegClaim(process_id2, {'from': protectedWallet})
+./tests/test_policy_lifecycle.py:1065:    product.createDepegClaim(process_id3, {'from': protectedWallet})
+./tests/test_product_20.py:537:    tx = product20.createDepegClaim(
+./tests/test_product_20.py:675:    tx = product20.createDepegClaim(
 ```
 
 Unit tests to process claims
@@ -194,13 +211,68 @@ Unit tests to process claims
 ./tests/test_policy_lifecycle.py:842:    tx = product.processPolicy(process_id1)
 ./tests/test_policy_lifecycle.py:849:    tx = product.processPolicy(process_id2)
 ./tests/test_policy_lifecycle.py:865:        product.processPolicy(process_id3)
-```
 
-Missing unit tests for
-* policyIsAllowedToClaim
+❯ find . | grep '.py$' | xargs grep -n "policyIsAllowedToClaim" | cut -c-120
+./tests/test_policy_lifecycle.py:659:    assert product.policyIsAllowedToClaim(process_id) is False
+./tests/test_policy_lifecycle.py:669:    assert product.policyIsAllowedToClaim(process_id) is True
+./tests/test_policy_lifecycle.py:677:    assert product.policyIsAllowedToClaim(process_id) is True
+./tests/test_policy_lifecycle.py:687:    assert product.policyIsAllowedToClaim(process_id) is True
+./tests/test_policy_lifecycle.py:700:    assert product.policyIsAllowedToClaim(process_id) is False
+./tests/test_policy_lifecycle.py:783:    assert product.policyIsAllowedToClaim(process_id) is False
+./tests/test_policy_lifecycle.py:793:    assert product.policyIsAllowedToClaim(process_id) is True
+./tests/test_policy_lifecycle.py:801:    assert product.policyIsAllowedToClaim(process_id) is True
+./tests/test_policy_lifecycle.py:810:    assert product.policyIsAllowedToClaim(process_id) is True
+./tests/test_policy_lifecycle.py:822:    assert product.policyIsAllowedToClaim(process_id) is False
+```
 
 ### Bundle Lifecycle
 
+* New (active) bundles are created in the context of the depeg riskpool function `createBundle`.
+* Existing (and active) bundles can be locked using riskpool function `lockBundle` (restricted to bundle owner).
+Locked bundles are no longer available to cover new policies.
+* Locked bundles can be unlocked using riskpool function `unlockBundle` (restricted to bundle owner).
+Unlocked bundles are active again and may cover new policies.
+* Active or locked bundles can be closed using riskpool function `closeBundle` by the bundle owner. 
+An additional restriction for closing makes sure only bundles may be closed
+that no longer cover open policies.
+A policy can only be closed if there are no open claims or open payouts.
+* Closed bundles can be burned by the bundle owner unsing riskpool function `burnBundle`.
+For closed bundles no other state change is possible.
+Burning bundles will automatically and completely defund the bundle.
+
+Unit tests that cover the lifecycle of bundles in the depeg riskpool
+```bash
+
+❯ find . | grep '.py$' | xargs grep -n "createBundle(" | cut -c-120
+./scripts/setup.py:96:    tx = riskpool.createBundle(
+
+❯ find . | grep '.py$' | xargs grep -n "create_bundle(" | cut -c-120
+./scripts/deploy_depeg.py:1334:    return create_bundle(
+./scripts/setup.py:55:    return create_bundle(
+./scripts/setup.py:70:def create_bundle(
+./tests/test_application_create.py:45:    bundleId = create_bundle(
+./tests/test_application_create.py:162:    bundleId = create_bundle(
+./tests/test_application_gasless.py:177:    bundleId = create_bundle(
+./tests/test_bundle_create.py:55:    bundleId = create_bundle(
+./tests/test_bundle_create.py:190:    bundleId1 = create_bundle(
+./tests/test_bundle_create.py:208:    bundleId2 = create_bundle(
+...many more
+
+❯ find . | grep '.py$' | xargs grep -n "lockBundle(" | cut -c-120
+./tests/test_product_20.py:238:    riskpool20.lockBundle(bundle_id, {'from': investor})
+./tests/test_product_20.py:250:    riskpool20.unlockBundle(bundle_id, {'from': investor})
+./tests/test_product_20.py:274:    riskpool20.lockBundle(bundle_id2, {'from': investor})
+./tests/test_product_20.py:286:    riskpool20.unlockBundle(bundle_id2, {'from': investor})
+
+❯ ❯ find . | grep '.py$' | xargs grep -n "closeBundle(" | cut -c-120
+./tests/test_policy_lifecycle.py:267:        riskpool.closeBundle(bundle_id, {'from': investor})
+./tests/test_policy_lifecycle.py:380:        riskpool.closeBundle(bundle_id, {'from': investor})
+./tests/test_policy_lifecycle.py:448:    riskpool.closeBundle(bundle_id, {'from': investor})
+./tests/test_policy_lifecycle.py:584:    tx = riskpool.closeBundle(bundle_id, {'from': investor})
+
+❯ find . | grep '.py$' | xargs grep -n "burnBundle(" | cut -c-120
+./tests/test_policy_lifecycle.py:459:    tx = riskpool.burnBundle(bundle_id, {'from': investor})
+```
 
 ## Product Considerations
 

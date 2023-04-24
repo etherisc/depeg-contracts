@@ -228,6 +228,12 @@ def test_happy_path(
     assert riskpool_balance_after == riskpool_balance_before + net_premium
     assert instance_balance_after == instance_balance_before + premium_fee
 
+    # attempt to file a depeg claim without a depeg event
+    with brownie.reverts('ERROR:DP-030:CLAIM_CONDITION_FAILURE'):
+        product.createDepegClaim(
+            process_id,
+            {'from': protectedWallet})
+
     # create depeg situation
     assert product.getDepegState() == STATE_PRODUCT['Active']
     depeg_price = int(0.91 * product.getTargetPrice())
@@ -262,6 +268,9 @@ def test_happy_path(
     tx = product.createDepegClaim(
         process_id,
         {'from': protectedWallet})
+
+    with brownie.reverts('ERROR:BUC-015:BUNDLE_WITH_ACTIVE_POLICIES'):
+        riskpool.closeBundle(bundle_id, {'from': investor})
 
     # check claimed balance
     assert product.getProcessedBalance(protectedWallet) == 0
@@ -372,6 +381,9 @@ def test_happy_path(
     assert tx.events['LogDepegDepegBalanceAdded']['balance'] == depegged_at_balance
 
     assert product.getProcessedBalance(protectedWallet) == 0
+
+    with brownie.reverts('ERROR:BUC-015:BUNDLE_WITH_ACTIVE_POLICIES'):
+        riskpool.closeBundle(bundle_id, {'from': investor})
 
     tx = product.processPolicies([process_id])
 
