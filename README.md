@@ -79,6 +79,124 @@ setup
 - publish updated npm package (`npm publish`)
 - check updated package on https://www.npmjs.com/package/@etherisc/depeg-contracts
 
+## GIF Object Lifecycles
+
+### Application Lifecycle
+
+Product contract functions
+* applyForPolicyWithBundleAndSignature (external)
+* applyForPolicyWithBundle (external)
+* _applyForPolicyWithBundle (internal)
+
+Function `_applyForPolicyWithBundle` internally calls `_underwrite` and requires underwriting to succeed. 
+
+Underwriting via performs the following actions (GIF framework)
+* Locking of collateral via pool controller
+* Underwriting the application object via policy controller
+* Creating an active policy via policy controller
+* Collect premium via treasury module
+* If premium collection successful: reflect collected premium in policy and riskpool book keeping
+
+In short: A new active policy is created.
+
+Unit tests
+```bash
+❯ find . | grep '.py$' | xargs grep -n applyForPolicyWithBundleAndSignature | cut -c-120
+./tests/test_application_gasless.py:125:        product.applyForPolicyWithBundleAndSignature(customer, protectedWallet, 
+./tests/test_application_gasless.py:129:        product.applyForPolicyWithBundleAndSignature(customer2, protectedWallet,
+./tests/test_application_gasless.py:133:        product.applyForPolicyWithBundleAndSignature(customer, customer2, protec
+./tests/test_application_gasless.py:137:        product.applyForPolicyWithBundleAndSignature(customer, protectedWallet, 
+./tests/test_application_gasless.py:141:        product.applyForPolicyWithBundleAndSignature(customer, protectedWallet, 
+./tests/test_application_gasless.py:145:        product.applyForPolicyWithBundleAndSignature(customer, protectedWallet, 
+./tests/test_application_gasless.py:149:        product.applyForPolicyWithBundleAndSignature(customer, protectedWallet, 
+./tests/test_application_gasless.py:153:        product.applyForPolicyWithBundleAndSignature(customer, protectedWallet, 
+./tests/test_application_gasless.py:157:        product.applyForPolicyWithBundleAndSignature(customer, protectedWallet, 
+./tests/test_application_gasless.py:197:    tx = product.applyForPolicyWithBundleAndSignature(
+```
+
+```bash
+❯ find . | grep '.py$' | xargs grep -n "applyForPolicyWithBundle(" | cut -c-120
+./scripts/deploy_depeg.py:1459:    tx = product.applyForPolicyWithBundle(wallet, sumInsured, duration, bundleId, {'from'
+./scripts/setup.py:134:    tx = product.applyForPolicyWithBundle(
+./tests/test_product_20.py:241:    tx = product20.applyForPolicyWithBundle(
+./tests/test_product_20.py:307:        product20.applyForPolicyWithBundle(
+./tests/test_product_20.py:318:        product20.applyForPolicyWithBundle(
+./tests/test_product_20.py:329:        product20.applyForPolicyWithBundle(
+./tests/test_product_20.py:339:    tx = product20.applyForPolicyWithBundle(
+./tests/test_sandbox.py:121:    tx = product.applyForPolicyWithBundle(
+```
+
+### Policy Lifecyle
+
+New (active) policies are created in the context of function `_applyForPolicyWithBundle`
+
+Policies go through states `Expired` and `Closed` in slightly different ways that are dependent if there has been a depeg event or not.
+
+In the case of normal expiry without a depeg event/claim, a policy should be explicitly closed to free the locked collateral in the risk pool.
+This is achieved via the `close` function that internally expires and closes the policy (via `_expire` and `_close`).
+
+If there is a depeg event and a policy is allowed to claim, the following steps are performed in `createDepegClaim`
+* A new claim is created for the policy (via `_newClaim`)
+* The policy is expired (via `_expire`)
+
+In a depeg event policies that created a depeg claim can then be processed via the following steps
+* Get relevant process ids via (`policiesToProcess`/`getPolicyToProcess`)
+* Process individual policies (via `processPolicy`) or batch (via `processPolicies` which internally uses `processPolicy`)
+
+Inside `processPolicy` the following actions are perfomed
+* Confirm the claim (via _confirmClaim)
+* A new payout is created (via _newPayout)
+* The payout is processed (via _processPayout)
+* The policy is closed (via _close)
+
+Unit test for expriy/closing without depeg case:
+```bash
+❯ find . | grep '.py$' | xargs grep -n "close(" | cut -c-120
+./tests/test_policy_lifecycle.py:558:        product.close(process_id)
+./tests/test_policy_lifecycle.py:565:    tx = product.close(process_id)
+```
+
+Unit tests for depeg case
+```bash
+❯ find . | grep '.py$' | xargs grep -n "createDepegClaim" | cut -c-120
+./tests/test_policy_lifecycle.py:262:    tx = product.createDepegClaim(
+./tests/test_policy_lifecycle.py:659:    tx = product.createDepegClaim(
+./tests/test_policy_lifecycle.py:810:    product.createDepegClaim(process_id1, {'from': protectedWallet})
+./tests/test_policy_lifecycle.py:811:    product.createDepegClaim(process_id2, {'from': protectedWallet})
+./tests/test_policy_lifecycle.py:812:    product.createDepegClaim(process_id3, {'from': protectedWallet})
+./tests/test_product_20.py:438:    tx = product20.createDepegClaim(
+./tests/test_product_20.py:576:    tx = product20.createDepegClaim(
+```
+
+Unit tests to process claims
+```
+❯ find . | grep '.py$' | xargs grep -n "policiesToProcess" | cut -c-120
+./server_processor/product.py:134:            'policies_to_process': depeg_product.policiesToProcess(),
+./tests/test_policy_lifecycle.py:247:    assert product.policiesToProcess() == 0
+./tests/test_policy_lifecycle.py:292:    assert product.policiesToProcess() == 1
+./tests/test_policy_lifecycle.py:398:    assert product.policiesToProcess() == 0
+
+❯ find . | grep '.py$' | xargs grep -n "getPolicyToProcess" | cut -c-120
+./tests/test_policy_lifecycle.py:293:    (pid, wallet) = product.getPolicyToProcess(0)
+
+❯ find . | grep '.py$' | xargs grep -n "processPolicies" | cut -c-120
+./tests/test_policy_lifecycle.py:376:    tx = product.processPolicies([process_id])
+./tests/test_policy_lifecycle.py:693:    tx = product.processPolicies([process_id])
+./tests/test_product_20.py:484:    tx = product20.processPolicies([process_id])
+./tests/test_product_20.py:621:    tx = product20.processPolicies([process_id])
+
+❯ find . | grep '.py$' | xargs grep -n "processPolicy" | cut -c-120
+./tests/test_policy_lifecycle.py:842:    tx = product.processPolicy(process_id1)
+./tests/test_policy_lifecycle.py:849:    tx = product.processPolicy(process_id2)
+./tests/test_policy_lifecycle.py:865:        product.processPolicy(process_id3)
+```
+
+Missing unit tests for
+* policyIsAllowedToClaim
+
+### Bundle Lifecycle
+
+
 ## Product Considerations
 
 ### What is insured?
