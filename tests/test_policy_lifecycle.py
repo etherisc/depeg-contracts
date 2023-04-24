@@ -482,7 +482,7 @@ def test_happy_path(
     assert info_burned['balance'] == 0
 
 
-def test_happy_path_no_depeg_event(
+def test_close_policy_no_depeg_event(
     instance,
     instanceService,
     instanceOperator,
@@ -554,14 +554,15 @@ def test_happy_path_no_depeg_event(
     riskpool.defundBundle(bundle_id, (bundle_funding - protected_balance) * tf, {'from': investor})
 
     # attempt to expire/close policy
-    with brownie.reverts('ERROR:DP-018:NOT_YET_EXPIRED'):
+    with brownie.reverts('ERROR:DP-018:NOT_EXPIRED'):
         product.close(process_id)
 
     # sleep until policy expires
     chain.sleep(duration_days * 24 * 3600)
     chain.mine(1)
 
-    # close policy (no claims/payouts)
+    # ensure that in the case of no depeg event the policy can be closed
+    # immediately after expiry (grace period only applies after a depeg event)
     tx = product.close(process_id)
 
     assert 'LogDepegPolicyClosed' in tx.events
@@ -576,7 +577,253 @@ def test_happy_path_no_depeg_event(
 
     tx = riskpool.closeBundle(bundle_id, {'from': investor})
     assert 'LogRiskpoolBundleClosed' in tx.events
-    
+
+
+def test_close_policy_after_depeg_event_well_before_expiry(
+    instance,
+    instanceService,
+    instanceOperator,
+    instanceWallet,
+    productOwner,
+    investor,
+    customer,
+    protectedWallet,
+    product,
+    riskpool,
+    riskpoolWallet
+):
+    riskpool_id = riskpool.getId()
+    instance_wallet = instanceService.getInstanceWallet()
+    riskpool_wallet = instanceService.getRiskpoolWallet(riskpool_id)
+    token_address = instanceService.getComponentToken(riskpool_id)
+    token = interface.IERC20Metadata(token_address)
+    protected_token_address = product.getProtectedToken()
+    protected_token = interface.IERC20Metadata(protected_token_address)
+    tf = 10 ** protected_token.decimals()
+
+    # create token allowance for payouts
+    max_payout_amount = 100000
+    token.approve(
+        instanceService.getTreasuryAddress(), 
+        max_payout_amount * tf, 
+        {'from': riskpool_wallet})
+
+    # setup riskpool with a single risk bundle
+    bundle_funding = 15000
+    min_protected_balance = 2000
+    max_protected_balance = 10000
+
+    bundle_id = create_bundle(
+        instance,
+        instanceOperator,
+        investor,
+        riskpool,
+        funding=bundle_funding,
+        minProtectedBalance=min_protected_balance,
+        maxProtectedBalance=max_protected_balance)
+
+    # setup up wallet to protect with some coins
+    wallet_balance = 5000
+    protected_token.transfer(protectedWallet, wallet_balance * tf, {'from': instanceOperator})
+    assert wallet_balance < max_payout_amount # protection: amounts need to stay in relation to each other
+
+    # buy protection for double of the wallet balance
+    protected_balance = 2 * wallet_balance
+    duration_days = 60
+    max_premium = 87 # actually 86515789/1000000
+
+    process_id = apply_for_policy_with_bundle(
+        instance,
+        instanceOperator,
+        product,
+        customer,
+        bundle_id,
+        protectedWallet,
+        protected_balance,
+        duration_days,
+        max_premium)
+
+    tx = history[-1]
+    assert 'LogDepegPolicyCreated' in tx.events
+
+    policy_expired_at = product.getPolicyExpirationData(process_id).dict()['expiredAt']
+
+    # sleep until "close" to policy expitx
+    # duration_depeg = chain time from force_depeg to actual depeg
+    # make sure depeg happens before policy is expired
+    duration_depeg = 15.51
+    chain.sleep(14 * 24 * 3600)
+    chain.mine(1)
+
+    # no depeg yet -> claiming not allowed
+    assert product.policyIsAllowedToClaim(process_id) is False
+
+    # create depeg at 90% of target price (= 10% loss on protected funds)
+    depeg_price = int(0.9 * product.getTargetPrice())
+    (timestamp_trigger, timestamp_depeg) = force_product_into_depegged_state(product, productOwner, depeg_price)
+    assert timestamp_depeg == product.getDepegPriceInfo().dict()['depeggedAt']
+
+    # depegged now, policy not yet expired -> claiming allowed
+    assert chain.time() < policy_expired_at
+    assert timestamp_depeg < policy_expired_at
+    assert product.policyIsAllowedToClaim(process_id) is True
+
+    # wait one day (policy expired)
+    chain.sleep(1 * 24 * 3600)
+    chain.mine(1)
+
+    # policy active depeg happened before expiry
+    assert chain.time() < policy_expired_at
+    assert product.policyIsAllowedToClaim(process_id) is True
+
+    # wait remaining time inside grace period
+    grace_time_remaining = timestamp_depeg + product.CLAIM_GRACE_PERIOD() - chain.time()
+    chain.sleep(grace_time_remaining - 2)
+    chain.mine(1)
+
+    # policy active after depeg, still within grace period
+    assert chain.time() < policy_expired_at
+    assert chain.time() < timestamp_depeg + product.CLAIM_GRACE_PERIOD()
+    assert product.policyIsAllowedToClaim(process_id) is True
+
+    with brownie.reverts('ERROR:DP-018:NOT_EXPIRED'):
+        product.close(process_id)
+
+    # wait 4 seconds (after grace period)
+    chain.sleep(4)
+    chain.mine(1)
+
+    # policy still active, but grace period is over now
+    # no longer allowed to claim
+    assert chain.time() < policy_expired_at
+    assert chain.time() > timestamp_depeg + product.CLAIM_GRACE_PERIOD()
+    assert product.policyIsAllowedToClaim(process_id) is False
+
+    tx = product.close(process_id)
+    assert 'LogDepegPolicyClosed' in tx.events
+
+
+def test_close_policy_after_depeg_event_at_end_of_expiry(
+    instance,
+    instanceService,
+    instanceOperator,
+    instanceWallet,
+    productOwner,
+    investor,
+    customer,
+    protectedWallet,
+    product,
+    riskpool,
+    riskpoolWallet
+):
+    riskpool_id = riskpool.getId()
+    instance_wallet = instanceService.getInstanceWallet()
+    riskpool_wallet = instanceService.getRiskpoolWallet(riskpool_id)
+    token_address = instanceService.getComponentToken(riskpool_id)
+    token = interface.IERC20Metadata(token_address)
+    protected_token_address = product.getProtectedToken()
+    protected_token = interface.IERC20Metadata(protected_token_address)
+    tf = 10 ** protected_token.decimals()
+
+    # create token allowance for payouts
+    max_payout_amount = 100000
+    token.approve(
+        instanceService.getTreasuryAddress(), 
+        max_payout_amount * tf, 
+        {'from': riskpool_wallet})
+
+    # setup riskpool with a single risk bundle
+    bundle_funding = 15000
+    min_protected_balance = 2000
+    max_protected_balance = 10000
+
+    bundle_id = create_bundle(
+        instance,
+        instanceOperator,
+        investor,
+        riskpool,
+        funding=bundle_funding,
+        minProtectedBalance=min_protected_balance,
+        maxProtectedBalance=max_protected_balance)
+
+    # setup up wallet to protect with some coins
+    wallet_balance = 5000
+    protected_token.transfer(protectedWallet, wallet_balance * tf, {'from': instanceOperator})
+    assert wallet_balance < max_payout_amount # protection: amounts need to stay in relation to each other
+
+    # buy protection for double of the wallet balance
+    protected_balance = 2 * wallet_balance
+    duration_days = 60
+    max_premium = 87 # actually 86515789/1000000
+
+    process_id = apply_for_policy_with_bundle(
+        instance,
+        instanceOperator,
+        product,
+        customer,
+        bundle_id,
+        protectedWallet,
+        protected_balance,
+        duration_days,
+        max_premium)
+
+    tx = history[-1]
+    assert 'LogDepegPolicyCreated' in tx.events
+
+    policy_expired_at = product.getPolicyExpirationData(process_id).dict()['expiredAt']
+
+    # sleep until "close" to policy expitx
+    # duration_depeg = chain time from force_depeg to actual depeg
+    # make sure depeg happens before policy is expired
+    duration_depeg = 15.51
+    chain.sleep(int((duration_days - duration_depeg) * 24 * 3600))
+    chain.mine(1)
+
+    # no depeg yet -> claiming not allowed
+    assert product.policyIsAllowedToClaim(process_id) is False
+
+    # create depeg at 90% of target price (= 10% loss on protected funds)
+    depeg_price = int(0.9 * product.getTargetPrice())
+    (timestamp_trigger, timestamp_depeg) = force_product_into_depegged_state(product, productOwner, depeg_price)
+    assert timestamp_depeg == product.getDepegPriceInfo().dict()['depeggedAt']
+
+    # depegged now, policy not yet expired -> claiming allowed
+    assert policy_expired_at > chain.time()
+    assert policy_expired_at > timestamp_depeg
+    assert product.policyIsAllowedToClaim(process_id) is True
+
+    # wait one day (policy expired)
+    chain.sleep(1 * 24 * 3600)
+    chain.mine(1)
+
+    # policy expired, but depeg happened before expiry
+    assert policy_expired_at < chain.time()
+    assert product.policyIsAllowedToClaim(process_id) is True
+
+    # wait remaining time inside grace period
+    grace_time_remaining = timestamp_depeg + product.CLAIM_GRACE_PERIOD() - chain.time()
+    chain.sleep(grace_time_remaining - 2)
+    chain.mine(1)
+
+    # policy expired, still within grace period
+    assert chain.time() < timestamp_depeg + product.CLAIM_GRACE_PERIOD()
+    assert product.policyIsAllowedToClaim(process_id) is True
+
+    with brownie.reverts('ERROR:DP-018:NOT_EXPIRED'):
+        product.close(process_id)
+
+    # wait 4 seconds (after grace period)
+    chain.sleep(4)
+    chain.mine(1)
+
+    # policy expired, grace period is over now
+    # no longer allowed to claim
+    assert chain.time() > timestamp_depeg + product.CLAIM_GRACE_PERIOD()
+    assert product.policyIsAllowedToClaim(process_id) is False
+
+    tx = product.close(process_id)
+    assert 'LogDepegPolicyClosed' in tx.events
+
 
 def test_over_protected_with_single_policy(
     instance,

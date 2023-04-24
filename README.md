@@ -79,6 +79,11 @@ setup
 - publish updated npm package (`npm publish`)
 - check updated package on https://www.npmjs.com/package/@etherisc/depeg-contracts
 
+## External dependencies
+
+* Moralis, also see [library support](https://ethereum.stackexchange.com/questions/72480/any-known-implementations-for-on-chain-merkle-proofs-of-historical-balances)
+* Etherisc backend services
+* Chainlink USDC/USD price feed
 ## GIF Object Lifecycles
 
 ### Application Lifecycle

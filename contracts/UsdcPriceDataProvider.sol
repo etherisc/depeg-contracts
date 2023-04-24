@@ -63,9 +63,10 @@ contract UsdcPriceDataProvider is
                 revert("ERROR:UPDP-010:CHAIN_NOT_SUPPORTET");
             }
         } else if(isTestnet()) {
+            require(tokenAddress != address(0), "ERROR:DP-011:TOKEN_ZERO");
             _token = IERC20Metadata(tokenAddress);
         } else {
-            revert("ERROR:UPDP-011:CHAIN_NOT_SUPPORTET");
+            revert("ERROR:UPDP-012:CHAIN_NOT_SUPPORTET");
         }
 
         _triggeredAt = 0;

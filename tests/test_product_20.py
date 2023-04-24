@@ -303,7 +303,7 @@ def test_create_policy_bad_balance_or_allowance(
     usd2.transfer(theOutsider, premium - missing_from_balance, {'from': instanceOperator})
     usd2.approve(instance.getTreasury(), premium, {'from': theOutsider})
 
-    with brownie.reverts('ERROR:DP-014:BALANCE_INSUFFICIENT'):
+    with brownie.reverts('ERROR:DP-014:BALANCE_TOO_LOW'):
         product20.applyForPolicyWithBundle(
             theOutsider,
             protected_amount,
@@ -314,7 +314,7 @@ def test_create_policy_bad_balance_or_allowance(
     # failure case 2: balance and allowance too small
     usd2.approve(instance.getTreasury(), premium - missing_from_allowance, {'from': theOutsider})
 
-    with brownie.reverts('ERROR:DP-014:BALANCE_INSUFFICIENT'):
+    with brownie.reverts('ERROR:DP-014:BALANCE_TOO_LOW'):
         product20.applyForPolicyWithBundle(
             theOutsider,
             protected_amount,
@@ -325,7 +325,7 @@ def test_create_policy_bad_balance_or_allowance(
     # failure case 3: balance ok, allowance too small
     usd2.transfer(theOutsider, missing_from_balance, {'from': instanceOperator})
 
-    with brownie.reverts('ERROR:DP-015:ALLOWANCE_INSUFFICIENT'):
+    with brownie.reverts('ERROR:DP-015:ALLOWANCE_TOO_LOW'):
         product20.applyForPolicyWithBundle(
             theOutsider,
             protected_amount,

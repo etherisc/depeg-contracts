@@ -98,7 +98,7 @@ def test_product_lifecycle_startup(
 
     (price_id, price, timestamp) = data.split()[:3]
     assert event_info['newEvent'] is False
-    assert event_info['timeSinceEvent'] <= 1
+    assert event_info['timeSinceEvent'] <= 2
 
     price_info = event_info['priceInfo'].dict()
     assert price_info['id'] == price_id

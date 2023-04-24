@@ -49,6 +49,10 @@ contract DepegProduct is
     string public constant EIP712_POLICY_TYPE = "Policy(address wallet,uint256 protectedBalance,uint256 duration,uint256 bundleId,bytes32 signatureId)";
     bytes32 private constant EIP712_POLICY_TYPE_HASH = keccak256(abi.encodePacked(EIP712_POLICY_TYPE));
 
+    // grace period after policy expiry where claims can be created
+    // and closing is not possible
+    uint256 public constant CLAIM_GRACE_PERIOD = 7 * 24 * 3600;// check days constant;
+
     // constant as each policy has max 1 claim
     uint256 public constant CLAIM_ID = 0;
 
@@ -111,7 +115,7 @@ contract DepegProduct is
     modifier onlyMatchingPolicy(bytes32 processId) {
         require(
             this.getId() == _instanceService.getMetadata(processId).productId, 
-            "ERROR:PRD-001:POLICY_PRODUCT_MISMATCH"
+            "ERROR:PRD-001:PRODUCT_MISMATCH"
         );
         _;
     }
@@ -139,13 +143,12 @@ contract DepegProduct is
         // initial product state is active
         _state = DepegState.Active;
 
-        require(priceDataProvider != address(0), "ERROR:DP-001:DATA_PROVIDER_ZERO");
+        require(priceDataProvider != address(0), "ERROR:DP-001:PROVIDER_ZERO");
         _priceDataProvider = IPriceDataProvider(priceDataProvider);
 
         _tokenContract = IERC20Metadata(token);
         _protectedToken = _priceDataProvider.getToken();
-        require(_protectedToken != address(0), "ERROR:DP-002:PROTECTED_TOKEN_ZERO");
-        require(_protectedToken != token, "ERROR:DP-003:TOKEN_NOT_DIFFERENT");
+        require(_protectedToken != token, "ERROR:DP-002:SAME_TOKEN");
 
         IComponent poolComponent = _instanceService.getComponent(riskpoolId); 
         address poolAddress = address(poolComponent);
@@ -231,7 +234,7 @@ contract DepegProduct is
         IBundle.Bundle memory bundle = _instanceService.getBundle(bundleId);
         require(
             bundle.riskpoolId == _riskpool.getId(),
-            "ERROR:DP-013:BUNDLE_RISKPOOL_MISMATCH");
+            "ERROR:DP-013:RISKPOOL_MISMATCH");
 
         // calculate premium for specified bundle
         (,,,,,,uint256 annualPercentageReturn) = _riskpool.decodeBundleParamsFromFilter(bundle.filter);
@@ -241,13 +244,12 @@ contract DepegProduct is
         // ensure policy holder has sufficient balance and allowance
         require(
             _tokenContract.balanceOf(policyHolder) >= maxPremium, 
-            "ERROR:DP-014:BALANCE_INSUFFICIENT");
+            "ERROR:DP-014:BALANCE_TOO_LOW");
 
         require(
             _tokenContract.allowance(policyHolder, _instanceService.getTreasuryAddress()) >= maxPremium, 
-            "ERROR:DP-015:ALLOWANCE_INSUFFICIENT");
+            "ERROR:DP-015:ALLOWANCE_TOO_LOW");
 
-        bytes memory metaData = "";
         bytes memory applicationData = _riskpool.encodeApplicationParameterAsData(
             wallet,
             protectedBalance,
@@ -260,7 +262,7 @@ contract DepegProduct is
             policyHolder, 
             maxPremium, 
             sumInsured,
-            metaData,
+            "", // metaData
             applicationData);
 
         _applications.push(processId);
@@ -301,8 +303,19 @@ contract DepegProduct is
     function close(bytes32 processId)
         external 
     {
+        uint256 depeggedAt = _priceDataProvider.getDepeggedAt();
         (, uint256 expiredAt) = getPolicyExpirationData(processId);
-        require(expiredAt < block.timestamp, "ERROR:DP-018:NOT_YET_EXPIRED");
+
+        // 
+        require(
+            (
+                depeggedAt == 0 && 
+                block.timestamp > expiredAt
+            ) || (
+                depeggedAt > 0 && 
+                block.timestamp > depeggedAt + CLAIM_GRACE_PERIOD
+            ),
+            "ERROR:DP-018:NOT_EXPIRED");
 
         _expire(processId);
         _close(processId);
@@ -467,18 +480,15 @@ contract DepegProduct is
             return false;
         }
 
-        (
-            bool isExpired,
-            uint256 expiredAt
-        ) = getPolicyExpirationData(processId);
-
-        // policy expired alread
-        if(isExpired) {
+        // policy expired prior to depeg event
+        uint256 depeggedAt = _priceDataProvider.getDepeggedAt();
+        (, uint256 expiredAt) = getPolicyExpirationData(processId);
+        if(expiredAt < depeggedAt) {
             return false;
         }
 
-        // policy expired prior to depeg event
-        if(expiredAt < _priceDataProvider.getDepeggedAt()) {
+        // grace period is over
+        if(block.timestamp > depeggedAt + CLAIM_GRACE_PERIOD) {
             return false;
         }
 
