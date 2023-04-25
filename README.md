@@ -87,11 +87,11 @@ setup
 ## GIF Object Lifecycles
 
 
-###
+### Livecycle Combinations
 
 Check test coverage of policy and bundle states
 ```
-policy/bundle |    active     | expired       | closed
+bundle/policy |    active     | expired       | closed
 --------------+---------------+---------------+---------------
 active        | lots of tests | can not claim | can not claim
 locked        | some tests    | one test      | one test
