@@ -16,7 +16,7 @@ from typing import Annotated
 from loguru import logger
 from brownie import network
 
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.responses import RedirectResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 
@@ -42,7 +42,6 @@ from server.settings import (
 
 TAG_MONITOR = 'Monitor'
 TAG_PRODUCT = 'Product'
-TAG_FEEDER = 'Feeder'
 TAG_SETTINGS = 'Settings'
 
 MAINNET_CHAIN_ID = [1,5]
