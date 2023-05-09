@@ -6,6 +6,10 @@ from pydantic import (
 
 from server.node import BrownieNode
 
+TITLE = "Depeg API Monitoring"
+VERSION = 1.1
+DESCRIPTION = "API Server to monitor price feed data for the USDC depeg protection product"
+
 ENV_FILE = 'server/.env'
 SCHEDULER_INTERVAL = 5
 
@@ -31,6 +35,11 @@ class Settings(BaseSettings):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+
+        self.application_title = TITLE
+        self.application_version = VERSION
+        self.application_description = DESCRIPTION
+
         logger.info("(re)load settings from '{}'", ENV_FILE)
 
 

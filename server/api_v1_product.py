@@ -15,16 +15,18 @@ from server.product import (
     product_owner_account
 )
 
+TAG_PRODUCT = 'Product'
+
 # setup for router
 router = APIRouter(prefix='/v1')
 
 
-@router.get('/product', tags=['product'])
+@router.get('/product', tags=[TAG_PRODUCT])
 async def get_product_status() -> ProductStatus:
     return product.get_status()
 
 
-@router.get('/product/price_info', tags=['product'])
+@router.get('/product/price_info', tags=[TAG_PRODUCT])
 async def get_product_price_info() -> dict:
     try:
         return product.get_price_info()

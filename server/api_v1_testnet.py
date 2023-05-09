@@ -30,6 +30,9 @@ from server.product import (
     product_owner_account
 )
 
+TAG_PRODUCT = 'Product'
+TAG_FEEDER = 'Feeder'
+
 # setup for router
 router = APIRouter(prefix='/v1')
 
@@ -51,7 +54,7 @@ def inject_price():
         product_owner_account.get_account())
 
 
-@router.put('/product/reactivate', tags=['product'])
+@router.put('/product/reactivate', tags=[TAG_PRODUCT])
 async def reactivate_product() -> ProductStatus:
     if not product.get_provider_contract():
         logger.warning('no provider')
@@ -64,7 +67,7 @@ async def reactivate_product() -> ProductStatus:
     return product.reactivate()
 
 
-@router.get('/feeder', tags=['feeder'])
+@router.get('/feeder', tags=[TAG_FEEDER])
 async def get_feeder_status() -> PriceFeedStatus:
     if product:
         return feeder.get_status(product.get_provider_contract())
@@ -72,12 +75,12 @@ async def get_feeder_status() -> PriceFeedStatus:
         logger.warning('no product')
 
 
-@router.get('/feeder/price_history', tags=['feeder'])
+@router.get('/feeder/price_history', tags=[TAG_FEEDER])
 async def get_feeder_price_history() -> list[str]:
     return feeder.price_history
 
 
-@router.put('/feeder/set_state/{new_state}', tags=['feeder'])
+@router.put('/feeder/set_state/{new_state}', tags=[TAG_FEEDER])
 async def set_state(new_state:str) -> PriceFeedStatus:
     try:
         provider = product.get_provider_contract()
