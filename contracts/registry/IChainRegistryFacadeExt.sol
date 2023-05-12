@@ -35,6 +35,7 @@ interface IChainRegistryFacadeExt is
         uint48 version;
     }
 
+    function getNftId(bytes5 chain, uint8 objectType, uint256 idx) external view returns(uint96 nftId);
     function getNftInfo(uint96 id) external view returns(NftInfo memory);
     function ownerOf(uint96 id) external view returns(address nftOwner);
 

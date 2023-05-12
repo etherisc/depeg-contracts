@@ -6,17 +6,28 @@ from typing import Optional
 from loguru import logger
 from pydantic import BaseModel
 
-from brownie import network
+from brownie import (
+    network,
+    web3,
+)
+
 from brownie.network.account import Account
 from brownie.project.Project import (
-    DepegProduct, 
+    DepegProduct,
+    DepegRiskpool,
     UsdcPriceDataProvider,
     USD1
 )
 
 from server.account import BrownieAccount
 from server.settings import settings
-from server.util import contract_from_address, b2s
+from server.util import (
+    b2s,
+    s2b,
+    get_contracts,
+    contract_from_address,
+    timestamp_to_iso_date,
+)
 
 MONITOR_MNEMONIC = 'MONITOR_MNEMONIC'
 PRODUCT_OWNER_MNEMONIC = 'PRODUCT_OWNER_MNEMONIC'
@@ -51,9 +62,29 @@ STATE_STABILITY[2] = 'Stable'
 STATE_STABILITY[3] = 'Triggered'
 STATE_STABILITY[4] = 'Depegged'
 
+STATE_BUNDLE = {}
+STATE_BUNDLE[0] = 'Active'
+STATE_BUNDLE[1] = 'Locked'
+STATE_BUNDLE[2] = 'Closed'
+STATE_BUNDLE[3] = 'Burned'
+
+STATE_OBJECT = {}
+STATE_OBJECT[0] = 'Undefined'
+STATE_OBJECT[1] = 'Proposed'
+STATE_OBJECT[2] = 'Approved'
+STATE_OBJECT[3] = 'Suspended'
+STATE_OBJECT[4] = 'Archived'
+STATE_OBJECT[5] = 'Burned'
+
+OBJECT_STAKE = 10
 
 product_contract = None
 feeder_contract = None
+
+instance_service_contract = None
+riskpool_contract = None
+registry_contract = None
+staking_contract = None
 
 
 def process_latest_price():
@@ -112,6 +143,10 @@ class Product(BaseModel):
     def connect(self):
         global product_contract
         global feeder_contract
+        global riskpool_contract
+        global instance_service_contract
+        global registry_contract
+        global staking_contract
 
         if not network.is_connected():
             raise RuntimeError('connect to network first')
@@ -122,7 +157,26 @@ class Product(BaseModel):
 
         if self.contract_address and len(self.contract_address) > 0:
             logger.info("connecting to address {} ...", self.contract_address)
-            product_contract = contract_from_address(DepegProduct, self.contract_address)
+
+            # TODO cleanup
+            # product_contract = contract_from_address(DepegProduct, self.contract_address)
+
+            # dp = get_project()
+            # instance_registry = contract_from_address(dp.interface.IRegistry, product_contract.getRegistry())
+            # instance_service_contract = contract_from_address(dp.interface.IInstanceService, instance_registry.getContract(s2b('InstanceService')))
+
+            # riskpool_contract = contract_from_address(DepegRiskpool, instance_service_contract.getComponent(product_contract.getRiskpoolId()))
+            # registry_contract = contract_from_address(dp.interface.IRegistryFacadeExt, riskpool_contract.getRegistry())
+            # staking_contract = contract_from_address(dp.interface.IStakingFacadeExt, riskpool_contract.getStaking())
+
+            (
+                product_contract,
+                riskpool_contract,
+                instance_service_contract,
+                registry_contract,
+                staking_contract,
+            ) = get_contracts(self.contract_address)
+    
             logger.info("connected to product '{}' ({})".format(b2s(product_contract.getName()), product_contract.getId()))
 
             self.provider_address = product_contract.getPriceDataProvider()
@@ -137,6 +191,48 @@ class Product(BaseModel):
 
     def get_provider_contract(self):
         return feeder_contract
+
+
+    def get_bundle_infos(self) -> dict:
+        if not riskpool_contract:
+            raise RuntimeError('connect to product')
+
+        bundle = {}
+        bundle_count = riskpool_contract.bundles()
+        for idx in range(bundle_count):
+            bundle_id = riskpool_contract.getBundleId(idx)
+            info = riskpool_contract.getBundleInfo(bundle_id).dict()
+            info['stateLabel'] = STATE_BUNDLE[info['state']]
+            info['livetimeFrom'] = timestamp_to_iso_date(info['createdAt'])
+            info['lifetimeTo'] = timestamp_to_iso_date(info['createdAt'] + info['lifetime'])
+            bundle[bundle_id] = info
+
+        return bundle
+
+
+    def get_stake_infos(self) -> dict:
+        if not registry_contract:
+            raise RuntimeError('connect to product')
+
+        stake = {}
+        chain_id = registry_contract.toChain(web3.chain_id)
+        stake_count = registry_contract.objects(chain_id, OBJECT_STAKE)
+        for idx in range(stake_count):
+            stake_id = registry_contract.getNftId(chain_id, OBJECT_STAKE, idx)
+            info_raw = staking_contract.getInfo(stake_id)
+            rewards_increment = staking_contract.calculateRewardsIncrement(info_raw)
+
+            info = info_raw.dict()
+            target_info = registry_contract.decodeBundleData(info['target']).dict()
+
+            info['rewardTotalNow'] = info['rewardBalance'] + rewards_increment
+            info['bundleId'] = target_info['bundleId']
+            info['bundleExpiryAt'] = target_info['expiryAt']
+            info['bundleExpiryTo'] = timestamp_to_iso_date(target_info['expiryAt'])
+            info['livetimeFrom'] = timestamp_to_iso_date(info['createdAt'])
+            stake[stake_id] = info
+
+        return stake
 
 
     def reactivate(self) -> ProductStatus:
