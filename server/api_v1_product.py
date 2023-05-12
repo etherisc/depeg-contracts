@@ -35,6 +35,8 @@ async def get_product_price_info() -> dict:
         return product.get_price_info()
 
     except RuntimeError as ex:
+        logger.warning(ex)
+
         raise HTTPException(
             status_code=400,
             detail=getattr(ex, 'message', repr(ex))) from ex
@@ -46,6 +48,8 @@ async def get_riskpool_bundles() -> dict:
         return product.get_bundle_infos()
 
     except RuntimeError as ex:
+        logger.warning(ex)
+
         raise HTTPException(
             status_code=400,
             detail=getattr(ex, 'message', repr(ex))) from ex
@@ -63,6 +67,8 @@ async def export_riskpool_bundles() -> dict:
         return response
 
     except RuntimeError as ex:
+        logger.warning(ex)
+
         raise HTTPException(
             status_code=400,
             detail=getattr(ex, 'message', repr(ex))) from ex
@@ -74,6 +80,8 @@ async def get_stakes() -> dict:
         return product.get_stake_infos()
 
     except RuntimeError as ex:
+        logger.warning(ex)
+
         raise HTTPException(
             status_code=400,
             detail=getattr(ex, 'message', repr(ex))) from ex
@@ -90,7 +98,9 @@ async def export_stakes() -> dict:
 
         return response
 
-    except RuntimeError as ex:
+    except (ValueError, RuntimeError) as ex:
+        logger.warning(ex)
+
         raise HTTPException(
             status_code=400,
             detail=getattr(ex, 'message', repr(ex))) from ex

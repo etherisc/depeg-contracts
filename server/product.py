@@ -215,6 +215,8 @@ class Product(BaseModel):
             raise RuntimeError('connect to product')
 
         stake = {}
+        bundle_cache = {}
+
         chain_id = registry_contract.toChain(web3.chain_id)
         stake_count = registry_contract.objects(chain_id, OBJECT_STAKE)
         for idx in range(stake_count):
@@ -223,16 +225,46 @@ class Product(BaseModel):
             rewards_increment = staking_contract.calculateRewardsIncrement(info_raw)
 
             info = info_raw.dict()
-            target_info = registry_contract.decodeBundleData(info['target']).dict()
+            bundle_nft = info['target']
+            target_info = registry_contract.decodeBundleData(bundle_nft).dict()
+
+            (bundle_id, bundle_name, bundle_expiry, bundle_cache) = self.get_bundle_attributes(bundle_nft, bundle_cache)
 
             info['rewardTotalNow'] = info['rewardBalance'] + rewards_increment
-            info['bundleId'] = target_info['bundleId']
-            info['bundleExpiryAt'] = target_info['expiryAt']
-            info['bundleExpiryTo'] = timestamp_to_iso_date(target_info['expiryAt'])
-            info['livetimeFrom'] = timestamp_to_iso_date(info['createdAt'])
+            info['bundleId'] = bundle_id
+            info['bundleName'] = bundle_name
+            info['bundleExpiryAt'] = bundle_expiry
+
+            info['stakeOwner'] = registry_contract.ownerOf(stake_id)
+            info['stakingStarted'] = timestamp_to_iso_date(info['createdAt'])
+            info['unstakingAfter'] = timestamp_to_iso_date(bundle_expiry)
+            info['stakedDip'] = info['stakeBalance'] / 10**18
+            info['rewardDip'] = info['rewardTotalNow'] / 10**18
+
             stake[stake_id] = info
 
         return stake
+
+
+    def get_bundle_attributes(self, bundle_nft:int, bundle_cache:dict):
+        if bundle_nft in bundle_cache:
+            (bundle_id, bundle_name, bundle_expiry) = bundle_cache[bundle_nft]
+            return (bundle_id, bundle_name, bundle_expiry, bundle_cache)
+
+        info = registry_contract.decodeBundleData(bundle_nft).dict()
+
+        bundle_id = info['bundleId']
+        bundle_name = info['displayName']
+        bundle_expiry = info['expiryAt']
+
+        values = (
+            bundle_id,
+            bundle_name,
+            bundle_expiry
+        )
+
+        bundle_cache[bundle_nft] = values
+        return (bundle_id, bundle_name, bundle_expiry, bundle_cache)
 
 
     def reactivate(self) -> ProductStatus:
