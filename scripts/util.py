@@ -1,4 +1,5 @@
 import io
+import json
 import sys
 from contextlib import redirect_stdout
 from datetime import datetime
@@ -121,3 +122,17 @@ def is_forked_network():
 
 def get_iso_datetime(timestamp):
     return datetime.fromtimestamp(timestamp).isoformat()
+
+
+
+def save_json(contract_class, file_name=None):
+    vi = contract_class.get_verification_info()
+    sji = vi['standard_json_input']
+
+    if not file_name or len(file_name) == 0:
+        file_name = './{}.json'.format(contract_class._name)
+
+    print('writing standard json input file {}'.format(file_name))
+    with open(file_name, "w") as json_file:
+        json.dump(sji, json_file)
+

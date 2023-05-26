@@ -6,6 +6,36 @@
 
 This repository holds the smart contracts for a depeg insurance for stable coins.
 
+## Depeg Roadmap
+- move to 1.1
+- have 2 risk bundles
+- decommission current setup
+- explore pains/costs for cross chain usdt transfers
+- evaluate side chains/l2q
+  - zkEvm (L2) https://www.youtube.com/watch?v=0Ask4EfZ0P8
+  - polygon (sidechain)
+  - what tokens are supported by zkEvmBridge?
+      - check https://zkevm.polygon.technology/docs/category/zkevm-bridge
+
+=> poc for moving staking to zkevm    
+
+## v1.1 features
+* refactor product contract
+    * move depeg state management to separate contract
+    * add upgradability
+* refactor riskpool contract
+    * add risk bundle lifetime extension
+    * add upgradability
+
+
+## zkEVM Experiments
+
+```bash
+brownie networks import zkevm-networks.yaml
+brownie console --network=zkevm-test
+```
+
+
 ## Address for Test Goerli ETH
 0x0E458906446AfB6fB388b1a5E1cE6598d077dfB5
 
@@ -573,3 +603,4 @@ dokku config:show <app-name>
 dokku logs -t <app-name>
 ```
 To remove an unused env variable use `dokku config:unset <app-name> key1 [key2 ...]`
+

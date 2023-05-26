@@ -1,0 +1,15 @@
+# brownie networks import celo-network.yaml True
+# brownie console --network=celo-test 
+live:
+- name: Polygon zkEVM
+  networks:
+  - chainid: 1101
+    explorer: https://zkevm.polygonscan.com/
+    host: https://zkevm-rpc.com
+    id: zkevm-main
+    name: Mainnet
+  - chainid: 1442
+    explorer: https://testnet-zkevm.polygonscan.com
+    host: https://rpc.public.zkevm-test.net
+    id: zkevm-test
+    name: Testnet

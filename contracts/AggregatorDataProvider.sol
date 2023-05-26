@@ -25,6 +25,7 @@ contract AggregatorDataProvider is
     uint256 public constant GANACHE = 1337;
     uint256 public constant GANACHE2 = 1234;
     uint256 public constant MUMBAI = 80001;
+    uint256 public constant ZKEVM_TEST = 1442;
     
     AggregatorV2V3Interface private _aggregator;
 
@@ -297,6 +298,7 @@ contract AggregatorDataProvider is
     {
         return (block.chainid == GANACHE)
             || (block.chainid == GANACHE2)
-            || (block.chainid == MUMBAI);
+            || (block.chainid == MUMBAI)
+            || (block.chainid == ZKEVM_TEST);
     }    
 }
