@@ -33,8 +33,8 @@ RUN python -m pip install --upgrade pip
 
 # install fastapi
 RUN pip install loguru
-RUN pip install fastapi==0.99.1
-RUN pip install "uvicorn[standard]"
+RUN pip install fastapi==0.95.1
+RUN pip install "uvicorn[standard]==0.22.0"
 
 # install brownie
 RUN pip install eth-brownie

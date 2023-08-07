@@ -35,7 +35,7 @@ usd2 = contract_from_address(USD2, '0x268131A1A7639F8F918d4a17A74C79209b2C645D')
 dip = contract_from_address(DIP, '0x0c3EA45c5290FCCB528109b167A5e66734d2578c')
 
 product_address='0x43687bd425E02E375Dee3D22903878CdbB2eD019'
-(setup, product, feeder, riskpool, registry, staking, dip, usdt, instance_service) = get_setup(product_address)
+(setup, product, feeder, riskpool, registry, staking, dip, usdt, usdc, instance_service) = get_setup(product_address)
 
 setup
 ```
@@ -65,7 +65,38 @@ usd2 = contract_from_address(USD2, '0x6baCCf5b80000fDc3B5925eB65253D0a73aeF882')
 dip = contract_from_address(DIP, '0x47678b3aC8336dc3fE390d81ef80593D0c6b28B9')
 
 product_address='0x33A7785D9EEB78e33A9587E9De075aB11A354387'
-(setup, product, feeder, riskpool, registry, staking, dip, usdt, instance_service) = get_setup(product_address)
+(setup, product, feeder, riskpool, registry, staking, dip, usdt, usdc, instance_service) = get_setup(product_address)
+
+setup
+```
+
+## Explore Mainnet Setup
+
+Preparation steps:
+* Compile contracts
+* Start the Brownie console connecting to Mumbai
+
+```bash
+brownie compile --all
+brownie console --network=mainnet
+```
+
+In the Brownie console run the following commands.
+Given the Depeg product address (at the end of the commands) the function `get_setup` "crawls" the relevant deployed contracts and report their current configuration.
+
+The resulting configuration (JSON) is stored in variable `setup`.
+
+```python
+from scripts.util import contract_from_address, get_package
+from scripts.deploy_depeg import get_setup, contract_from_address
+
+gif = get_package('gif-contracts')
+usd1 = contract_from_address(USD1, '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48')
+usd2 = contract_from_address(USD2, '0xdAC17F958D2ee523a2206206994597C13D831ec7')
+dip = contract_from_address(DIP, '0xc719d010B63E5bbF2C0551872CD5316ED26AcD83')
+
+product_address='0xD434aeB7bb2abf66b23A85eD12c2C8F366Df6766'
+(setup, product, feeder, riskpool, registry, staking, dip, usdt, usdc, instance_service) = get_setup(product_address)
 
 setup
 ```
