@@ -7,6 +7,7 @@
     ],
     "solidity.compileUsingRemoteVersion": "v0.8.2+commit.661d1103",
     "peacock.remoteColor": "#4f3cbe",
+    "solidity.defaultCompiler": "remote",
     "workbench.colorCustomizations": {
         "activityBar.activeBackground": "#7060cd",
         "activityBar.background": "#7060cd",
@@ -26,5 +27,4 @@
         "titleBar.inactiveBackground": "#4f3cbe99",
         "titleBar.inactiveForeground": "#e7e7e799"
     },
-    "solidity.defaultCompiler": "remote",
 }
