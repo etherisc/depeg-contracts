@@ -14,11 +14,11 @@ import "./EIP712.sol";
 
 import "./IPriceDataProvider.sol";
 import "./DepegRiskpool.sol";
-import "./DepegMessageHelper.sol";
 
 
-contract DepegProductV2 is 
-    Product
+contract DepegProductOld is 
+    Product,
+    EIP712
 {
     using EnumerableSet for EnumerableSet.Bytes32Set;
 
@@ -41,6 +41,13 @@ contract DepegProductV2 is
     bytes32 public constant NAME = "DepegProduct";
     bytes32 public constant VERSION = "0.1";
     bytes32 public constant POLICY_FLOW = "PolicyDefaultFlow";
+
+    // EIP-712 Depeg specifics
+    string public constant EIP712_DOMAIN_NAME = "EtheriscDepeg";
+    string public constant EIP712_DOMAIN_VERSION = "1";
+
+    string public constant EIP712_POLICY_TYPE = "Policy(address wallet,uint256 protectedBalance,uint256 duration,uint256 bundleId,bytes32 signatureId)";
+    bytes32 private constant EIP712_POLICY_TYPE_HASH = keccak256(abi.encodePacked(EIP712_POLICY_TYPE));
 
     // grace period after policy expiry where claims can be created
     // and closing is not possible
@@ -65,8 +72,6 @@ contract DepegProductV2 is
     TreasuryModule private _treasury;
     uint256 private _depeggedBlockNumber;
 
-    DepegMessageHelper private _messageHelper;
-
     // hold list of applications/policies for address
     mapping(address /* policyHolder */ => bytes32 [] /* processIds */) private _processIdsForHolder;
 
@@ -75,6 +80,9 @@ contract DepegProductV2 is
 
     // processed wallet balances 
     mapping(address /* wallet */ => uint256 /* processed total claims so far */) private _processedBalance;
+
+    // tracking of signatures
+    mapping(bytes32 /* signature hash */ => bool /* used */) private _signatureIsUsed;
 
     event LogDepegApplicationCreated(bytes32 processId, address policyHolder, address protectedWallet, uint256 protectedBalance, uint256 sumInsuredAmount, uint256 premiumAmount);
     event LogDepegPolicyCreated(bytes32 processId, address policyHolder, uint256 sumInsuredAmount);
@@ -130,6 +138,7 @@ contract DepegProductV2 is
         uint256 riskpoolId
     )
         Product(productName, token, POLICY_FLOW, riskpoolId, registry)
+        EIP712(EIP712_DOMAIN_NAME, EIP712_DOMAIN_VERSION)
     {
         // initial product state is active
         _state = DepegState.Active;
@@ -149,15 +158,6 @@ contract DepegProductV2 is
         _depeggedBlockNumber = 0;
     }
 
-
-    function setMessageHelper(address depegMessageHelper)
-        external
-        onlyOwner
-    {
-        _messageHelper = DepegMessageHelper(depegMessageHelper);
-    }
-
-
     function applyForPolicyWithBundleAndSignature(
         address policyHolder,
         address protectedWallet,
@@ -170,14 +170,19 @@ contract DepegProductV2 is
         external 
         returns(bytes32 processId)
     {
-        _messageHelper.processSignature(
-            policyHolder,
+        bytes32 signatureHash = keccak256(abi.encode(signature));
+        require(!_signatureIsUsed[signatureHash], "ERROR:DP-005:SIGNATURE_USED");
+        _signatureIsUsed[signatureHash] = true;
+
+        address signer = getSignerFromDigestAndSignature(
             protectedWallet,
             protectedBalance,
             duration,
             bundleId,
             signatureId,
             signature);
+
+        require(policyHolder == signer, "ERROR:DP-006:SIGNATURE_INVALID");
 
         return _applyForPolicyWithBundle(
             policyHolder,
@@ -924,5 +929,57 @@ contract DepegProductV2 is
 
     function getApplicationDataStructure() external override pure returns(string memory dataStructure) {
         return "(uint256 duration,uint256 bundleId,uint256 premium)";
+    }
+
+
+    //--- internal functions for gasless option --------------------------------//
+
+    function getSignerFromDigestAndSignature(
+        address protectedWallet,
+        uint256 protectedBalance,
+        uint256 duration,
+        uint256 bundleId,
+        bytes32 signatureId,
+        bytes calldata signature
+    )
+        public
+        view
+        returns(address)
+    {
+        bytes32 digest = getDigest(
+                protectedWallet,
+                protectedBalance,
+                duration,
+                bundleId,
+                signatureId
+            );
+
+        return getSigner(digest, signature);
+    }
+
+
+    function getDigest(
+        address protectedWallet,
+        uint256 protectedBalance,
+        uint256 duration,
+        uint256 bundleId,
+        bytes32 signatureId
+    )
+        internal
+        view
+        returns(bytes32)
+    {
+        bytes32 structHash = keccak256(
+            abi.encode(
+                EIP712_POLICY_TYPE_HASH,
+                protectedWallet,
+                protectedBalance,
+                duration,
+                bundleId,
+                signatureId
+            )
+        );
+
+        return getTypedDataV4Hash(structHash);
     }
 }

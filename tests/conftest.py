@@ -13,6 +13,7 @@ from brownie import (
     UsdcPriceDataProvider,
     DepegProduct,
     DepegRiskpool,
+    DepegMessageHelper,
     MockRegistryStaking,
     DIP
 )
@@ -184,7 +185,8 @@ def usdc_feeder(usd1, productOwner) -> UsdcPriceDataProvider:
 
 @pytest.fixture(scope="module")
 def gifDepegDeploy(
-    instance: GifInstance, 
+    instance: GifInstance,
+    messageHelper: DepegMessageHelper,
     productOwner: Account, 
     investor: Account, 
     usdc_feeder,
@@ -192,7 +194,7 @@ def gifDepegDeploy(
     riskpoolKeeper: Account, 
     riskpoolWallet: Account
 ) -> GifDepegProductComplete:
-    return GifDepegProductComplete(
+    gpc = GifDepegProductComplete(
         instance, 
         productOwner, 
         investor,
@@ -201,8 +203,17 @@ def gifDepegDeploy(
         riskpoolKeeper, 
         riskpoolWallet)
 
+    product = gpc.getProduct().getContract()
+    product.setMessageHelper(messageHelper, {'from': productOwner})
+
+    return gpc
+
 @pytest.fixture(scope="module")
 def gifDepegProduct(gifDepegDeploy) -> GifDepegProduct: return gifDepegDeploy.getProduct()
+
+
+@pytest.fixture(scope="module")
+def messageHelper(productOwner) -> DepegMessageHelper: return DepegMessageHelper.deploy({'from': productOwner})
 
 @pytest.fixture(scope="module")
 def product(gifDepegProduct) -> DepegProduct: return gifDepegProduct.getContract()
