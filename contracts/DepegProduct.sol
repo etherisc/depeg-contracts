@@ -63,7 +63,6 @@ contract DepegProduct is
 
     DepegRiskpool private _riskpool;
     TreasuryModule private _treasury;
-    uint256 private _depeggedBlockNumber;
 
     DepegMessageHelper private _messageHelper;
 
@@ -99,7 +98,6 @@ contract DepegProduct is
     event LogDepegProductReactivated(uint256 reactivatedAt);
     event LogDepegProductPaused(uint256 priceId, uint256 pausedAt);
     event LogDepegProductUnpaused(uint256 priceId, uint256 unpausedAt);
-    event LogDepegBlockNumberSet(uint256 blockNumber, string comment);
     event LogDepegDepegBalanceAdded(address wallet, uint256 blockNumber, uint256 balance);
     event LogDepegDepegBalanceError(address wallet, uint256 blockNumber, uint256 balance, uint256 depeggedBlockNumber);
 
@@ -136,17 +134,13 @@ contract DepegProduct is
 
         require(priceDataProvider != address(0), "ERROR:DP-001:PROVIDER_ZERO");
         _priceDataProvider = IPriceDataProvider(priceDataProvider);
-
-        _tokenContract = IERC20Metadata(token);
-        _protectedToken = _priceDataProvider.getToken();
-        require(_protectedToken != token, "ERROR:DP-002:SAME_TOKEN");
+        require(token != _priceDataProvider.getToken(), "ERROR:DP-002:SAME_TOKEN");
 
         IComponent poolComponent = _instanceService.getComponent(riskpoolId); 
         address poolAddress = address(poolComponent);
 
         _riskpool = DepegRiskpool(poolAddress);
         _treasury = TreasuryModule(_instanceService.getTreasuryAddress());
-        _depeggedBlockNumber = 0;
     }
 
 
@@ -245,12 +239,14 @@ contract DepegProduct is
         maxPremium = calculatePremium(maxNetPremium);
 
         // ensure policy holder has sufficient balance and allowance
+        IERC20Metadata token = IERC20Metadata(getToken());
+
         require(
-            _tokenContract.balanceOf(policyHolder) >= maxPremium, 
+            token.balanceOf(policyHolder) >= maxPremium, 
             "ERROR:DP-014:BALANCE_TOO_LOW");
 
         require(
-            _tokenContract.allowance(policyHolder, _instanceService.getTreasuryAddress()) >= maxPremium, 
+            token.allowance(policyHolder, _instanceService.getTreasuryAddress()) >= maxPremium, 
             "ERROR:DP-015:ALLOWANCE_TOO_LOW");
 
         bytes memory applicationData = _riskpool.encodeApplicationParameterAsData(
@@ -358,21 +354,7 @@ contract DepegProduct is
 
 
     function getDepeggedBlockNumber() public view returns(uint256 blockNumber) {
-        return _depeggedBlockNumber;
-    }
-
-
-    function setDepeggedBlockNumber(
-        uint256 blockNumber,
-        string memory comment
-    ) 
-        external
-        onlyOwner
-    {
-        require(_state == DepegState.Depegged, "ERROR:DP-020:NOT_DEPEGGED");
-        _depeggedBlockNumber = blockNumber;
-
-        emit LogDepegBlockNumberSet(blockNumber, comment);
+        return _priceDataProvider.getDepeggedBlockNumber();
     }
 
 
@@ -385,12 +367,14 @@ contract DepegProduct is
         view 
         returns(DepegBalance memory depegBalance)
     {
+        uint256 depeggedBlockNumber = _priceDataProvider.getDepeggedBlockNumber();
+
         require(wallet != address(0), "ERROR:DP-021:WALLET_ADDRESS_ZERO");
-        require(_depeggedBlockNumber > 0, "ERROR:DP-022:DEPEGGED_BLOCKNUMBER_ZERO");
-        require(blockNumber == _depeggedBlockNumber, "ERROR:DP-023:BLOCKNUMBER_MISMATCH");
+        require(depeggedBlockNumber > 0, "ERROR:DP-022:DEPEGGED_BLOCKNUMBER_ZERO");
+        require(blockNumber == depeggedBlockNumber, "ERROR:DP-023:BLOCKNUMBER_MISMATCH");
 
         depegBalance.wallet = wallet;
-        depegBalance.blockNumber = _depeggedBlockNumber;
+        depegBalance.blockNumber = depeggedBlockNumber;
         depegBalance.balance = balance;
     }
 
@@ -403,7 +387,8 @@ contract DepegProduct is
             uint256 balanceErrorCases
         )
     {
-        require(_depeggedBlockNumber > 0, "ERROR:DP-024:DEPEGGED_BLOCKNUMBER_ZERO");
+        uint256 depeggedBlockNumber = _priceDataProvider.getDepeggedBlockNumber();
+        require(depeggedBlockNumber > 0, "ERROR:DP-024:DEPEGGED_BLOCKNUMBER_ZERO");
     
         balanceOkCases = 0;
         balanceErrorCases = 0;
@@ -411,7 +396,7 @@ contract DepegProduct is
         for (uint256 i; i < depegBalances.length; i++) {
             DepegBalance memory depegBalance = depegBalances[i];
 
-            if(depegBalance.wallet != address(0) && depegBalance.blockNumber == _depeggedBlockNumber) {
+            if(depegBalance.wallet != address(0) && depegBalance.blockNumber == depeggedBlockNumber) {
                 _depegBalance[depegBalance.wallet] = depegBalance;
                 balanceOkCases += 1;
 
@@ -426,7 +411,7 @@ contract DepegProduct is
                     depegBalance.wallet, 
                     depegBalance.blockNumber, 
                     depegBalance.balance, 
-                    _depeggedBlockNumber);
+                    depeggedBlockNumber);
             }
         }
 
@@ -773,33 +758,44 @@ contract DepegProduct is
             priceInfo.createdAt
         );
 
-        // price update without any effects on product state
-        if(priceInfo.eventType == IPriceDataProvider.EventType.Update) {
-            return priceInfo;
-        
-        // product triggered
-        } else if(priceInfo.eventType == IPriceDataProvider.EventType.TriggerEvent) {
-            _state = DepegState.Paused;
+        // check if we need to move away from active state
+        if(_state == DepegState.Active) {
+            // may only happens if processLatestPriceInfo is not called frequently enough
+            // normally, product state first moves from active to paused and only later moves to depegged
+            if(_priceDataProvider.getDepeggedAt() > 0) {
+                _state = DepegState.Depegged;
 
-            emit LogDepegProductPaused(
-                priceInfo.id, 
-                block.timestamp);
+                emit LogDepegProductDeactivated(
+                    priceInfo.id, 
+                    block.timestamp);
+            }
+            // we've been in active state but price provider is triggered -> deactivate product
+            else if(_priceDataProvider.getTriggeredAt() > 0) {
+                _state = DepegState.Paused;
 
-        // product recovers from triggered state
-        } else if(priceInfo.eventType == IPriceDataProvider.EventType.RecoveryEvent) {
-            _state = DepegState.Active;
+                emit LogDepegProductPaused(
+                    priceInfo.id, 
+                    block.timestamp);
+            }
+        }
+        // check if we may resume or must go to depeg
+        else if(_state == DepegState.Paused) {
+            // we've been deactivated but price provider has depegged -> move product into depegged state
+            if(_priceDataProvider.getDepeggedAt() > 0) {
+                _state = DepegState.Depegged;
 
-            emit LogDepegProductUnpaused(
-                priceInfo.id, 
-                block.timestamp);
+                emit LogDepegProductDeactivated(
+                    priceInfo.id, 
+                    block.timestamp);
+            }
+            // we've been deactivated but price provider has recovered -> reactivate product
+            else if(_priceDataProvider.getTriggeredAt() == 0) {
+                _state = DepegState.Active;
 
-        // product enters depegged state
-        } else if(priceInfo.eventType == IPriceDataProvider.EventType.DepegEvent) {
-            _state = DepegState.Depegged;
-
-            emit LogDepegProductDeactivated(
-                priceInfo.id, 
-                block.timestamp);
+                emit LogDepegProductUnpaused(
+                    priceInfo.id, 
+                    block.timestamp);
+            }
         }
     }
 
@@ -911,7 +907,7 @@ contract DepegProduct is
     }
 
     function getProtectedToken() external view returns(address protectedToken) {
-        return _protectedToken;
+        return _priceDataProvider.getToken();
     }
 
     function applications() external view returns(uint256 applicationCount) {

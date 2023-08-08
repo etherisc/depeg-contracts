@@ -61,6 +61,10 @@ interface IPriceDataProvider {
         uint256 price,
         uint256 createdAt);
 
+    event LogPriceDataBlockNumberSet(
+        uint256 blockNumber, 
+        string comment);
+
     event LogUsdcProviderForcedDepeg (
         uint256 updatedTriggeredAt,
         uint256 forcedDepegAt);
@@ -108,6 +112,16 @@ interface IPriceDataProvider {
         external
         view 
         returns(PriceInfo memory priceInfo);
+
+
+    function setDepeggedBlockNumber(
+        uint128 blockNumber,
+        string memory comment
+    ) 
+        external;
+
+    function getDepeggedBlockNumber() external view returns(uint256 blockNumber);
+
 
     function getTargetPrice() external view returns(uint256 targetPrice);
 

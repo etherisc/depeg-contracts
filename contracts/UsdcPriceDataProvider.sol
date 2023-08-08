@@ -169,6 +169,25 @@ contract UsdcPriceDataProvider is
     }
 
 
+    function getDepeggedBlockNumber() external override view returns(uint256 blockNumber) {
+        return _depeggedBlockNumber;
+    }
+
+
+    function setDepeggedBlockNumber(
+        uint128 blockNumber,
+        string memory comment
+    ) 
+        external override
+        onlyOwner
+    {
+        require(_depeggedAt > 0, "ERROR:UPDP-025:NOT_DEPEGGED");
+        _depeggedBlockNumber = blockNumber;
+
+        emit LogPriceDataBlockNumberSet(blockNumber, comment);
+    }
+
+
     function forceDepegForNextPriceInfo()
         external override
         onlyOwner()
