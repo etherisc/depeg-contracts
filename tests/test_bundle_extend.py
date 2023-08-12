@@ -6,6 +6,7 @@ from brownie import (
     chain,
     history,
     interface,
+    MockRegistryStaking,
 )
 
 from scripts.util import b2s
@@ -31,10 +32,19 @@ def test_extend_bundle(
     instanceOperator,
     investor,
     riskpool,
+    riskpoolKeeper,
+    dip,
+    usd2,
+    registryOwner,
     product,
     customer,
     protectedWallet
 ):
+    # setup staking/registry
+    mock = MockRegistryStaking.deploy(dip, usd2, {'from': registryOwner})
+    mock.mockRegisterRiskpool(instanceService.getInstanceId(), riskpool.getId(), {'from': registryOwner})
+    riskpool.setStakingAddress(mock, {'from': riskpoolKeeper})
+
     instanceWallet = instanceService.getInstanceWallet()
     riskpoolWallet = instanceService.getRiskpoolWallet(riskpool.getId())
     tokenAddress = instanceService.getComponentToken(riskpool.getId())
@@ -62,6 +72,10 @@ def test_extend_bundle(
         minDurationDays, 
         maxDurationDays, 
         aprPercentage)
+
+    tx = history[-1]
+    assert 'LogMockBundleRegistered' in tx.events
+    bundle_nft = tx.events['LogMockBundleRegistered']['id']
 
     # check riskpool bundles
     assert riskpool.activeBundles() == 1
@@ -179,6 +193,9 @@ def test_extend_bundle(
     chain.sleep(sleep_time)
     chain.mine(1)
 
+    # get registry state before
+    registry_data_before = mock.decodeBundleData(bundle_nft).dict()
+
     tx = riskpool.extendBundleLifetime(bundleId, extend_45_days, {'from': investor})
 
     (
@@ -202,6 +219,10 @@ def test_extend_bundle(
     assert evt['createdAt'] == ltCreatedAt2
     assert evt['lifetime'] == ltLifetime2
     assert evt['lifetimeExtended'] == ltExtendedLifetime2
+
+    # get registry state after
+    registry_data_after = mock.decodeBundleData(bundle_nft).dict()
+    assert registry_data_after['expiryAt'] - registry_data_before['expiryAt'] == extend_45_days
 
     # set clock at time where original lifetime would lead to expired bundle
     chain.sleep(extend_45_days)

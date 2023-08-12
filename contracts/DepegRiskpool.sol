@@ -64,6 +64,7 @@ contract DepegRiskpool is
 
     uint256 public constant EXTENSION_INTERVAL = 31 * 24 * 3600; // allowed interval to extend at end of lifetime
 
+    mapping(uint256 /* bundle id */ => uint96 /* nft id for bundle */) private _bundleNftId;
     mapping(uint256 /* bundle id */ => uint256 /* lifetime extension */) private _bundleLifetimeExtension;
     mapping(string /* bundle name */ => uint256 /* bundle id */) private _bundleIdForBundleName;
 
@@ -319,7 +320,11 @@ contract DepegRiskpool is
         _bundleLifetimeExtension[bundleId] += lifetimeExtension;
         uint256 lifetimeExtended = lifetime + _bundleLifetimeExtension[bundleId];
 
-        // TODO update lifetime in registry
+        // update lifetime in registry (if registry is available and bundle is registered)
+        if (address(_chainRegistry) != address(0) && _bundleNftId[bundleId] > 0) { 
+            uint96 nftId = _bundleNftId[bundleId];
+            _chainRegistry.extendBundleLifetime(nftId, lifetimeExtension);
+        }
 
         // write log entry
         emit LogBundleExtended(bundleId, createdAt, lifetime, lifetimeExtended);
@@ -406,7 +411,9 @@ contract DepegRiskpool is
     {
         bytes32 instanceId = _instanceService.getInstanceId();
         uint256 expiration = bundle.createdAt + lifetime;
-        _chainRegistry.registerBundle(
+
+        // register bundle and keep track of nft id
+        _bundleNftId[bundle.id] = _chainRegistry.registerBundle(
             instanceId,
             bundle.riskpoolId,
             bundle.id,
@@ -680,10 +687,7 @@ contract DepegRiskpool is
         }
 
         // otherwise: get amount supported by staking
-        uint96 bundleNftId = _chainRegistry.getBundleNftId(
-            _instanceService.getInstanceId(),
-            bundleId);
-
+        uint96 bundleNftId = _bundleNftId[bundleId];
         return _staking.capitalSupport(bundleNftId);
     }
 

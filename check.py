@@ -13,7 +13,7 @@ LINTING = ['solhint', 'contracts/**/*.sol', '|', 'grep', 'error']
 
 GITHUB_USER = 'etherisc'
 GITHUB_REPO = 'registry-contracts'
-GITHUB_BRANCH = 'develop'
+GITHUB_BRANCH = 'experiment/upgradable-struct' # 'develop'
 REPO_BASE = '{}/{}/{}'.format(GITHUB_USER, GITHUB_REPO, GITHUB_BRANCH)
 GITHUB_BASE = 'https://raw.githubusercontent.com/{}'.format(REPO_BASE)
 
