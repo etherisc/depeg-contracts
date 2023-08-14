@@ -35,6 +35,15 @@ interface IChainRegistryFacadeExt is
         uint48 version;
     }
 
-    function getNftInfo(uint96 id) external view returns(NftInfo memory);
 
+    function registerComponent(
+        bytes32 instanceId,
+        uint256 componentId,
+        string memory uri
+    )
+        external
+        returns(uint96 id);
+
+
+    function getNftInfo(uint96 id) external view returns(NftInfo memory);
 }

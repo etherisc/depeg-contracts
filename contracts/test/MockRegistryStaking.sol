@@ -5,12 +5,13 @@ import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IER
 
 import {IChainNftFacade} from "../registry/IChainNftFacade.sol";
 import {IChainRegistryFacade} from "../registry/IChainRegistryFacade.sol";
+import {IChainRegistryFacadeExt} from "../registry/IChainRegistryFacadeExt.sol";
 import {IStakingFacade} from "../staking/IStakingFacade.sol";
 
 // solhint-disable-next-line max-states-count
 contract MockRegistryStaking is
     IChainNftFacade,
-    IChainRegistryFacade,
+    IChainRegistryFacadeExt,
     IStakingFacade
 {
 
@@ -35,6 +36,7 @@ contract MockRegistryStaking is
     int8 public constant EXP = 18;
     uint256 public constant MULTIPLIER = 10 ** uint256(int256(EXP));
 
+    event LogMockComponentRegistered(uint256 id, bytes5 chain, uint8 objectType, bytes32 instanceId, uint256 riskpoolId, address to);
     event LogMockBundleRegistered(uint256 id, bytes5 chain, uint8 objectType, bytes32 instanceId, uint256 riskpoolId, uint256 bundleId, address to);
     event LogMockBundleLifetimeExtended(uint96 nftId, uint256 lifetimeExtension, address sender);
 
@@ -201,6 +203,23 @@ contract MockRegistryStaking is
     }
 
 
+    // only used for riskpools so far
+    /* solhint-disable no-unused-vars */
+    function registerComponent(
+        bytes32 instanceId,
+        uint256 riskpoolId,
+        string memory uri
+    )
+    /* solhint-enable no-unused-vars */
+        external
+        override
+        returns(uint96 nftId)
+    {
+        _checkMintRiskpool(instanceId, riskpoolId);
+        emit LogMockComponentRegistered(nftId, _chainId, RISKPOOL, instanceId, riskpoolId, msg.sender);
+    }
+
+
     /* solhint-disable no-unused-vars */
     function registerBundle(
         bytes32 instanceId,
@@ -286,6 +305,10 @@ contract MockRegistryStaking is
 
     function getNftId(bytes5 chain, uint8 objectType, uint256 idx) external override view returns(uint96 nftId) {
         return _objects[chain][objectType][idx];
+    }
+
+    function getNftInfo(uint96 id) external override view returns(NftInfo memory info) {
+        // TODO implement something
     }
 
     function getInstanceNftId(bytes32 instanceId) external override view returns(uint96 id) {

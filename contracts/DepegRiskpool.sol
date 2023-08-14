@@ -322,12 +322,22 @@ contract DepegRiskpool is
 
         // update lifetime in registry (if registry is available and bundle is registered)
         if (address(_chainRegistry) != address(0) && _bundleNftId[bundleId] > 0) { 
-            uint96 nftId = _bundleNftId[bundleId];
+            uint96 nftId = getNftId(bundleId);
             _chainRegistry.extendBundleLifetime(nftId, lifetimeExtension);
         }
 
         // write log entry
         emit LogBundleExtended(bundleId, createdAt, lifetime, lifetimeExtended);
+    }
+
+
+    function getNftId(uint256 bundleId)
+        public
+        view 
+        returns(uint96 nftId)
+    {
+        nftId = _bundleNftId[bundleId];
+        return nftId > 0 ? nftId : _chainRegistry.getBundleNftId(_instanceService.getInstanceId(), bundleId);
     }
 
 
