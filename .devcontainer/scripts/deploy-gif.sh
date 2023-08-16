@@ -25,8 +25,8 @@ fi
 
 
 # deploy gif and save registry address
-echo "Deploying GIF contracts to ganache ..."
-brownie console --network=ganache <<EOF
+echo "Deploying GIF contracts to devchain ..."
+brownie console --network=devchain <<EOF
 from scripts.instance import GifInstance
 instance = GifInstance(accounts[0], accounts[1])
 f = open("/workspace/gif_instance_address.txt", "w")
