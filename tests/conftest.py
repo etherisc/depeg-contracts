@@ -186,7 +186,6 @@ def usdc_feeder(usd1, productOwner) -> UsdcPriceDataProvider:
 @pytest.fixture(scope="module")
 def gifDepegDeploy(
     instance: GifInstance,
-    messageHelper: DepegMessageHelper,
     productOwner: Account, 
     investor: Account, 
     usdc_feeder,
@@ -202,9 +201,6 @@ def gifDepegDeploy(
         usd2,
         riskpoolKeeper, 
         riskpoolWallet)
-
-    product = gpc.getProduct().getContract()
-    product.setMessageHelper(messageHelper, {'from': productOwner})
 
     return gpc
 

@@ -125,7 +125,8 @@ contract DepegProduct is
         address priceDataProvider,
         address token,
         address registry,
-        uint256 riskpoolId
+        uint256 riskpoolId,
+        address depegMessageHelper
     )
         Product(productName, token, POLICY_FLOW, riskpoolId, registry)
     {
@@ -141,13 +142,7 @@ contract DepegProduct is
 
         _riskpool = DepegRiskpool(poolAddress);
         _treasury = TreasuryModule(_instanceService.getTreasuryAddress());
-    }
 
-
-    function setMessageHelper(address depegMessageHelper)
-        external
-        onlyOwner
-    {
         _messageHelper = DepegMessageHelper(depegMessageHelper);
     }
 
