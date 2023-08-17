@@ -172,7 +172,7 @@ contract DepegProduct is
         external 
         returns(bytes32 processId)
     {
-        _messageHelper.processSignature(
+        _messageHelper.checkAndRegisterSignature (
             policyHolder,
             protectedWallet,
             protectedBalance,

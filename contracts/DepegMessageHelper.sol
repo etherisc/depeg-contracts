@@ -22,7 +22,7 @@ contract DepegMessageHelper is
         EIP712(EIP712_DOMAIN_NAME, EIP712_DOMAIN_VERSION)
     { }
 
-    function processSignature(
+    function checkAndRegisterSignature (
         address policyHolder,
         address protectedWallet,
         uint256 protectedBalance,
