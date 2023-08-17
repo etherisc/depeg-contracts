@@ -581,7 +581,8 @@ def test_product_20_depeg_normal(
     depeg_block_number = 1000
     depeg_block_number_comment = "block number for timsteamp xyz"
 
-    tx = product20.setDepeggedBlockNumber(
+    priceFeed = contract_from_address(UsdcPriceDataProvider, product20.getPriceDataProvider())
+    tx = priceFeed.setDepeggedBlockNumber(
         depeg_block_number,
         depeg_block_number_comment,
         {'from': productOwner})
@@ -720,7 +721,8 @@ def test_product_20_depeg_below_80(
     depeg_block_number = 1000
     depeg_block_number_comment = "block number for timsteamp xyz"
 
-    tx = product20.setDepeggedBlockNumber(
+    priceFeed = contract_from_address(UsdcPriceDataProvider, product20.getPriceDataProvider())
+    tx = priceFeed.setDepeggedBlockNumber(
         depeg_block_number,
         depeg_block_number_comment,
         {'from': productOwner})

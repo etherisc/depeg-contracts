@@ -35,34 +35,15 @@ interface IChainRegistryFacadeExt is
         uint48 version;
     }
 
-    function getNftId(bytes5 chain, uint8 objectType, uint256 idx) external view returns(uint96 nftId);
+
+    function registerComponent(
+        bytes32 instanceId,
+        uint256 componentId,
+        string memory uri
+    )
+        external
+        returns(uint96 id);
+
+
     function getNftInfo(uint96 id) external view returns(NftInfo memory);
-    function ownerOf(uint96 id) external view returns(address nftOwner);
-
-    function decodeComponentData(uint96 id)
-        external
-        view
-        returns(
-            bytes32 instanceId,
-            uint256 componentId,
-            address token);
-
-    function decodeBundleData(uint96 id)
-        external
-        view
-        returns(
-            bytes32 instanceId,
-            uint256 riskpoolId,
-            uint256 bundleId,
-            address token,
-            string memory displayName,
-            uint256 expiryAt);
-
-    function decodeStakeData(uint96 id)
-        external
-        view
-        returns(
-            uint96 target,
-            uint8 targetType);
-
 }

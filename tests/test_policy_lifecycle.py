@@ -340,21 +340,23 @@ def test_happy_path(
     assert product.getDepeggedBlockNumber() == 0
 
     # check that customer cannot set depegged block number
+    priceFeed = contract_from_address(UsdcPriceDataProvider, product.getPriceDataProvider())
+
     with brownie.reverts('Ownable: caller is not the owner'):
-        product.setDepeggedBlockNumber(
+        priceFeed.setDepeggedBlockNumber(
             depeg_block_number,
             depeg_block_number_comment,
             {'from': customer})
 
     # check product owner can set depeg block number
-    tx = product.setDepeggedBlockNumber(
+    tx = priceFeed.setDepeggedBlockNumber(
         depeg_block_number,
         depeg_block_number_comment,
         {'from': productOwner})
 
-    assert 'LogDepegBlockNumberSet' in tx.events
-    assert tx.events['LogDepegBlockNumberSet']['blockNumber'] == depeg_block_number
-    assert tx.events['LogDepegBlockNumberSet']['comment'] == depeg_block_number_comment
+    assert 'LogPriceDataBlockNumberSet' in tx.events
+    assert tx.events['LogPriceDataBlockNumberSet']['blockNumber'] == depeg_block_number
+    assert tx.events['LogPriceDataBlockNumberSet']['comment'] == depeg_block_number_comment
 
     assert product.getDepeggedBlockNumber() == depeg_block_number
 
@@ -923,7 +925,8 @@ def test_over_protected_with_single_policy(
     depeg_block_number = 1000
     depeg_block_number_comment = "block number for timsteamp xyz"
 
-    tx = product.setDepeggedBlockNumber(
+    priceFeed = contract_from_address(UsdcPriceDataProvider, product.getPriceDataProvider())
+    tx = priceFeed.setDepeggedBlockNumber(
         depeg_block_number,
         depeg_block_number_comment,
         {'from': productOwner})
@@ -1079,7 +1082,8 @@ def test_over_protected_with_multiple_policies(
     depeg_block_number = 1000
     depeg_block_number_comment = "block number for timsteamp xyz"
 
-    tx = product.setDepeggedBlockNumber(
+    priceFeed = contract_from_address(UsdcPriceDataProvider, product.getPriceDataProvider())
+    tx = priceFeed.setDepeggedBlockNumber(
         depeg_block_number,
         depeg_block_number_comment,
         {'from': productOwner})

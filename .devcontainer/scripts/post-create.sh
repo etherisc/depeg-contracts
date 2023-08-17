@@ -1,5 +1,5 @@
 #!/bin/bash
-brownie networks add Local ganache host=http://ganache:7545 chainid=1234
+brownie networks add Local devchain host=http://anvil:7545 chainid=1337
 
 .devcontainer/scripts/deploy-gif.sh 
 
@@ -14,8 +14,8 @@ if grep -q "usd1=" "/workspace/gif_instance_address.txt"; then
 fi
 
 # deploy USD1, USD2, USD3, DIP and save addresses
-echo "Deploying the USD contracts to ganache ..."
-brownie console --network=ganache <<EOF
+echo "Deploying the USD contracts to devchain ..."
+brownie console --network=devchain <<EOF
 from brownie import USD1, USD2, USD3, DIP
 usd1 = USD1.deploy({'from': accounts[0]})
 usd2 = USD2.deploy({'from': accounts[0]})

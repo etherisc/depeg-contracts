@@ -98,7 +98,7 @@ def help():
     print("usd2 = USD2.deploy({'from': accounts[0]})")
     print('a = stakeholders_accounts_ganache() # opt param new=True to create fresh unfunded accounts')
     print('check_funds(a, usd2)')
-    print('(customer, customer2, product, riskpool, riskpoolWallet, investor, bundleRegistry, staking, staker, dip, usd1, usd2, instanceService, instanceOperator, processId, d) = all_in_1(stakeholders_accounts=a, deploy_all=True)')
+    print('(customer, customer2, product, riskpool, riskpoolWallet, investor, chainRegistry, staking, staker, dip, usd1, usd2, instanceService, instanceOperator, processId, d) = all_in_1(stakeholders_accounts=a, deploy_all=True)')
     print('check_funds(a, usd2)')
     print('')
     print('# check mainnet setup')
@@ -1034,6 +1034,7 @@ def _add_product_to_deployment(
 def all_in_1(
     stakeholders_accounts=None,
     registry_address=None,
+    chain_registry_address=None,
     staking_address=None,
     price_provider_address=None,
     product_address=None,
@@ -1171,14 +1172,20 @@ def all_in_1(
         print('====== deploy registry/staking (if not provided) ======')
         from_owner = {'from':a[REGISTRY_OWNER]}
         
-        if staking_address is None or registry_address is None:
+        if staking_address is None:
             print('--- deploy MockRegistryStaking')
             mock = MockRegistryStaking.deploy(dip, usd2, from_owner)
             staking_address = mock.address
-            registry_address = mock.address
 
         staking = contract_from_address(interface.IStakingFacade, staking_address)
-        registry = contract_from_address(interface.IChainRegistryFacade, registry_address)
+        chain_registry = contract_from_address(interface.IChainRegistryFacadeExt, staking.getRegistry())
+
+        # setup staking for riskpool
+        riskpool.setStakingAddress(staking, {'from': riskpoolKeeper})
+
+        # register riskpool
+        riskpool_uri = None
+        chain_registry.registerComponent(instance_service.getInstanceId(), riskpool.getId(), riskpool_uri, from_owner)
 
         chain_id = staking.toChain(instance_service.getChainId())
         reward_rate = staking.rewardRate()/10**staking.rateDecimals()
@@ -1204,7 +1211,7 @@ def all_in_1(
         deployment[STAKER] = a[CUSTOMER1]
 
         if not disable_staking:
-            deployment[REGISTRY] = registry
+            deployment[REGISTRY] = chain_registry
             deployment[STAKING] = staking
 
         return (
@@ -1246,21 +1253,12 @@ def all_in_1(
         {'from': deployment[RISKPOOL_WALLET]})
 
     # link riskpool to staking
-    if not disable_staking:
-        riskpool.setStakingAddress(staking, {'from': a[RISKPOOL_KEEPER]})
-
-        bundle = instance_service.getBundle(bundle_id1).dict()
-        expiredAt = bundle['createdAt'] + bundleLifetimeDays  * 24 * 3600
-
-        if registry.getBundleNftId(instance_id, bundle_id1) == 0:
-            registry.registerBundle(instance_id, riskpool_id, bundle_id1, 'bundle-1', expiredAt, from_owner)
-
+    if not disable_staking and mock:
         print('--- fund staker with dips and stake to bundles ---')
         target_usd2 = 2 * initial_funding
         target_amount = target_usd2 * 10**usd2.decimals() / staking_rate
 
-        if mock:
-            mock.setStakedDip(mock.getBundleNftId(instance_id, bundle_id1), target_amount)
+        mock.setStakedDip(mock.getBundleNftId(instance_id, bundle_id1), target_amount)
 
     print('--- create policy ---')
     customer_funding=1000 * mult
@@ -1286,7 +1284,7 @@ def all_in_1(
     deployment[STAKER] = a[CUSTOMER1]
 
     if not disable_staking:
-        deployment[REGISTRY] = registry
+        deployment[REGISTRY] = chain_registry
         deployment[STAKING] = staking
 
     return (

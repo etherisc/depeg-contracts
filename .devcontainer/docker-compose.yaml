@@ -2,12 +2,12 @@ version: '3'
 
 
 services:
-  ganache:
+  anvil:
     build:
       context: ..
-      dockerfile: .devcontainer/Dockerfile.ganache
+      dockerfile: .devcontainer/Dockerfile.anvil
     volumes:
-      - ganache-db:/ganache
+      - anvil-state:/anvil
     # ports:
     #   - "7545:7545"
   brownie:
@@ -29,4 +29,4 @@ services:
     command: sleep infinity
 
 volumes:
-  ganache-db:
+  anvil-state:

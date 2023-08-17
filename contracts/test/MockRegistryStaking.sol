@@ -5,12 +5,13 @@ import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IER
 
 import {IChainNftFacade} from "../registry/IChainNftFacade.sol";
 import {IChainRegistryFacade} from "../registry/IChainRegistryFacade.sol";
+import {IChainRegistryFacadeExt} from "../registry/IChainRegistryFacadeExt.sol";
 import {IStakingFacade} from "../staking/IStakingFacade.sol";
 
 // solhint-disable-next-line max-states-count
 contract MockRegistryStaking is
     IChainNftFacade,
-    IChainRegistryFacade,
+    IChainRegistryFacadeExt,
     IStakingFacade
 {
 
@@ -35,14 +36,17 @@ contract MockRegistryStaking is
     int8 public constant EXP = 18;
     uint256 public constant MULTIPLIER = 10 ** uint256(int256(EXP));
 
+    event LogMockComponentRegistered(uint256 id, bytes5 chain, uint8 objectType, bytes32 instanceId, uint256 riskpoolId, address to);
     event LogMockBundleRegistered(uint256 id, bytes5 chain, uint8 objectType, bytes32 instanceId, uint256 riskpoolId, uint256 bundleId, address to);
-
+    event LogMockBundleLifetimeExtended(uint96 nftId, uint256 lifetimeExtension, address sender);
 
     // keep track of chain and object specific minted counts, and items
-    mapping(bytes5 /* chain id*/ => mapping(uint8 /* object type */ => uint256 /* count*/)) private _objects;
+    mapping(bytes5 /* chain id*/ => mapping(uint8 /* object type */ => uint96 [] /* nft ids*/)) private _objects;
     mapping(bytes32 /* instance id*/  => uint96 /* nft id*/) private _instance;
     mapping(bytes32 /* instance id*/  => mapping(uint256 /* component id */ => uint96 /* nft id*/)) private _component;
     mapping(bytes32 /* instance id*/  => mapping(uint256 /* bundle id */ => uint96 /* nft id*/)) private _bundle;
+
+    mapping(uint96 /* bundle nft */ => bytes /* bundle data */) private _bundleData;  
 
     // keep track of minted nft and stakes per nft
     mapping(uint256 /* nft id*/ => bool) private _isMinted;
@@ -199,6 +203,23 @@ contract MockRegistryStaking is
     }
 
 
+    // only used for riskpools so far
+    /* solhint-disable no-unused-vars */
+    function registerComponent(
+        bytes32 instanceId,
+        uint256 riskpoolId,
+        string memory uri
+    )
+    /* solhint-enable no-unused-vars */
+        external
+        override
+        returns(uint96 nftId)
+    {
+        _checkMintRiskpool(instanceId, riskpoolId);
+        emit LogMockComponentRegistered(nftId, _chainId, RISKPOOL, instanceId, riskpoolId, msg.sender);
+    }
+
+
     /* solhint-disable no-unused-vars */
     function registerBundle(
         bytes32 instanceId,
@@ -213,12 +234,81 @@ contract MockRegistryStaking is
         returns(uint96 nftId)
     {
         nftId = _checkMintBundle(instanceId, riskpoolId);
+        _bundleData[nftId] = encodeBundleData(
+            instanceId,
+            riskpoolId,
+            bundleId,
+            address(_usdt),
+            displayName,
+            expiryAt
+        );
+
         emit LogMockBundleRegistered(nftId, _chainId, BUNDLE, instanceId, riskpoolId, bundleId, msg.sender);
     }
 
 
+    function encodeBundleData(
+        bytes32 instanceId,
+        uint256 riskpoolId,
+        uint256 bundleId,
+        address token,
+        string memory displayName,
+        uint256 expiryAt
+    )
+        public
+        pure
+        returns(bytes memory data)
+    {
+        return abi.encode(
+            instanceId,
+            riskpoolId,
+            bundleId,
+            token,
+            displayName,
+            expiryAt
+        );
+    }
+
+
+    function extendBundleLifetime(
+        uint96 nftId, 
+        uint256 lifetimeExtension
+    )
+        external
+        override
+    {
+        (
+            bytes32 instanceId,
+            uint256 riskpoolId,
+            uint256 bundleId,
+            address token,
+            string memory displayName,
+            uint256 expiryAt
+        )  = decodeBundleData(nftId);
+
+        _bundleData[nftId] = encodeBundleData(
+            instanceId,
+            riskpoolId,
+            bundleId,
+            token,
+            displayName,
+            expiryAt + lifetimeExtension
+        );
+
+        emit LogMockBundleLifetimeExtended(nftId, lifetimeExtension, msg.sender);
+    }
+
+
     function objects(bytes5 chain, uint8 objectType) external override view returns(uint256 numberOfObjects) {
-        return _objects[chain][objectType];
+        return _objects[chain][objectType].length;
+    }
+
+    function getNftId(bytes5 chain, uint8 objectType, uint256 idx) external override view returns(uint96 nftId) {
+        return _objects[chain][objectType][idx];
+    }
+
+    function getNftInfo(uint96 id) external override view returns(NftInfo memory info) {
+        // TODO implement something
     }
 
     function getInstanceNftId(bytes32 instanceId) external override view returns(uint96 id) {
@@ -263,7 +353,61 @@ contract MockRegistryStaking is
         return _isMinted[tokenId];
     }
 
+    // solhint-disable-next-line no-unused-vars
+    function ownerOf(uint96 id) external override view returns(address nftOwner) {
+        return address(this);
+    }
 
+
+    function decodeComponentData(uint96 id)
+        external
+        override
+        view
+        returns(
+            bytes32 instanceId,
+            uint256 componentId,
+            address token)
+    {
+
+    }
+
+
+    function decodeBundleData(uint96 id)
+        public
+        override
+        view
+        returns(
+            bytes32 instanceId,
+            uint256 riskpoolId,
+            uint256 bundleId,
+            address token,
+            string memory displayName,
+            uint256 expiryAt)
+    {
+        bytes memory data = _bundleData[id];
+        (
+            instanceId,
+            riskpoolId,
+            bundleId,
+            token,
+            displayName,
+            expiryAt
+        ) = abi.decode(
+            data, 
+            (bytes32,uint256,uint256,address,string,uint256));
+    }
+
+
+    function decodeStakeData(uint96 id)
+        external
+        override
+        view
+        returns(
+            uint96 target,
+            uint8 targetType)
+    {
+
+    }
 
 
     //--- internal functions ------------------------------------------------------//
@@ -305,7 +449,7 @@ contract MockRegistryStaking is
 
     function _mintObject(uint8 objectType) internal returns(uint96 nftId) {
         nftId = uint96(mint(address(this), ""));
-        _objects[_chainId][objectType] += 1;
+        _objects[_chainId][objectType].push(nftId);
     }
 
 

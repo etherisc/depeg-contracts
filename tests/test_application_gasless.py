@@ -49,7 +49,7 @@ class Policy(EIP712Struct):
     signatureId = Bytes(32)
 
 
-def create_policy_signature(wallet, protectedBalance, duration, bundleId, signatureId, product, policy_holder):
+def create_policy_signature(wallet, protectedBalance, duration, bundleId, signatureId, contractAddress, policy_holder):
     # prepare messsage
     message = Policy()
     message['wallet'] = wallet.address
@@ -62,7 +62,7 @@ def create_policy_signature(wallet, protectedBalance, duration, bundleId, signat
         name='EtheriscDepeg',
         version='1',
         chainId=web3.chain_id,
-        verifyingContract=product.address)
+        verifyingContract=contractAddress)
 
     signable_bytes = message.signable_bytes(depeg_domain)
 
@@ -78,7 +78,7 @@ def create_policy_signature(wallet, protectedBalance, duration, bundleId, signat
     return signature
 
 
-def test_signature_and_signer(product, customer, customer2, protectedWallet):
+def test_signature_and_signer(messageHelper, customer, customer2, protectedWallet):
 
     # prepare application parameters
     protectedBalance = 20000 * 10**6
@@ -86,9 +86,9 @@ def test_signature_and_signer(product, customer, customer2, protectedWallet):
     bundleId = 4
     signatureId = s2b('some-unique-signature')
 
-    signature = create_policy_signature(protectedWallet, protectedBalance, duration, bundleId, signatureId, product, customer)
+    signature = create_policy_signature(protectedWallet, protectedBalance, duration, bundleId, signatureId, messageHelper.address, customer)
 
-    signer_from_signature = product.getSignerFromDigestAndSignature(
+    signer_from_signature = messageHelper.getSignerFromDigestAndSignature(
         protectedWallet,
         protectedBalance,
         duration,
@@ -99,16 +99,16 @@ def test_signature_and_signer(product, customer, customer2, protectedWallet):
     assert signer_from_signature == customer
 
     # same assertion rerwitten
-    assert customer == product.getSignerFromDigestAndSignature(protectedWallet, protectedBalance, duration, bundleId, signatureId, signature)
+    assert customer == messageHelper.getSignerFromDigestAndSignature(protectedWallet, protectedBalance, duration, bundleId, signatureId, signature)
 
     # failure cases
-    assert customer != product.getSignerFromDigestAndSignature(customer, protectedBalance, duration, bundleId, signatureId, signature)
-    assert customer != product.getSignerFromDigestAndSignature(protectedWallet, protectedBalance+1, duration, bundleId, signatureId, signature)
-    assert customer != product.getSignerFromDigestAndSignature(protectedWallet, protectedBalance, duration+1, bundleId, signatureId, signature)
-    assert customer != product.getSignerFromDigestAndSignature(protectedWallet, protectedBalance, duration, bundleId+1, signatureId, signature)
+    assert customer != messageHelper.getSignerFromDigestAndSignature(customer, protectedBalance, duration, bundleId, signatureId, signature)
+    assert customer != messageHelper.getSignerFromDigestAndSignature(protectedWallet, protectedBalance+1, duration, bundleId, signatureId, signature)
+    assert customer != messageHelper.getSignerFromDigestAndSignature(protectedWallet, protectedBalance, duration+1, bundleId, signatureId, signature)
+    assert customer != messageHelper.getSignerFromDigestAndSignature(protectedWallet, protectedBalance, duration, bundleId+1, signatureId, signature)
 
     signatureId_wrong = s2b('some-other-signature')
-    assert customer != product.getSignerFromDigestAndSignature(protectedWallet, protectedBalance, duration, bundleId, signatureId_wrong, signature)
+    assert customer != messageHelper.getSignerFromDigestAndSignature(protectedWallet, protectedBalance, duration, bundleId, signatureId_wrong, signature)
 
 
 def test_apply_for_policy(product, customer, customer2, protectedWallet):
@@ -118,34 +118,34 @@ def test_apply_for_policy(product, customer, customer2, protectedWallet):
     duration = 30 * 24 * 3600
     bundleId = 4
     signatureId = s2b('some-unique-signature')
-    signature = create_policy_signature(protectedWallet, protectedBalance, duration, bundleId, signatureId, product, customer)
+    signature = create_policy_signature(protectedWallet, protectedBalance, duration, bundleId, signatureId, product.getMessageHelperAddress(), customer)
 
     # "happy" case (reverts in bundle controller well past signature checks)
     with brownie.reverts('ERROR:BUC-060:BUNDLE_DOES_NOT_EXIST'):
         product.applyForPolicyWithBundleAndSignature(customer, protectedWallet, protectedBalance, duration, bundleId, signatureId, signature, {'from': customer})
 
     # attempt to use different policy holder (customer2 instead of customer)
-    with brownie.reverts("ERROR:DP-006:SIGNATURE_INVALID"):
+    with brownie.reverts("ERROR:DMH-002:SIGNATURE_INVALID"):
         product.applyForPolicyWithBundleAndSignature(customer2, protectedWallet, protectedBalance, duration, bundleId, signatureId, signature, {'from': customer})
 
     # attempt to use different wallet address (customer2 instead of wallet)
-    with brownie.reverts("ERROR:DP-006:SIGNATURE_INVALID"):
+    with brownie.reverts("ERROR:DMH-002:SIGNATURE_INVALID"):
         product.applyForPolicyWithBundleAndSignature(customer, customer2, protectedBalance, duration, bundleId, signatureId, signature, {'from': customer})
 
     # attempt to use different protected balance
-    with brownie.reverts("ERROR:DP-006:SIGNATURE_INVALID"):
+    with brownie.reverts("ERROR:DMH-002:SIGNATURE_INVALID"):
         product.applyForPolicyWithBundleAndSignature(customer, protectedWallet, 2 * protectedBalance, duration, bundleId, signatureId, signature, {'from': customer})
 
     # attempt to use different duration
-    with brownie.reverts("ERROR:DP-006:SIGNATURE_INVALID"):
+    with brownie.reverts("ERROR:DMH-002:SIGNATURE_INVALID"):
         product.applyForPolicyWithBundleAndSignature(customer, protectedWallet, protectedBalance, 2 * duration, bundleId, signatureId, signature, {'from': customer})
 
     # attempt to use different bundle id
-    with brownie.reverts("ERROR:DP-006:SIGNATURE_INVALID"):
+    with brownie.reverts("ERROR:DMH-002:SIGNATURE_INVALID"):
         product.applyForPolicyWithBundleAndSignature(customer, protectedWallet, protectedBalance, duration, bundleId - 1, signatureId, signature, {'from': customer})
 
     # attempt to use different bundle id
-    with brownie.reverts("ERROR:DP-006:SIGNATURE_INVALID"):
+    with brownie.reverts("ERROR:DMH-002:SIGNATURE_INVALID"):
         product.applyForPolicyWithBundleAndSignature(customer, protectedWallet, protectedBalance, duration, bundleId, s2b('bad'), signature, {'from': customer})
 
     # attempt to use changed signature
@@ -153,8 +153,8 @@ def test_apply_for_policy(product, customer, customer2, protectedWallet):
         product.applyForPolicyWithBundleAndSignature(customer, protectedWallet, protectedBalance, duration, bundleId, signatureId, signature[:-4] + '0000', {'from': customer})
 
     # attempt to use shortened signature
-    with brownie.reverts("ECDSA: invalid signature 's' value"):
-        product.applyForPolicyWithBundleAndSignature(customer, protectedWallet, protectedBalance, duration, bundleId, signatureId, signature[:-1], {'from': customer})
+    with brownie.reverts("ECDSA: invalid signature length"):
+        product.applyForPolicyWithBundleAndSignature(customer, protectedWallet, protectedBalance, duration, bundleId, signatureId, signature[:-2], {'from': customer})
 
 
 def test_create_policy(
@@ -184,7 +184,8 @@ def test_create_policy(
     protectedBalance = 2000 * 10**6
     duration = 30 * 24 * 3600
     signatureId = s2b('some-unique-signature')
-    signature = create_policy_signature(protectedWallet, protectedBalance, duration, bundleId, signatureId, product, customer)
+    # signature = create_policy_signature(protectedWallet, protectedBalance, duration, bundleId, signatureId, product, customer)
+    signature = create_policy_signature(protectedWallet, protectedBalance, duration, bundleId, signatureId, product.getMessageHelperAddress(), customer)
 
     # transfer some tokens to pay for premium
     premiumFunds = protectedBalance / 10

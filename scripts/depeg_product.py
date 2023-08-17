@@ -10,6 +10,7 @@ from brownie import (
     Contract, 
     DepegProduct,
     DepegRiskpool,
+    DepegMessageHelper
 )
 
 from scripts.util import (
@@ -200,13 +201,20 @@ class GifDepegProduct(object):
 
         print('2) deploy product by product owner {}'.format(
             productOwner))
+
+        print('  a) deploy message helper')
+        messageHelper = DepegMessageHelper.deploy(
+            {'from': productOwner},
+            publish_source=publishSource)            
         
+        print('  a) deploy product')
         self.product = DepegProduct.deploy(
             s2b(name),
             priceDataProvider.address,
             erc20Token.address,
             registry,
             riskpool.getId(),
+            messageHelper,
             {'from': productOwner},
             publish_source=publishSource)
 

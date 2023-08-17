@@ -41,6 +41,7 @@ contract DepegRiskpool is
     event LogAllowAllAccountsSet(bool allowAllAccounts);
     event LogAllowAccountSet(address account, bool allowAccount);
 
+    event LogBundleExtended(uint256 bundleId, uint256 createdAt, uint256 lifetime, uint256 lifetimeExtended);
     event LogBundleExpired(uint256 bundleId, uint256 createdAt, uint256 lifetime);
     event LogBundleMismatch(uint256 bundleId, uint256 bundleIdRequested);
     event LogBundleMatchesApplication(uint256 bundleId, bool sumInsuredOk, bool durationOk, bool premiumOk);
@@ -61,7 +62,11 @@ contract DepegRiskpool is
     uint256 public constant APR_100_PERCENTAGE = 10**6;
     uint256 public constant MAX_APR = APR_100_PERCENTAGE / 5;
 
-    mapping(string /* bundle name */ => uint256 /* bundle id */) _bundleIdForBundleName;
+    uint256 public constant EXTENSION_INTERVAL = 31 * 24 * 3600; // allowed interval to extend at end of lifetime
+
+    mapping(uint256 /* bundle id */ => uint96 /* nft id for bundle */) private _bundleNftId;
+    mapping(uint256 /* bundle id */ => uint256 /* lifetime extension */) private _bundleLifetimeExtension;
+    mapping(string /* bundle name */ => uint256 /* bundle id */) private _bundleIdForBundleName;
 
     IChainRegistryFacade private _chainRegistry;
     IStakingFacade private _staking;
@@ -288,6 +293,76 @@ contract DepegRiskpool is
     }
 
 
+    function extendBundleLifetime(
+        uint256 bundleId,
+        uint256 lifetimeExtension
+    )
+        external
+        onlyBundleOwner(bundleId)
+    {
+        require(
+            lifetimeExtension >= MIN_BUNDLE_LIFETIME
+            && lifetimeExtension <= MAX_BUNDLE_LIFETIME, 
+            "ERROR:DRP-030:LIFETIME_EXTENSION_INVALID");
+
+        (
+            IBundle.BundleState state,
+            uint256 createdAt,
+            uint256 lifetime,
+            uint256 extendedLifetime,
+            bool isExpired
+        ) = getBundleLifetimeData(bundleId);
+
+        require(state == IBundle.BundleState.Active, "ERROR:DRP-031:BUNDLE_NOT_ACTIVE");
+        require(!isExpired, "ERROR:DRP-032:BUNDLE_EXPIRED");
+        require(block.timestamp > createdAt + extendedLifetime - EXTENSION_INTERVAL, "ERROR:DRP-033:TOO_EARLY");
+
+        _bundleLifetimeExtension[bundleId] += lifetimeExtension;
+        uint256 lifetimeExtended = lifetime + _bundleLifetimeExtension[bundleId];
+
+        // update lifetime in registry (if registry is available and bundle is registered)
+        if (address(_chainRegistry) != address(0) && _bundleNftId[bundleId] > 0) { 
+            uint96 nftId = getNftId(bundleId);
+            _chainRegistry.extendBundleLifetime(nftId, lifetimeExtension);
+        }
+
+        // write log entry
+        emit LogBundleExtended(bundleId, createdAt, lifetime, lifetimeExtended);
+    }
+
+
+    function getNftId(uint256 bundleId)
+        public
+        view 
+        returns(uint96 nftId)
+    {
+        nftId = _bundleNftId[bundleId];
+        return nftId > 0 ? nftId : _chainRegistry.getBundleNftId(_instanceService.getInstanceId(), bundleId);
+    }
+
+
+    function getBundleLifetimeData(uint256 bundleId)
+        public
+        view
+        returns(
+            IBundle.BundleState state,
+            uint256 createdAt,
+            uint256 lifetime,
+            uint256 extendedLifetime,
+            bool isExpired
+        )
+    {
+        IBundle.Bundle memory bundle = _instanceService.getBundle(bundleId);
+        (, lifetime,,,,,) = decodeBundleParamsFromFilter(bundle.filter);
+        uint256 lifetimeExtension = _bundleLifetimeExtension[bundleId];
+
+        state = bundle.state;
+        createdAt = bundle.createdAt;
+        extendedLifetime = lifetime + lifetimeExtension;
+        isExpired = block.timestamp > bundle.createdAt + lifetime + lifetimeExtension;
+    }
+
+
     function getSumInsuredPercentage()
         external
         view
@@ -346,7 +421,9 @@ contract DepegRiskpool is
     {
         bytes32 instanceId = _instanceService.getInstanceId();
         uint256 expiration = bundle.createdAt + lifetime;
-        _chainRegistry.registerBundle(
+
+        // register bundle and keep track of nft id
+        _bundleNftId[bundle.id] = _chainRegistry.registerBundle(
             instanceId,
             bundle.riskpoolId,
             bundle.id,
@@ -375,6 +452,7 @@ contract DepegRiskpool is
 
         address tokenOwner = token.burned(bundle.tokenId) ? address(0) : token.ownerOf(bundle.tokenId);
         uint256 capitalSupportedByStaking = getSupportedCapitalAmount(bundleId);
+        uint256 extendedLifetime = lifetime + _bundleLifetimeExtension[bundleId];
 
         info = BundleInfo(
             bundleId,
@@ -382,7 +460,7 @@ contract DepegRiskpool is
             bundle.state,
             bundle.tokenId,
             tokenOwner,
-            lifetime,
+            extendedLifetime,
             minSumInsured,
             maxSumInsured,
             minDuration,
@@ -535,7 +613,8 @@ contract DepegRiskpool is
         ) = decodeBundleParamsFromFilter(bundle.filter);
 
         // enforce max bundle lifetime
-        if(block.timestamp > bundle.createdAt + lifetime) {
+        uint256 extendedLifetime = lifetime + _bundleLifetimeExtension[bundle.id];
+        if(block.timestamp > bundle.createdAt + extendedLifetime) {
             // TODO this expired bundle bundle should be removed from active bundles
             // ideally this is done in the core, at least should be done
             // in basicriskpool template
@@ -543,7 +622,7 @@ contract DepegRiskpool is
             // - lockBundle does not work as riskpool is not owner of bundle
             // - remove from active list would modify list that is iterateed over right now...
 
-            emit LogBundleExpired(bundle.id, bundle.createdAt, lifetime);
+            emit LogBundleExpired(bundle.id, bundle.createdAt, extendedLifetime);
             return false;
         }
 
@@ -618,10 +697,7 @@ contract DepegRiskpool is
         }
 
         // otherwise: get amount supported by staking
-        uint96 bundleNftId = _chainRegistry.getBundleNftId(
-            _instanceService.getInstanceId(),
-            bundleId);
-
+        uint96 bundleNftId = _bundleNftId[bundleId];
         return _staking.capitalSupport(bundleNftId);
     }
 
@@ -676,18 +752,8 @@ contract DepegRiskpool is
     }
 
 
-    function _getBundleApr(uint256 bundleId) internal view returns (uint256 apr) {
+    function _getBundleApr(uint256 bundleId) internal view returns (uint256 annualPercentageReturn) {
         bytes memory filter = getBundleFilter(bundleId);
-        (
-            string memory name,
-            uint256 lifetime,
-            uint256 minSumInsured,
-            uint256 maxSumInsured,
-            uint256 minDuration,
-            uint256 maxDuration,
-            uint256 annualPercentageReturn
-        ) = decodeBundleParamsFromFilter(filter);
-
-        apr = annualPercentageReturn;
+        (,,,,,, annualPercentageReturn) = decodeBundleParamsFromFilter(filter);
     }
 }
