@@ -760,7 +760,7 @@ contract DepegProduct is
 
         // check if we need to move away from active state
         if(_state == DepegState.Active) {
-            // may only happens if processLatestPriceInfo is not called frequently enough
+            // can only happen if processLatestPriceInfo is not called frequently enough
             // normally, product state first moves from active to paused and only later moves to depegged
             if(_priceDataProvider.getDepeggedAt() > 0) {
                 _state = DepegState.Depegged;
