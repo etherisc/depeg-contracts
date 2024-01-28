@@ -43,8 +43,10 @@ from scripts.setup import (
 def isolation(fn_isolation):
     pass
 
+COMMISSION_RATE_DEFAULT = 0.05
+COMMISSION_TOLERANCE = 10 ** -9
 
-def test_deploy_distributor(
+def test_deploy_distribution(
     product20,
     riskpool20,
     productOwner,
@@ -53,11 +55,13 @@ def test_deploy_distributor(
     usd1: USD1,
     usd2: USD2,
 ):
-    distribution = _deploy_distribution(product20, riskpool20, productOwner)
+    distribution = _deploy_distribution(product20, productOwner)
 
     assert distribution.owner() == productOwner
     assert distribution.getToken() == product20.getToken()
     assert distribution.getToken() == usd2
+
+    assert distribution.COMMISSION_RATE_DEFAULT() / 10**distribution.DECIMALS() == COMMISSION_RATE_DEFAULT
 
     assert distribution.distributors() == 0
     assert not distribution.isDistributor(distributor)
@@ -68,12 +72,58 @@ def test_deploy_distributor(
     assert not distribution.isDistributor(theOutsider)
 
 
+def test_create_distributor_happy_case(
+    product20,
+    riskpool20,
+    productOwner,
+    distributor,
+    theOutsider,
+    usd1: USD1,
+    usd2: USD2,
+):
+    distribution = _deploy_distribution(product20, productOwner)
+    distribution.createDistributor(distributor, {'from': productOwner})
+
+    assert distribution.distributors() == 1
+    assert distribution.isDistributor(distributor)
+    assert distribution.getCommissionRate(distributor) > 0
+    assert distribution.getCommissionRate(distributor) == distribution.COMMISSION_RATE_DEFAULT()
+    assert distribution.getCommissionBalance(distributor) == 0
+    assert distribution.getPoliciesSold(distributor) == 0
+
+    net_premium_100 = 100 * 10 ** usd2.decimals()
+    commission = distribution.calculateCommission(distributor, net_premium_100)
+    full_premium = net_premium_100 + commission
+
+    commission_rate = distribution.getCommissionRate(distributor)
+    assert commission == full_premium * commission_rate / 10 ** distribution.DECIMALS()
+
+    assert not distribution.isDistributor(theOutsider)
+
+
+def test_create_distributor_authz(
+    product20,
+    riskpool20,
+    productOwner,
+    distributor,
+    theOutsider,
+    usd1: USD1,
+    usd2: USD2,
+):
+    distribution = _deploy_distribution(product20, productOwner)
+
+    # attempt to self create distributor
+    with brownie.reverts('Ownable: caller is not the owner'):
+        distribution.createDistributor(distributor, {'from': distributor})
+
+
 def test_sell_policy_trough_distributor(
     instance,
     instanceService,
     instanceOperator,
     instanceWallet,
     productOwner,
+    distributor,
     investor,
     customer,
     protectedWallet,
@@ -83,6 +133,9 @@ def test_sell_policy_trough_distributor(
     usd1: USD1,
     usd2: USD2,
 ):
+    distribution = _deploy_distribution(product20, productOwner)
+    distribution.createDistributor(distributor, {'from': productOwner})
+
     tf = 10**usd2.decimals()
     max_protected_balance = 10000
     bundle_funding = (max_protected_balance * 2) / 5
@@ -95,25 +148,61 @@ def test_sell_policy_trough_distributor(
         funding = bundle_funding)
 
     # setup up wallet to protect with some coins
-    protected_balance = 5000
-    usd1.transfer(protectedWallet, protected_balance * tf, {'from': instanceOperator})
+    protected_balance = 5000 * tf
+    usd1.transfer(protectedWallet, protected_balance, {'from': instanceOperator})
 
     # buy policy for wallet to be protected
     duration_days = 60
     max_premium = 100
+    duration_seconds = duration_days * 24 * 3600
 
-    process_id = apply_for_policy_with_bundle(
-        instance,
-        instanceOperator,
-        product20,
+    (
+        total_premium,
+        commission
+    ) = distribution.calculatePrice(
+        distributor,
+        protected_balance,
+        duration_seconds,
+        bundle_id
+    )
+
+    # fund customer
+    usd2.transfer(customer, total_premium, {'from': instanceOperator})
+    usd2.approve(distribution, total_premium, {'from': customer})
+
+    assert usd2.balanceOf(customer) == total_premium
+    assert usd2.balanceOf(distribution) == 0
+
+    # check distributor book keeping (before policy sale)
+    assert distribution.getCommissionBalance(distributor) == 0
+    assert distribution.getPoliciesSold(distributor) == 0
+
+    tx = distribution.createPolicy(
         customer,
-        bundle_id,
         protectedWallet,
         protected_balance,
-        duration_days,
-        max_premium)
+        duration_seconds,
+        bundle_id,
+        {'from': distributor})
 
-    protected_amount = protected_balance * tf
+    process_id = tx.events['LogApplicationCreated']['processId']
+
+    assert usd2.balanceOf(customer) == 0
+    assert usd2.balanceOf(distribution) == commission
+
+    # check owner of policy is distribution contract
+    # customer from above is only used to pull premium
+    meta_data = instanceService.getMetadata(process_id).dict()
+    assert meta_data['owner'] != customer
+    assert meta_data['owner'] == distribution
+
+    # check distributor book keeping (after policy sale)
+    assert distribution.getCommissionBalance(distributor) == commission
+    assert distribution.getPoliciesSold(distributor) == 1
+
+    # check that all other policy properties match the direct sale setup
+    # see test_product_20.py::test_product_20_create_policy
+    protected_amount = protected_balance
     sum_insured_amount = protected_amount / 5
     net_premium_amount = product20.calculateNetPremium(sum_insured_amount, duration_days * 24 * 3600, bundle_id)
     premium_amount = product20.calculatePremium(net_premium_amount)
@@ -129,7 +218,7 @@ def test_sell_policy_trough_distributor(
     application = instanceService.getApplication(process_id).dict()
     application_data = riskpool20.decodeApplicationParameterFromData(application['data']).dict()
 
-    assert application['sumInsuredAmount'] == riskpool20.calculateSumInsured(protected_balance * tf)
+    assert application['sumInsuredAmount'] == riskpool20.calculateSumInsured(protected_amount)
     assert application['sumInsuredAmount'] == sum_insured_amount
     assert application_data['protectedBalance'] == protected_amount
 
@@ -160,11 +249,9 @@ def test_sell_policy_trough_distributor(
 
 def _deploy_distribution(
     product,
-    riskpool,
     productOwner,
 ):
     return DepegDistribution.deploy(
         product,
-        riskpool,
         product.getId(),
         {'from': productOwner})

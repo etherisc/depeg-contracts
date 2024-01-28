@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.2;
 
+import "@etherisc/gif-interface/contracts/modules/IRegistry.sol";
+import "@etherisc/gif-interface/contracts/services/IInstanceService.sol";
+
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {DepegProduct} from "../DepegProduct.sol";
-import {DepegRiskpool} from "../DepegRiskpool.sol";
+import {DepegProduct} from "./DepegProduct.sol";
+import {DepegRiskpool} from "./DepegRiskpool.sol";
 
 contract DepegDistribution is
     Ownable
@@ -26,6 +29,8 @@ contract DepegDistribution is
     DepegProduct private _depegProduct;
     DepegRiskpool private _depegRiskpool;
     IERC20Metadata private _token;
+    address private _treasury;
+
     mapping(address => DistributorInfo) private _distributor;
     address [] private _distributors;
 
@@ -40,7 +45,6 @@ contract DepegDistribution is
 
     constructor(
         address depegProduct,
-        address depegRiskpool,
         uint256 productId
     )
         Ownable()
@@ -48,10 +52,15 @@ contract DepegDistribution is
         _depegProduct = DepegProduct(depegProduct);
         require(_depegProduct.getId() == productId, "ERROR:DST-010:PRODUCT_ID_MISMATCH");
 
-        _depegRiskpool = DepegRiskpool(depegRiskpool);
-        require(_depegProduct.getRiskpoolId() == _depegRiskpool.getId(), "ERROR:DST-011:RISKPOOL_ID_MISMATCH");
+        IRegistry registry = IRegistry(_depegProduct.getRegistry());
+        IInstanceService instanceService = IInstanceService(registry.getContract("InstanceService"));
+
+        _depegRiskpool = DepegRiskpool(
+            address(instanceService.getComponent(
+                _depegProduct.getRiskpoolId())));
 
         _token = IERC20Metadata(_depegProduct.getToken());
+        _treasury = instanceService.getTreasuryAddress();
     }
 
     function createDistributor(address distributor)
@@ -89,11 +98,17 @@ contract DepegDistribution is
         returns(bytes32 processId)
     {
         // collect premium and commission from buyer to this contract
-        (uint256 premiumTotalAmount,) = _collectTokenAndUpdateCommission(
+        (
+            uint256 premiumTotalAmount,
+            uint256 premiumNetAmount,
+        ) = _collectTokenAndUpdateCommission(
             buyer, 
             protectedBalance, 
             duration, 
             bundleId);
+
+        // create allowance for net premium
+        _token.approve(_treasury, premiumNetAmount);
 
         // create policy
         // this will transfer premium amount from this contract to depeg (and keep the commission in this contract)
@@ -115,16 +130,19 @@ contract DepegDistribution is
         internal
         returns (
             uint256 premiumTotalAmount,
+            uint256 premiumNetAmount,
             uint256 commissionAmount
         )
     {
         address distributor = msg.sender;
 
-        // calculate premium and commission amount
+        // calculate amounts
         (
             premiumTotalAmount,
             commissionAmount
         ) = calculatePrice(distributor, protectedBalance, duration, bundleId);
+
+        premiumNetAmount = premiumTotalAmount - commissionAmount;
 
         // update distributor book keeping record
         DistributorInfo storage info = _distributor[distributor];
