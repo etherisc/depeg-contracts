@@ -247,6 +247,303 @@ def test_sell_policy_trough_distributor(
     assert usd2.balanceOf(riskpoolWallet) == riskpool20.getBalance()
 
 
+def test_withdrawal_distributor_happy_case(
+    instance,
+    instanceService,
+    instanceOperator,
+    instanceWallet,
+    productOwner,
+    distributor,
+    investor,
+    customer,
+    protectedWallet,
+    product20,
+    riskpool20,
+    riskpoolWallet,
+    usd1: USD1,
+    usd2: USD2,
+):
+    (
+        distribution,
+        commission
+    ) = _createCommisssionSetup(
+        instance,
+        instanceService,
+        instanceOperator,
+        instanceWallet,
+        productOwner,
+        distributor,
+        investor,
+        customer,
+        protectedWallet,
+        product20,
+        riskpool20,
+        riskpoolWallet,
+        usd1,
+        usd2
+    )
+
+    assert usd2.balanceOf(distributor) == 0
+    assert usd2.balanceOf(distribution) == commission
+
+    withdrawal_amount = 100000
+    remaining_commission = commission - withdrawal_amount
+    tx = distribution.withdrawCommission(withdrawal_amount, {'from': distributor})
+
+    # check updated book keeping
+    assert distribution.getCommissionBalance(distributor) == remaining_commission
+
+    # check actual token balances
+    assert usd2.balanceOf(distributor) == withdrawal_amount
+    assert usd2.balanceOf(distribution) == remaining_commission
+
+
+def test_withdrawal_distributor_amount_too_big(
+    instance,
+    instanceService,
+    instanceOperator,
+    instanceWallet,
+    productOwner,
+    distributor,
+    investor,
+    customer,
+    protectedWallet,
+    product20,
+    riskpool20,
+    riskpoolWallet,
+    usd1: USD1,
+    usd2: USD2,
+):
+    (
+        distribution,
+        commission
+    ) = _createCommisssionSetup(
+        instance,
+        instanceService,
+        instanceOperator,
+        instanceWallet,
+        productOwner,
+        distributor,
+        investor,
+        customer,
+        protectedWallet,
+        product20,
+        riskpool20,
+        riskpoolWallet,
+        usd1,
+        usd2
+    )
+
+    assert usd2.balanceOf(distributor) == 0
+    assert usd2.balanceOf(distribution) == commission
+
+    # amount larger than accumulated commission
+    with brownie.reverts("ERROR:DST-050:AMOUNT_TOO_LARGE"):
+        distribution.withdrawCommission(commission + 1, {'from': distributor})
+
+    # reduce commission balance of distribution contract
+    distribution.withdraw(commission - 1000, {'from': productOwner})
+
+    # amount smaller accumulated commission
+    with brownie.reverts("ERROR:DST-051:BALANCE_INSUFFICIENT"):
+        distribution.withdrawCommission(commission - 1, {'from': distributor})
+
+
+def test_withdrawal_not_distributor(
+    instance,
+    instanceService,
+    instanceOperator,
+    instanceWallet,
+    productOwner,
+    distributor,
+    investor,
+    customer,
+    theOutsider,
+    protectedWallet,
+    product20,
+    riskpool20,
+    riskpoolWallet,
+    usd1: USD1,
+    usd2: USD2,
+):
+    (
+        distribution,
+        commission
+    ) = _createCommisssionSetup(
+        instance,
+        instanceService,
+        instanceOperator,
+        instanceWallet,
+        productOwner,
+        distributor,
+        investor,
+        customer,
+        protectedWallet,
+        product20,
+        riskpool20,
+        riskpoolWallet,
+        usd1,
+        usd2
+    )
+
+    assert usd2.balanceOf(distributor) == 0
+    assert usd2.balanceOf(distribution) == commission
+
+    with brownie.reverts("ERROR:DST-001:NOT_DISTRIBUTOR"):
+        distribution.withdrawCommission(commission + 1, {'from': productOwner})
+
+    with brownie.reverts("ERROR:DST-001:NOT_DISTRIBUTOR"):
+        distribution.withdrawCommission(commission + 1, {'from': theOutsider})
+
+    # now, make the outsider to distributor - but not the one that owns the one with the commission
+    distribution.createDistributor(theOutsider, {'from': productOwner})
+
+    # amount larger than accumulated commission
+    with brownie.reverts("ERROR:DST-050:AMOUNT_TOO_LARGE"):
+        distribution.withdrawCommission(commission + 1, {'from': theOutsider})
+
+
+def test_withdrawal_owner_happy_case(
+    productOwner,
+    instanceOperator,
+    product20,
+    usd2: USD2,
+):
+    distribution = _deploy_distribution(product20, productOwner)
+
+    some_amount = 1000 * 10 ** usd2.decimals()
+    usd2.transfer(distribution, some_amount, {'from': instanceOperator})
+
+    # check balances before withdrawal
+    assert usd2.balanceOf(distribution) == some_amount
+    assert usd2.balanceOf(productOwner) == 0
+
+    other_amount = 200 * 10 ** usd2.decimals()
+    distribution.withdraw(other_amount, {'from': productOwner})
+
+    # check balances after withdrawal
+    assert usd2.balanceOf(distribution) == some_amount - other_amount
+    assert usd2.balanceOf(productOwner) == other_amount
+
+
+def test_withdrawal_non_owner(
+    productOwner,
+    instanceOperator,
+    distributor,
+    theOutsider,
+    product20,
+    usd2: USD2,
+):
+    distribution = _deploy_distribution(product20, productOwner)
+    distribution.createDistributor(distributor, {'from': productOwner})
+
+    some_amount = 1000 * 10 ** usd2.decimals()
+    usd2.transfer(distribution, some_amount, {'from': instanceOperator})
+
+    # check balances before withdrawal
+    assert usd2.balanceOf(distribution) == some_amount
+    assert usd2.balanceOf(productOwner) == 0
+
+    other_amount = 200 * 10 ** usd2.decimals()
+
+    # attempt withdrawal by outsider
+    with brownie.reverts("Ownable: caller is not the owner"):
+        distribution.withdraw(other_amount, {'from': theOutsider})
+
+    # attempt withdrawal by distributor
+    with brownie.reverts("Ownable: caller is not the owner"):
+        distribution.withdraw(other_amount, {'from': distributor})
+
+
+def test_withdrawal_amount_too_big(
+    productOwner,
+    instanceOperator,
+    product20,
+    usd2: USD2,
+):
+    distribution = _deploy_distribution(product20, productOwner)
+
+    some_amount = 1000 * 10 ** usd2.decimals()
+    usd2.transfer(distribution, some_amount, {'from': instanceOperator})
+
+    # check balances before withdrawal
+    assert usd2.balanceOf(distribution) == some_amount
+    assert usd2.balanceOf(productOwner) == 0
+
+    # amount larger than balance
+    other_amount = some_amount + 1
+
+    # attempt withdrawal by too large amount
+    with brownie.reverts("ERROR:DST-040:BALANCE_INSUFFICIENT"):
+        distribution.withdraw(other_amount, {'from': productOwner})
+
+
+def _createCommisssionSetup(
+    instance,
+    instanceService,
+    instanceOperator,
+    instanceWallet,
+    productOwner,
+    distributor,
+    investor,
+    customer,
+    protectedWallet,
+    product20,
+    riskpool20,
+    riskpoolWallet,
+    usd1: USD1,
+    usd2: USD2,
+):
+    distribution = _deploy_distribution(product20, productOwner)
+    distribution.createDistributor(distributor, {'from': productOwner})
+
+    tf = 10**usd2.decimals()
+    max_protected_balance = 10000
+    bundle_funding = (max_protected_balance * 2) / 5
+    bundle_id = create_bundle(
+        instance, 
+        instanceOperator, 
+        investor, 
+        riskpool20,
+        maxProtectedBalance = max_protected_balance,
+        funding = bundle_funding)
+
+    # setup up wallet to protect with some coins
+    protected_balance = 5000 * tf
+    usd1.transfer(protectedWallet, protected_balance, {'from': instanceOperator})
+
+    # buy policy for wallet to be protected
+    duration_days = 60
+    duration_seconds = duration_days * 24 * 3600
+
+    (
+        total_premium,
+        commission
+    ) = distribution.calculatePrice(
+        distributor,
+        protected_balance,
+        duration_seconds,
+        bundle_id
+    )
+
+    # fund customer
+    usd2.transfer(customer, total_premium, {'from': instanceOperator})
+    usd2.approve(distribution, total_premium, {'from': customer})
+
+    tx = distribution.createPolicy(
+        customer,
+        protectedWallet,
+        protected_balance,
+        duration_seconds,
+        bundle_id,
+        {'from': distributor})
+
+    return (
+        distribution,
+        commission
+    )
+
+
 def _deploy_distribution(
     product,
     productOwner,

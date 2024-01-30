@@ -197,19 +197,30 @@ contract DepegDistribution is
         return (netPremiumAmount * rate) / (10**DECIMALS - rate);
     }
 
+    /// @dev distribution owner "override" to potentially collect commissions that
+    /// that is not collected by  
     function withdraw(uint256 amount)
         external
         onlyOwner()
     {
         require(_token.balanceOf(address(this)) >= amount, "ERROR:DST-040:BALANCE_INSUFFICIENT");
+        require(_token.transfer(owner(), amount), "ERROR:DST-041:WITHDRAWAL_FAILED");
     }
 
     function withdrawCommission(uint256 amount)
         external
         onlyDistributor()
     {
-        require(getCommissionBalance(msg.sender) >= amount, "ERROR:DST-050:AMOUNT_TOO_LARGE");
+        address distributor = msg.sender;
+        require(getCommissionBalance(distributor) >= amount, "ERROR:DST-050:AMOUNT_TOO_LARGE");
         require(_token.balanceOf(address(this)) >= amount, "ERROR:DST-051:BALANCE_INSUFFICIENT");
+
+        // update distributor book keeping record
+        DistributorInfo storage info = _distributor[distributor];
+        info.commissionBalance -= amount;
+        info.updatedAt = block.timestamp;
+
+        require(_token.transfer(distributor, amount), "ERROR:DST-041:WITHDRAWAL_FAILED");
     }
 
     function getToken() external view returns (address token) {
