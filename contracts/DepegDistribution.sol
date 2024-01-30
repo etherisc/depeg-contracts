@@ -170,7 +170,7 @@ contract DepegDistribution is
             uint256 commissionAmount
         )
     {
-        // TODO fetch policy price
+        // fetch policy price
         uint256 sumInsured = _depegRiskpool.calculateSumInsured(protectedBalance);
         uint256 netPremium = _depegProduct.calculateNetPremium(
             sumInsured,
@@ -179,7 +179,7 @@ contract DepegDistribution is
 
         uint256 depegPremium = _depegProduct.calculatePremium(netPremium);
 
-        // TODO calculate commission and total premium
+        // calculate commission and total premium
         commissionAmount = calculateCommission(distributor, depegPremium);
         premiumTotalAmount = depegPremium + commissionAmount;
     } 
@@ -201,15 +201,15 @@ contract DepegDistribution is
         external
         onlyOwner()
     {
-        require(_token.balanceOf(address(this)) >= amount, "ERROR:DST-010:COMMISION_BALANCE_TOO_LARGE");
+        require(_token.balanceOf(address(this)) >= amount, "ERROR:DST-040:BALANCE_INSUFFICIENT");
     }
 
     function withdrawCommission(uint256 amount)
         external
         onlyDistributor()
     {
-        require(getCommissionBalance(msg.sender) >= amount, "ERROR:DST-021:COMMISION_AMOUNT_TOO_LARGE");
-        require(_token.balanceOf(address(this)) >= amount, "ERROR:DST-022:COMMISION_BALANCE_INSUFFICIENT");
+        require(getCommissionBalance(msg.sender) >= amount, "ERROR:DST-050:AMOUNT_TOO_LARGE");
+        require(_token.balanceOf(address(this)) >= amount, "ERROR:DST-051:BALANCE_INSUFFICIENT");
     }
 
     function getToken() external view returns (address token) {
