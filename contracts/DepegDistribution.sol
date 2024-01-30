@@ -220,7 +220,7 @@ contract DepegDistribution is
         info.commissionBalance -= amount;
         info.updatedAt = block.timestamp;
 
-        require(_token.transfer(distributor, amount), "ERROR:DST-041:WITHDRAWAL_FAILED");
+        require(_token.transfer(distributor, amount), "ERROR:DST-052:WITHDRAWAL_FAILED");
     }
 
     function getToken() external view returns (address token) {
