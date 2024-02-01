@@ -44,6 +44,7 @@ def isolation(fn_isolation):
     pass
 
 COMMISSION_RATE_DEFAULT = 0.05
+COMMISSION_RATE_MAX = 0.33
 COMMISSION_TOLERANCE = 10 ** -9
 
 def test_deploy_distribution(
@@ -62,6 +63,7 @@ def test_deploy_distribution(
     assert distribution.getToken() == usd2
 
     assert distribution.COMMISSION_RATE_DEFAULT() / 10**distribution.DECIMALS() == COMMISSION_RATE_DEFAULT
+    assert distribution.COMMISSION_RATE_MAX() / 10 ** distribution.DECIMALS() == COMMISSION_RATE_MAX
 
     assert distribution.distributors() == 0
     assert not distribution.isDistributor(distributor)
@@ -99,6 +101,74 @@ def test_create_distributor_happy_case(
     assert commission == full_premium * commission_rate / 10 ** distribution.DECIMALS()
 
     assert not distribution.isDistributor(theOutsider)
+
+
+def test_set_commission_rate_happy_case(
+    product20,
+    productOwner,
+    distributor,
+):
+    distribution = _deploy_distribution(product20, productOwner)
+    distribution.createDistributor(distributor, {'from': productOwner})
+
+    # check initial setting
+    assert distribution.getCommissionRate(distributor) == distribution.COMMISSION_RATE_DEFAULT()
+
+    # set to higher rate
+    commission_rate_new = 12 * 10 ** (distribution.DECIMALS() - 2);
+    distribution.setCommissionRate(distributor, commission_rate_new, {'from': productOwner})
+
+    assert commission_rate_new > distribution.COMMISSION_RATE_DEFAULT()
+    assert distribution.getCommissionRate(distributor) == commission_rate_new
+
+    # set to max rate
+    distribution.setCommissionRate(distributor, distribution.COMMISSION_RATE_MAX(), {'from': productOwner})
+
+    assert distribution.getCommissionRate(distributor) == distribution.COMMISSION_RATE_MAX()
+
+    # set rate to zero
+    commission_rate_zero = 0;
+    distribution.setCommissionRate(distributor, commission_rate_zero, {'from': productOwner})
+
+    assert distribution.getCommissionRate(distributor) == commission_rate_zero
+
+
+def test_set_commission_rate_too_high(
+    product20,
+    productOwner,
+    distributor,
+):
+    distribution = _deploy_distribution(product20, productOwner)
+    distribution.createDistributor(distributor, {'from': productOwner})
+
+    # check initial setting
+    assert distribution.getCommissionRate(distributor) == distribution.COMMISSION_RATE_DEFAULT()
+
+    # set to higher rate
+    commission_rate_too_high = distribution.COMMISSION_RATE_MAX() + 1
+    with brownie.reverts("ERROR:DST-031:COMMISSION_RATE_TOO_HIGH"):
+        distribution.setCommissionRate(distributor, commission_rate_too_high, {'from': productOwner})
+
+
+def test_set_commission_rate_authz(
+    product20,
+    productOwner,
+    distributor,
+    theOutsider
+):
+    distribution = _deploy_distribution(product20, productOwner)
+    distribution.createDistributor(distributor, {'from': productOwner})
+
+    # set to new rate
+    new_rate = 12 * 10 ** (distribution.DECIMALS() - 2);
+
+    # attempt to set rate by distributor itself
+    with brownie.reverts("Ownable: caller is not the owner"):
+        distribution.setCommissionRate(distributor, new_rate, {'from': distributor})
+
+    # attempt to set rate by outsider
+    with brownie.reverts("Ownable: caller is not the owner"):
+        distribution.setCommissionRate(distributor, new_rate, {'from': theOutsider})
 
 
 def test_create_distributor_authz(

@@ -25,6 +25,7 @@ contract DepegDistribution is
 
     uint8 public constant DECIMALS = 18;
     uint256 public constant COMMISSION_RATE_DEFAULT = 5 * 10 ** (DECIMALS - 2);
+    uint256 public constant COMMISSION_RATE_MAX = 33 * 10 ** (DECIMALS - 2);
 
     DepegProduct private _depegProduct;
     DepegRiskpool private _depegRiskpool;
@@ -81,8 +82,23 @@ contract DepegDistribution is
         _distributors.push(distributor);
 
         return _distributor[distributor];
-
     }
+
+    function setCommissionRate(
+        address distributor,
+        uint256 commissionRate
+    )
+        external
+        onlyOwner()
+    {
+        require(isDistributor(distributor), "ERROR:DST-030:NOT_DISTRIBUTOR");
+        require(commissionRate <= COMMISSION_RATE_MAX, "ERROR:DST-031:COMMISSION_RATE_TOO_HIGH");
+        
+        DistributorInfo storage info = _distributor[distributor];
+        info.commissionRate = commissionRate;
+        info.updatedAt = block.timestamp;
+    }
+
 
     /// @dev lets a distributor create a policy for the specified wallet address
     // the policy holder is this contract, the beneficiary is the specified wallet address
@@ -249,5 +265,9 @@ contract DepegDistribution is
 
     function getCommissionRate(address distributor) external view returns (uint256 commissionRate) {
         return _distributor[distributor].commissionRate;
+    }
+
+    function getDistributorInfo(address distributor) external view returns (DistributorInfo memory) {
+        return _distributor[distributor];
     }
 }
