@@ -65,6 +65,7 @@ def test_happy_path(
 
     # create token allowance for payouts
     max_payout_amount = 100000
+    token.approve(instanceService.getTreasuryAddress(), 0,  {'from': riskpool_wallet})
     token.approve(
         instanceService.getTreasuryAddress(), 
         max_payout_amount * tf, 
@@ -520,6 +521,7 @@ def test_close_policy_no_depeg_event(
 
     # create token allowance for payouts
     max_payout_amount = 100000
+    token.approve(instanceService.getTreasuryAddress(), 0,  {'from': riskpool_wallet})
     token.approve(
         instanceService.getTreasuryAddress(), 
         max_payout_amount * tf, 
@@ -617,6 +619,7 @@ def test_close_policy_after_depeg_event_well_before_expiry(
 
     # create token allowance for payouts
     max_payout_amount = 100000
+    token.approve(instanceService.getTreasuryAddress(), 0,  {'from': riskpool_wallet})
     token.approve(
         instanceService.getTreasuryAddress(), 
         max_payout_amount * tf, 
@@ -741,6 +744,7 @@ def test_close_policy_after_depeg_event_at_end_of_expiry(
 
     # create token allowance for payouts
     max_payout_amount = 100000
+    token.approve(instanceService.getTreasuryAddress(), 0,  {'from': riskpool_wallet})
     token.approve(
         instanceService.getTreasuryAddress(), 
         max_payout_amount * tf, 
@@ -863,6 +867,7 @@ def test_over_protected_with_single_policy(
 
     # create token allowance for payouts
     max_payout_amount = 100000
+    token.approve(instanceService.getTreasuryAddress(), 0,  {'from': riskpool_wallet})
     token.approve(
         instanceService.getTreasuryAddress(), 
         max_payout_amount * tf, 
@@ -992,6 +997,7 @@ def test_over_protected_with_multiple_policies(
 
     # create token allowance for payouts
     max_payout_amount = 100000
+    token.approve(instanceService.getTreasuryAddress(), 0,  {'from': riskpool_wallet})
     token.approve(
         instanceService.getTreasuryAddress(), 
         max_payout_amount * tf, 

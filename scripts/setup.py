@@ -87,6 +87,7 @@ def create_bundle(
 
     instanceService = instance.getInstanceService()
     token.transfer(investor, funding * tf, {'from': instanceOperator})
+    token.approve(instanceService.getTreasuryAddress(), 0, {'from': investor})
     token.approve(instanceService.getTreasuryAddress(), funding * tf, {'from': investor})
 
     apr100level = riskpool.getApr100PercentLevel();
@@ -126,6 +127,7 @@ def apply_for_policy_with_bundle(
     if maxPremium > 0:
         token.transfer(customer, maxPremium * tf, {'from': instanceOperator})
 
+    token.approve(instance.getTreasury(), 0, {'from': customer})
     token.approve(instance.getTreasury(), maxPremium * tf, {'from': customer})
 
     if not wallet:

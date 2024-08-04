@@ -190,6 +190,7 @@ def test_create_policy(
     # transfer some tokens to pay for premium
     premiumFunds = protectedBalance / 10
     token.transfer(customer, premiumFunds, {'from': instanceOperator})
+    token.approve(instanceService.getTreasuryAddress(), 0, {'from': customer})
     token.approve(instanceService.getTreasuryAddress(), premiumFunds, {'from': customer})
 
     # create application/policy for customer

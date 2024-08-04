@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.2;
 
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@etherisc/gif-interface/contracts/modules/IRegistry.sol";
 import "@etherisc/gif-interface/contracts/services/IInstanceService.sol";
 
@@ -124,7 +125,7 @@ contract DepegDistribution is
             bundleId);
 
         // create allowance for net premium
-        _token.approve(_treasury, premiumNetAmount);
+        SafeERC20.safeIncreaseAllowance(_token, _treasury, premiumNetAmount);
 
         // create policy
         // this will transfer premium amount from this contract to depeg (and keep the commission in this contract)
@@ -167,7 +168,7 @@ contract DepegDistribution is
         info.updatedAt = block.timestamp;
 
         // collect total premium amount
-        _token.transferFrom(buyer, address(this), premiumTotalAmount);
+        SafeERC20.safeTransferFrom(_token, buyer, address (this), premiumTotalAmount);
 
         emit LogDistributionInfoUpdated(distributor, commissionAmount, info.commissionBalance, info.policiesSold);
     }
@@ -220,7 +221,7 @@ contract DepegDistribution is
         onlyOwner()
     {
         require(_token.balanceOf(address(this)) >= amount, "ERROR:DST-040:BALANCE_INSUFFICIENT");
-        require(_token.transfer(owner(), amount), "ERROR:DST-041:WITHDRAWAL_FAILED");
+        SafeERC20.safeTransfer(_token, owner(), amount);
     }
 
     function withdrawCommission(uint256 amount)
@@ -236,7 +237,7 @@ contract DepegDistribution is
         info.commissionBalance -= amount;
         info.updatedAt = block.timestamp;
 
-        require(_token.transfer(distributor, amount), "ERROR:DST-052:WITHDRAWAL_FAILED");
+        SafeERC20.safeTransfer(_token, distributor, amount);
     }
 
     function getToken() external view returns (address token) {

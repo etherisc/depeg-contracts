@@ -170,6 +170,7 @@ def test_riskpool_enforcing_caps_simple(
 
     # attempt to increase bundle capital via bundle funding
     increase_amount = 1
+    usd2.approve(instanceService.getTreasuryAddress(), 0, {'from': investor})
     usd2.approve(instanceService.getTreasuryAddress(), increase_amount, {'from': investor})
 
     with brownie.reverts('ERROR:DRP-100:FUNDING_EXCEEDS_BUNDLE_CAPITAL_CAP'):
@@ -181,6 +182,7 @@ def test_riskpool_enforcing_caps_simple(
     # check that defunding, then funding again works
     delta_amount = 10 * 10 ** usd2.decimals()
 
+    usd2.approve(instanceService.getTreasuryAddress(), 0, {'from': riskpoolWallet})
     usd2.approve(instanceService.getTreasuryAddress(), delta_amount, {'from': riskpoolWallet})
     riskpool.defundBundle(
         bundle_id,
@@ -189,6 +191,7 @@ def test_riskpool_enforcing_caps_simple(
 
     assert instanceService.getBundle(bundle_id).dict()['capital'] == bundle_cap * tf - delta_amount
 
+    usd2.approve(instanceService.getTreasuryAddress(), 0, {'from': investor})
     usd2.approve(instanceService.getTreasuryAddress(), delta_amount, {'from': investor})
     riskpool.fundBundle(
         bundle_id,
@@ -256,6 +259,7 @@ def test_riskpool_enforcing_caps_multiple_bundles(
 
     # verify that funding bundles is not possible even with its capital < bundle_cap
     increase_amount = 1
+    usd2.approve(instanceService.getTreasuryAddress(), 0, {'from': investor})
     usd2.approve(instanceService.getTreasuryAddress(), increase_amount, {'from': investor})
 
     # try to fund bundl 1

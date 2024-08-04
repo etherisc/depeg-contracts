@@ -247,6 +247,8 @@ def test_sell_policy_trough_distributor(
     assert distribution.getCommissionBalance(distributor) == 0
     assert distribution.getPoliciesSold(distributor) == 0
 
+    # assert False
+
     tx = distribution.createPolicy(
         customer,
         protectedWallet,
