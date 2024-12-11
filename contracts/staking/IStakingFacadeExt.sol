@@ -27,6 +27,7 @@ interface IStakingFacadeExt is IStakingFacade {
         uint40 createdAt;
         uint40 updatedAt;
         uint48 version;
+        uint40 lockedUntil; // introduced with V03
     }
 
     function getInfo(uint96 id) external view returns(StakeInfo memory info);

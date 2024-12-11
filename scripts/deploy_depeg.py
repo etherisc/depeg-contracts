@@ -104,6 +104,7 @@ def help():
     print('# check mainnet setup')
     print("(setup, product, feeder, riskpool, registry, staking, dip, usdt, usdc, instance_service) = get_setup('0x8E43A861e9F270b58b1801171C627421Eb956cbA')")
     print('')
+    print("product_address = '0x8281f2bECfF37326Eb6cBE33527434611558B031'")
     print('(setup, product, feeder, riskpool, registry, staking, dip, usdt, usdc, instance_service) = get_setup(product_address)')
     print('')
     print('import json')
@@ -278,7 +279,7 @@ def get_setup(product_address):
     (staking, registry, nft, dip_token) = (None, None, None, None)
 
     if riskpool.getStaking() != ZERO_ADDRESS:
-        staking = contract_from_address(interface.IStakingFacade, riskpool.getStaking())
+        staking = contract_from_address(interface.IStakingFacadeExt, riskpool.getStaking())
         staking_contract = (interface.IStakingFacade._name, str(staking))
         staking_owner = staking.owner()
         dip_token = contract_from_address(DIP, staking.getDip())
@@ -471,6 +472,51 @@ def get_setup(product_address):
         protected_token,
         instance_service
     )
+
+
+def filter_stakes(stakes, target_bundle=59101, min_balance=1):
+    total_rewards_open = 0
+    total_rewards_balance = 0
+
+    print("# stake_nft_id target_nft_id stake_balance reward_balance rewards_open")
+
+    for stake_nft_id in stakes.keys():
+        stake = stakes[stake_nft_id]
+        if target_bundle and target_bundle != stake['target']:
+            continue
+
+        if stakes[stake_nft_id]['stakeBalance'] < min_balance:
+            continue
+
+        print(f"{stake_nft_id} {stake['target']} {stake['stakeBalance']} {stake['rewardBalance']} {stake['rewardsOpen']}")
+        total_rewards_open += stake['rewardsOpen']
+        total_rewards_balance += stake['rewardBalance']
+
+    print(f"# total rewards balance {total_rewards_balance}")
+    print(f"# total rewards open {total_rewards_open}")
+
+
+def get_stakes(registry, staking, chain_id=1, max_results=0) -> dict:
+    stakes = {}
+    stake_type_id = 10
+    stakes_count = registry.objects(registry.toChain(chain_id), stake_type_id)
+
+    if max_results > 0:
+        stakes_count = min(stakes_count, max_results)
+    
+    for i in range(stakes_count):
+        stake_nft_id = registry.getNftId(registry.toChain(chain_id), stake_type_id, i)
+        stake_info = staking.getInfo(stake_nft_id)
+        rewards_open = staking.calculateRewardsIncrement(stake_info)
+
+        stake = stake_info.dict()
+        stake['rewardsOpen'] = rewards_open
+
+        stakes[stake_nft_id] = stake
+        print(f'{i}/{stakes_count} {stake_nft_id}')
+
+    return stakes
+
 
 
 def _getStakeBalance(staking, dip):
