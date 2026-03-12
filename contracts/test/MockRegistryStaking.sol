@@ -39,6 +39,7 @@ contract MockRegistryStaking is
     event LogMockComponentRegistered(uint256 id, bytes5 chain, uint8 objectType, bytes32 instanceId, uint256 riskpoolId, address to);
     event LogMockBundleRegistered(uint256 id, bytes5 chain, uint8 objectType, bytes32 instanceId, uint256 riskpoolId, uint256 bundleId, address to);
     event LogMockBundleLifetimeExtended(uint96 nftId, uint256 lifetimeExtension, address sender);
+    event LogMockBundleExpirySet(uint96 nftId, uint256 expiryAt, address sender);
 
     // keep track of chain and object specific minted counts, and items
     mapping(bytes5 /* chain id*/ => mapping(uint8 /* object type */ => uint96 [] /* nft ids*/)) private _objects;
@@ -296,6 +297,34 @@ contract MockRegistryStaking is
         );
 
         emit LogMockBundleLifetimeExtended(nftId, lifetimeExtension, msg.sender);
+    }
+
+    function setBundleExpiryAt(
+        uint96 nftId,
+        uint256 expiryAtNew
+    )
+        external
+        override
+    {
+        (
+            bytes32 instanceId,
+            uint256 riskpoolId,
+            uint256 bundleId,
+            address token,
+            string memory displayName,
+            uint256 expiryAtOld
+        )  = decodeBundleData(nftId);
+
+        _bundleData[nftId] = encodeBundleData(
+            instanceId,
+            riskpoolId,
+            bundleId,
+            token,
+            displayName,
+            expiryAtNew
+        );
+
+        emit LogMockBundleExpirySet(nftId, expiryAtNew, msg.sender);
     }
 
 

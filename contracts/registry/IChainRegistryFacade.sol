@@ -30,6 +30,7 @@ interface IChainRegistryFacade {
         returns(uint96 nftId);
 
     function extendBundleLifetime(uint96 id, uint256 lifetimeExtension) external;
+    function setBundleExpiryAt(uint96 id, uint256 expiryAt) external;
 
     function owner() external view returns(address);
     function getNft() external view returns(IChainNftFacade);

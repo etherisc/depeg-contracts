@@ -363,6 +363,36 @@ contract DepegRiskpool is
     }
 
 
+    function _afterCloseBundle(uint256 bundleId)
+        internal
+        override
+    {
+        super._afterCloseBundle(bundleId);
+        _syncBundleExpiryWithCurrentTime(bundleId);
+    }
+
+    function _afterBurnBundle(uint256 bundleId)
+        internal
+        override
+    {
+        _syncBundleExpiryWithCurrentTime(bundleId);
+    }
+
+    function _syncBundleExpiryWithCurrentTime(uint256 bundleId)
+        internal
+    {
+        if (address(_chainRegistry) == address(0) || _bundleNftId[bundleId] == 0) {
+            return;
+        }
+
+        uint96 nftId = getNftId(bundleId);
+        (,,,,, uint256 expiryAt) = _chainRegistry.decodeBundleData(nftId);
+
+        if (expiryAt > block.timestamp) {
+            _chainRegistry.setBundleExpiryAt(nftId, block.timestamp);
+        }
+    }
+
     function getSumInsuredPercentage()
         external
         view
