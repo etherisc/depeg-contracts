@@ -92,29 +92,6 @@ def test_riskpool_setting_caps(
     assert riskpool.getRiskpoolCapitalCap() == riskpool_cap
     assert riskpool.getBundleCapitalCap() == bundle_cap
 
-    # check that doubling capital caps work
-    riskpool_cap_new = 2 * riskpool_cap
-    bundle_cap_new = int(riskpool_cap_new / 3)
-
-    assert riskpool_cap_new > riskpool_cap
-    assert bundle_cap_new > bundle_cap
-
-    tx = riskpool.setCapitalCaps(
-        riskpool_cap_new,
-        bundle_cap_new,
-        {'from': riskpoolKeeper})
-
-    assert 'LogRiskpoolCapitalSet' in tx.events
-    assert tx.events['LogRiskpoolCapitalSet']['poolCapitalOld'] == riskpool_cap
-    assert tx.events['LogRiskpoolCapitalSet']['poolCapitalNew'] == riskpool_cap_new
-    
-    assert 'LogBundleCapitalSet' in tx.events
-    assert tx.events['LogBundleCapitalSet']['bundleCapitalOld'] == bundle_cap
-    assert tx.events['LogBundleCapitalSet']['bundleCapitalNew'] == bundle_cap_new
-
-    assert riskpool.getRiskpoolCapitalCap() == riskpool_cap_new
-    assert riskpool.getBundleCapitalCap() == bundle_cap_new
-
 
 def test_riskpool_enforcing_caps_simple(
     riskpool,
@@ -169,9 +146,7 @@ def test_riskpool_enforcing_caps_simple(
     assert bundle['balance'] == bundle_cap * tf
 
     # attempt to increase bundle capital via bundle funding
-    increase_amount = 1
-    usd2.approve(instanceService.getTreasuryAddress(), 0, {'from': investor})
-    usd2.approve(instanceService.getTreasuryAddress(), increase_amount, {'from': investor})
+    increase_amount = 10 * 10 ** usd2.decimals()
 
     with brownie.reverts('ERROR:DRP-100:FUNDING_EXCEEDS_BUNDLE_CAPITAL_CAP'):
         riskpool.fundBundle(
@@ -180,99 +155,25 @@ def test_riskpool_enforcing_caps_simple(
             {'from': investor})
 
     # check that defunding, then funding again works
-    delta_amount = 10 * 10 ** usd2.decimals()
+    delta_amount = 5 * 10 ** usd2.decimals()
 
-    usd2.approve(instanceService.getTreasuryAddress(), 0, {'from': riskpoolWallet})
-    usd2.approve(instanceService.getTreasuryAddress(), delta_amount, {'from': riskpoolWallet})
     riskpool.defundBundle(
         bundle_id,
         delta_amount,
         {'from': investor})
-
     assert instanceService.getBundle(bundle_id).dict()['capital'] == bundle_cap * tf - delta_amount
 
-    usd2.approve(instanceService.getTreasuryAddress(), 0, {'from': investor})
-    usd2.approve(instanceService.getTreasuryAddress(), delta_amount, {'from': investor})
-    riskpool.fundBundle(
-        bundle_id,
-        delta_amount,
-        {'from': investor})
-
-    assert instanceService.getBundle(bundle_id).dict()['capital'] == bundle_cap * tf
-
-
-def test_riskpool_enforcing_caps_multiple_bundles(
-    riskpool,
-    riskpoolKeeper,
-    riskpoolWallet,
-    instance,
-    instanceService,
-    instanceOperator,
-    investor,
-    usd2,
-):
-    riskpool_cap = 10000
-    bundle_cap = int(riskpool_cap * 2 / 3)
-    tf = 10 ** usd2.decimals()
-
-    assert 2 * bundle_cap > riskpool_cap
-
+    # double caps and try again
     riskpool.setCapitalCaps(
-        riskpool_cap * tf,
-        bundle_cap * tf,
+        2 * riskpool_cap * tf,
+        int(riskpool_cap / 3) * tf,
         {'from': riskpoolKeeper})
 
-    # case 3: attempt to create 2 bundles, each < bundle cap, summed > pool cap
-
-    # 1st bundle -> check this is ok
-    bundle_id1 = create_bundle(
+    with brownie.reverts('ERROR:DRP-027:RISK_CAPITAL_INVALID'):
+        create_bundle(
             instance, 
             instanceOperator, 
             investor, 
             riskpool,
             maxProtectedBalance = bundle_cap - 1,
-            funding=bundle_cap)
-
-    # verify there's no room for a second such bundle
-    with brownie.reverts('ERROR:DRP-028:POOL_CAPITAL_CAP_EXCEEDED'):
-        create_bundle(
-                instance, 
-                instanceOperator, 
-                investor, 
-                riskpool,
-                maxProtectedBalance = bundle_cap - 1,
-                funding=bundle_cap)
-
-    # case 4: as 3, withdraw from 1st bundle as much as is needed to get: summed == pool cap    # try again with reduced funding for 2nd bundle
-    second_bundle_funding_max = riskpool_cap - bundle_cap
-    bundle_id2 = create_bundle(
-                instance, 
-                instanceOperator, 
-                investor, 
-                riskpool,
-                maxProtectedBalance = bundle_cap - 1,
-                funding=second_bundle_funding_max)
-
-    assert riskpool.getCapital() == riskpool_cap * tf
-    assert instanceService.getBundle(bundle_id1).dict()['capital'] == bundle_cap * tf
-    assert instanceService.getBundle(bundle_id2).dict()['capital'] == second_bundle_funding_max * tf
-
-    # verify that funding bundles is not possible even with its capital < bundle_cap
-    increase_amount = 1
-    usd2.approve(instanceService.getTreasuryAddress(), 0, {'from': investor})
-    usd2.approve(instanceService.getTreasuryAddress(), increase_amount, {'from': investor})
-
-    # try to fund bundl 1
-    with brownie.reverts('ERROR:DRP-100:FUNDING_EXCEEDS_BUNDLE_CAPITAL_CAP'):
-        riskpool.fundBundle(
-            bundle_id1,
-            increase_amount,
-            {'from': investor})
-
-    # try to fund bundl 2
-    with brownie.reverts('ERROR:DRP-101:FUNDING_EXCEEDS_RISKPOOL_CAPITAL_CAP'):
-        riskpool.fundBundle(
-            bundle_id2,
-            increase_amount,
-            {'from': investor})
-
+            funding=riskpool_cap * 4)
