@@ -116,6 +116,10 @@ def registryOwner(accounts) -> Account:
     return get_filled_account(accounts, 13, "1 ether")
 
 @pytest.fixture(scope="module")
+def distributor(accounts) -> Account:
+    return get_filled_account(accounts, 14, "1 ether")
+
+@pytest.fixture(scope="module")
 def theOutsider(accounts) -> Account:
     return get_filled_account(accounts, 19, "1 ether")
 

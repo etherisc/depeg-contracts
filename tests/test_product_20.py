@@ -232,6 +232,7 @@ def test_product_20_try_to_create_policy_for_locked_bundle(
     max_premium = 100
 
     usd2.transfer(customer, max_premium * tf, {'from': instanceOperator})
+    usd2.approve(instanceService.getTreasuryAddress(), 0, {'from': customer})
     usd2.approve(instanceService.getTreasuryAddress(), max_premium * tf, {'from': customer})
 
     # lock bundle
@@ -330,6 +331,7 @@ def test_premium_payment(
 
     # setup with correct balance and allowance
     usd2.transfer(theOutsider, premium, {'from': instanceOperator})
+    usd2.approve(instance.getTreasury(), 0, {'from': theOutsider})
     usd2.approve(instance.getTreasury(), premium, {'from': theOutsider})
 
     # check actual account balances before 
@@ -400,6 +402,7 @@ def test_create_policy_bad_balance_or_allowance(
 
     # failure case 1: balance too small, allowance ok
     usd2.transfer(theOutsider, premium - missing_from_balance, {'from': instanceOperator})
+    usd2.approve(instance.getTreasury(), 0, {'from': theOutsider})
     usd2.approve(instance.getTreasury(), premium, {'from': theOutsider})
 
     with brownie.reverts('ERROR:DP-014:BALANCE_TOO_LOW'):
@@ -411,6 +414,7 @@ def test_create_policy_bad_balance_or_allowance(
             {'from': theOutsider})
 
     # failure case 2: balance and allowance too small
+    usd2.approve(instance.getTreasury(), 0, {'from': theOutsider})
     usd2.approve(instance.getTreasury(), premium - missing_from_allowance, {'from': theOutsider})
 
     with brownie.reverts('ERROR:DP-014:BALANCE_TOO_LOW'):
@@ -433,6 +437,7 @@ def test_create_policy_bad_balance_or_allowance(
             {'from': theOutsider})
 
     # ok case 1: balance ok,, allowance ok
+    usd2.approve(instance.getTreasury(), 0, {'from': theOutsider})
     usd2.approve(instance.getTreasury(), premium, {'from': theOutsider})
 
     tx = product20.applyForPolicyWithBundle(
@@ -486,6 +491,7 @@ def test_product_20_depeg_normal(
     # create token allowance for payouts
     max_protected_balance = 10000
     max_payout_amount = max_protected_balance
+    token.approve(instanceService.getTreasuryAddress(), 0,  {'from': riskpoolWallet})
     token.approve(
         instanceService.getTreasuryAddress(), 
         max_payout_amount * tf, 
@@ -657,6 +663,7 @@ def test_product_20_depeg_below_80(
     # create token allowance for payouts
     max_protected_balance = 10000
     max_payout_amount = max_protected_balance
+    token.approve(instanceService.getTreasuryAddress(), 0, {'from': riskpoolWallet})
     token.approve(
         instanceService.getTreasuryAddress(), 
         max_payout_amount * tf, 

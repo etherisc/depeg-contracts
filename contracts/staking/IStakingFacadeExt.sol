@@ -27,8 +27,12 @@ interface IStakingFacadeExt is IStakingFacade {
         uint40 createdAt;
         uint40 updatedAt;
         uint48 version;
+        uint40 lockedUntil; // introduced with V03
     }
 
-    function getInfo(uint96 id) external view returns(StakeInfo memory info);
+    function setTargetRewardRate(uint96 targetNftId, uint256 newRewardRate) external;
+    function getTargetRewardRate(uint96 targetNftId) external view returns(uint256 rewardRate);
+
+    function getInfo(uint96 stakeNftId) external view returns(StakeInfo memory info);
     function calculateRewardsIncrement(StakeInfo memory stakeInfo) external view returns(uint256 rewardsAmount);
 }
