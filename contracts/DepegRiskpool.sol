@@ -11,6 +11,7 @@ import "@etherisc/gif-interface/contracts/tokens/IBundleToken.sol";
 import "./gif/BasicRiskpool2.sol";
 import "./registry/IChainRegistryFacade.sol";
 import "./staking/IStakingFacade.sol";
+import "./staking/IStakingFacadeExt.sol";
 
 
 contract DepegRiskpool is 
@@ -751,6 +752,32 @@ contract DepegRiskpool is
             "ERROR:DRP-101:FUNDING_EXCEEDS_RISKPOOL_CAPITAL_CAP");
     }
 
+
+    function _afterCloseBundle(uint256 bundleId) internal override virtual {
+        super._afterCloseBundle(bundleId);
+
+        // stop reward accumulation for closed bundle
+        if (address(_staking) != address(0)) {
+            uint96 nftId = getNftId(bundleId);
+            if (nftId > 0) {
+                // IStakingFacadeExt required to call setTargetRewardRate
+                try IStakingFacadeExt(address(_staking)).setTargetRewardRate(nftId, 0) {} catch {}
+            }
+        }
+    }
+
+    function _afterBurnBundle(uint256 bundleId) internal override virtual {
+        super._afterBurnBundle(bundleId);
+
+        // stop reward accumulation for burned bundle (just to be safe if not already closed)
+        if (address(_staking) != address(0)) {
+            uint96 nftId = getNftId(bundleId);
+            if (nftId > 0) {
+                // IStakingFacadeExt required to call setTargetRewardRate
+                try IStakingFacadeExt(address(_staking)).setTargetRewardRate(nftId, 0) {} catch {}
+            }
+        }
+    }
 
     function _getBundleApr(uint256 bundleId) internal view returns (uint256 annualPercentageReturn) {
         bytes memory filter = getBundleFilter(bundleId);
